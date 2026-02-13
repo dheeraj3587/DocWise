@@ -65,7 +65,7 @@ async def chat_ask(
     context_chunks = embedding_service.search_similar(
         file_id=body.file_id,
         query=body.question,
-        top_k=5,
+        top_k=10,
     )
 
     async def event_generator():

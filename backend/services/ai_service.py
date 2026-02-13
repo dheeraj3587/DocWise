@@ -81,12 +81,13 @@ class AIService:
 
         prompt = f"""You are DocWise, an intelligent document assistant.
 Answer questions based ONLY on the provided context below.
+Provide a **detailed and thorough** answer — do not be brief.
 Format your responses using markdown for readability:
 - Use **bold** for key terms and important points
 - Use bullet points or numbered lists when listing multiple items
 - Use ## headings to organize longer answers into clear sections
 - Use `code` formatting for technical terms when appropriate
-- Keep answers concise yet comprehensive
+- Include relevant details, examples, and explanations from the context
 - If the context does not contain the answer, clearly state that
 {timestamp_instruction}
 Context:
