@@ -79,8 +79,15 @@ class AIService:
                 "can jump to that part of the audio/video. "
             )
 
-        prompt = f"""You are a helpful assistant that answers questions based on the provided context.
-Use ONLY the context below to answer. If the context doesn't contain the answer, say so.
+        prompt = f"""You are DocWise, an intelligent document assistant.
+Answer questions based ONLY on the provided context below.
+Format your responses using markdown for readability:
+- Use **bold** for key terms and important points
+- Use bullet points or numbered lists when listing multiple items
+- Use ## headings to organize longer answers into clear sections
+- Use `code` formatting for technical terms when appropriate
+- Keep answers concise yet comprehensive
+- If the context does not contain the answer, clearly state that
 {timestamp_instruction}
 Context:
 {context_text}
@@ -103,8 +110,13 @@ Answer:"""
 
     async def summarize(self, text: str, deep_mode: bool = False) -> str:
         """Generate a summary of the given text."""
-        prompt = f"""Provide a comprehensive but concise summary of the following content.
-Organize the summary with clear sections and key points.
+        prompt = f"""Generate a well-structured summary using markdown formatting:
+- Start with a brief overview (2-3 sentences)
+- Use ## headings to organize key topics
+- Use bullet points for important details under each topic
+- Highlight **key terms** and **critical information** in bold
+- End with a Key Takeaways section if the content is long
+- Be comprehensive but concise
 
 Content:
 {text}
@@ -117,8 +129,13 @@ Summary:"""
 
     async def summarize_stream(self, text: str, deep_mode: bool = False) -> AsyncGenerator[str, None]:
         """Stream a summary of the given text."""
-        prompt = f"""Provide a comprehensive but concise summary of the following content.
-Organize the summary with clear sections and key points.
+        prompt = f"""Generate a well-structured summary using markdown formatting:
+- Start with a brief overview (2-3 sentences)
+- Use ## headings to organize key topics
+- Use bullet points for important details under each topic
+- Highlight **key terms** and **critical information** in bold
+- End with a Key Takeaways section if the content is long
+- Be comprehensive but concise
 
 Content:
 {text}

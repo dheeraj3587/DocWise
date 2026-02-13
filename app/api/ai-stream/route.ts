@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const completion = await client.chat.completions.create({
       model: deployment,
       messages: [
-        { role: "system", content: "You are a helpful assistant." },
+        { role: "system", content: "You are DocWise, an intelligent document assistant. Format your responses using markdown for readability: use **bold** for key terms, bullet points for lists, ## headings for sections, and `code` for technical terms. Keep answers concise yet comprehensive." },
         { role: "user", content: prompt },
       ],
       stream: true,

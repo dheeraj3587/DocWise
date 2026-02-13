@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { useParams } from 'next/navigation'
 import { Send, Brain, Sparkle, MessageCircle, X, Loader2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface ChatMessage {
   id: string
@@ -192,7 +194,15 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
                     : 'bg-slate-100 text-slate-800 rounded-bl-sm'
                 }`}
               >
-                {msg.content || (
+                {msg.content ? (
+                  msg.role === 'assistant' ? (
+                    <div className="prose prose-sm prose-slate max-w-none prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-code:bg-slate-200 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-pre:bg-slate-800 prose-pre:text-slate-100 prose-strong:text-slate-900">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    msg.content
+                  )
+                ) : (
                   <span className="flex items-center gap-1.5 text-slate-400">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Thinking...
@@ -293,7 +303,15 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
                   : 'bg-slate-100 text-slate-800 rounded-bl-sm'
               }`}
             >
-              {msg.content || (
+              {msg.content ? (
+                msg.role === 'assistant' ? (
+                  <div className="prose prose-sm prose-slate max-w-none prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-code:bg-slate-200 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-pre:bg-slate-800 prose-pre:text-slate-100 prose-strong:text-slate-900">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  msg.content
+                )
+              ) : (
                 <span className="flex items-center gap-1.5 text-slate-400">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Thinking...
