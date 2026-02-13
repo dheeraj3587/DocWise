@@ -6,7 +6,6 @@ import Link from "next/link";
 import { UserButton, useUser } from "@clerk/clerk-react";
 import { useRouter } from "next/navigation";
 import Dashboard from "./(dashboard)/dashboard/page";
-import Pricing from "./pricing";
 import { createUser } from "@/lib/api-client";
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect } from "react";
@@ -66,17 +65,6 @@ export default function Home() {
             DocWise
           </div>
           <div className="flex gap-2 sm:gap-4 items-center">
-            <button
-              onClick={() => {
-                const el = document.getElementById("pricing");
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth" });
-                }
-              }}
-              className="text-slate-600 hover:text-slate-900 transition-colors text-xs sm:text-sm font-medium"
-            >
-              Pricing
-            </button>
             {!user ? (
               <>
                 <button
@@ -184,8 +172,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <Pricing />
       {/* Footer */}
       <Footer />
     </div>
