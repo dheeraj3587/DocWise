@@ -8,18 +8,18 @@ import { useState } from "react";
 import { Editor } from "@tiptap/react";
 import { Undo2, FileText, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { RightPanelView } from "../workspace/[fileId]/page";
+import type { LeftPanelView } from "../workspace/[fileId]/page";
 
 export const WorkspaceHeader = ({
   fileName,
   editor,
-  rightPanel,
-  onRightPanelChange,
+  leftPanel,
+  onLeftPanelChange,
 }: {
   fileName: string;
   editor: Editor | null;
-  rightPanel: RightPanelView;
-  onRightPanelChange: (view: RightPanelView) => void;
+  leftPanel: LeftPanelView;
+  onLeftPanelChange: (view: LeftPanelView) => void;
 }) => {
   const router = useRouter();
   const { fileId } = useParams();
@@ -114,26 +114,24 @@ export const WorkspaceHeader = ({
         {/* Document / Chat toggle */}
         <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
           <button
-            onClick={() => onRightPanelChange("document")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              rightPanel === "document"
+            onClick={() => onLeftPanelChange("document")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${leftPanel === "document"
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700"
-            }`}
+              }`}
           >
             <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">Document</span>
+            <span className="hidden sm:inline">Notes</span>
           </button>
           <button
-            onClick={() => onRightPanelChange("chat")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              rightPanel === "chat"
+            onClick={() => onLeftPanelChange("chat")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${leftPanel === "chat"
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700"
-            }`}
+              }`}
           >
             <MessageCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Chat</span>
+            <span className="hidden sm:inline">AI Chat</span>
           </button>
         </div>
         <div className="lg:hidden flex flex-col justify-center items-center">

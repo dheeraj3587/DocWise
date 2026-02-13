@@ -25,11 +25,11 @@ import {
   Separator as PanelResizeHandle
 } from 'react-resizable-panels'
 
-export type RightPanelView = 'document' | 'chat'
+export type LeftPanelView = 'document' | 'chat'
 
 const Workspace = () => {
   const { fileId } = useParams()
-  const [rightPanel, setRightPanel] = useState<RightPanelView>('document')
+  const [leftPanel, setLeftPanel] = useState<LeftPanelView>('document')
 
   const { data: fileData, isLoading } = useApiQuery<FileRecord>(
     fileId ? `/api/files/${fileId}` : null,
@@ -37,32 +37,32 @@ const Workspace = () => {
   )
 
   const editor = useEditor({
-        extensions: [
-            StarterKit.configure({
-                underline: false,
-                link: false,
-            }),
-            Placeholder.configure({
-                placeholder: 'Start writing your amazing document...',
-            }),
-            TextAlign.configure({
-                types: ['heading', 'paragraph'],
-            }),
-            Underline,
-            Link.configure({
-                openOnClick: false,
-            }),
-            Image,
-            Highlight,
-        ],
-        editorProps: {
-            attributes: {
-                class: 'prose prose-slate max-w-none focus:outline-none min-h-[500px] px-8 py-6',
-            },
-        },
-        content: '',
-        immediatelyRender: false,
-    })
+    extensions: [
+      StarterKit.configure({
+        underline: false,
+        link: false,
+      }),
+      Placeholder.configure({
+        placeholder: 'Start writing your amazing document...',
+      }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+      }),
+      Image,
+      Highlight,
+    ],
+    editorProps: {
+      attributes: {
+        class: 'prose prose-slate max-w-none focus:outline-none min-h-[500px] px-8 py-6',
+      },
+    },
+    content: '',
+    immediatelyRender: false,
+  })
 
   if (!fileId) {
     return <div>file not found</div>
@@ -83,22 +83,24 @@ const Workspace = () => {
       <WorkspaceHeader
         editor={editor}
         fileName={fileData.fileName}
-        rightPanel={rightPanel}
-        onRightPanelChange={setRightPanel}
+        leftPanel={leftPanel}
+        onLeftPanelChange={setLeftPanel}
       />
 
       <div className="flex-1 overflow-hidden p-4">
         <PanelGroup orientation="horizontal" className="h-full">
           <Panel defaultSize={50} minSize={20} className="h-full">
-            <TextEditor editor={editor} />
+            {leftPanel === 'chat' ? (
+              <ChatPanel embedded />
+            ) : (
+              <TextEditor editor={editor} />
+            )}
           </Panel>
 
           <PanelResizeHandle className="w-2 cursor-col-resize" />
 
           <Panel defaultSize={50} minSize={20} className="h-full">
-            {rightPanel === 'chat' ? (
-              <ChatPanel embedded />
-            ) : isMedia ? (
+            {isMedia ? (
               <MediaPlayer
                 fileUrl={fileData.fileUrl}
                 fileType={fileData.fileType as 'audio' | 'video'}
