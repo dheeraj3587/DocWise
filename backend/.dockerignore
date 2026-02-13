@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.env
+faiss_indices/
+.pytest_cache
+htmlcov/
+coverage.xml
+*.egg-info
+.venv
+.venv*/
+**/__pycache__
