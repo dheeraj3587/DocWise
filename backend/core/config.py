@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_USERS_PER_MINUTE: int = 60
     RATE_LIMIT_NOTES_PER_MINUTE: int = 120
 
+    # LLM usage guardrails
+    LLM_DAILY_BUDGET_UNITS_PER_USER: int = 500
+    LLM_MAX_CONCURRENT_STREAMS_PER_USER: int = 3
+
+    # Upload limits
+    MAX_UPLOAD_SIZE_MB: int = 50
+
     # Clerk Auth
     CLERK_JWKS_URL: str = ""
     CLERK_ISSUER: str = ""

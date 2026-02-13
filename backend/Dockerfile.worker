@@ -1,6 +1,9 @@
 # --- Celery Worker ---
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,4 +17,4 @@ COPY backend/ .
 
 RUN mkdir -p /app/faiss_indices
 
-CMD ["celery", "-A", "tasks.celery_worker.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+CMD ["celery", "-A", "tasks.celery_worker.celery_app", "worker", "--loglevel=info", "--concurrency=2", "--max-tasks-per-child=50"]
