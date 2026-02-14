@@ -64,9 +64,8 @@ export const WorkspaceHeader = ({
       }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      const insertPos = editor.state.doc.content.size;
-      editor.commands.insertContentAt(insertPos, "<h2>Summary</h2><p></p>");
       let summary = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -80,14 +79,23 @@ export const WorkspaceHeader = ({
             const parsed = JSON.parse(data);
             if (parsed.text) {
               summary += parsed.text;
-              const endPos = editor.state.doc.content.size;
-              editor.commands.deleteRange({ from: insertPos + 17, to: endPos });
-              editor.commands.insertContentAt(insertPos + 17, summary);
             }
           } catch {
             // ignore malformed line
           }
         }
+      }
+
+      // Insert complete summary at the end of the document
+      if (summary) {
+        const endPos = editor.state.doc.content.size;
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(endPos, "<hr>")
+          .insertContentAt(editor.state.doc.content.size, "<h2>Summary</h2>")
+          .insertContentAt(editor.state.doc.content.size, summary)
+          .run();
       }
     } catch (e) {
       console.error(e);
