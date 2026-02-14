@@ -72,3 +72,8 @@ minio_data/
 .idea/
 *.swp
 *.swo
+
+# Python coverage
+.coverage
+coverage.xml
+htmlcov/

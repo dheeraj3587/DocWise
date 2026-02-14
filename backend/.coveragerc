@@ -1,0 +1,17 @@
+[run]
+omit =
+    check_file_details.py
+    check_files.py
+    check_recent_files.py
+    fix_file_emails.py
+    .venv/*
+    .venv13/*
+    .venv313/*
+    tests/*
+    conftest.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    pass

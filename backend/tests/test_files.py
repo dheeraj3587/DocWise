@@ -174,22 +174,84 @@ class TestFileRetrieval:
         files = response.json()
         assert len(files) == 2
 
-    async def test_list_files_filter_by_email(self, client, mock_storage, mock_celery):
+    async def test_list_files_filter_by_email(self, client):
         """Test filtering files by user email."""
-        mock_storage.upload_file = MagicMock(return_value="pdf/test/file.pdf")
-        mock_storage.get_presigned_url = MagicMock(return_value="https://minio/url")
+        # Manually create files with different creators
+        from models.database import async_session
+        from models.file import File
+        
+        async with async_session() as session:
+            f1 = File(
+                file_id=uuid.uuid4(),
+                file_name="a.pdf",
+                file_type="pdf",
+                storage_key="key1",
+                created_by="user1@example.com",
+                status="ready"
+            )
+            f2 = File(
+                file_id=uuid.uuid4(),
+                file_name="b.pdf",
+                file_type="pdf",
+                storage_key="key2",
+                created_by="user2@example.com",
+                status="ready"
+            )
+            session.add(f1)
+            session.add(f2)
+            await session.commit()
 
-        await client.post(
-            "/api/files/upload",
-            files={"file": ("a.pdf", b"%PDF-1.4", "application/pdf")},
-        )
-
-        response = await client.get("/api/files?user_email=test@example.com")
+        # Filter for user 1
+        response = await client.get("/api/files?user_email=user1@example.com")
         assert response.status_code == 200
+        files = response.json()
+        assert len(files) == 1
+        assert files[0]["fileName"] == "a.pdf"
 
-        response2 = await client.get("/api/files?user_email=other@example.com")
-        assert response2.status_code == 200
-        assert len(response2.json()) == 0
+        # Verify default behavior (uses current user email test@example.com)
+        # Should return nothing as we didn't add any for test@example.com
+        response = await client.get("/api/files")
+        assert response.status_code == 200
+        assert len(response.json()) == 0
+
+
+    async def test_get_file_with_timestamps(self, client):
+        """Test retrieving a media file includes its timestamps."""
+        # Manually create file with timestamps in DB
+        file_id = str(uuid.uuid4())
+        
+        from models.database import async_session
+        from models.file import File
+        from models.timestamp import MediaTimestamp
+        
+        async with async_session() as session:
+            f = File(
+                file_id=uuid.UUID(file_id),
+                file_name="test.mp3",
+                file_type="audio",
+                storage_key="key",
+                created_by="test@example.com",
+                status="ready"
+            )
+            session.add(f)
+            ts = MediaTimestamp(
+                file_id=uuid.UUID(file_id),
+                start_time=10.0,
+                end_time=20.0,
+                topic="Topic 1",
+                text="Content"
+            )
+            session.add(ts)
+            await session.commit()
+
+
+        response = await client.get(f"/api/files/{file_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert "timestamps" in data
+        assert len(data["timestamps"]) == 1
+        assert data["timestamps"][0]["topic"] == "Topic 1"
+
 
 
 @pytest.mark.asyncio

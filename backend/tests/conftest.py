@@ -52,12 +52,7 @@ MOCK_USER = {
 }
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+# event_loop fixture removed as it is deprecated and managed by pytest-asyncio
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -106,8 +101,8 @@ def mock_storage():
 @pytest.fixture
 def mock_celery():
     """Mock Celery task dispatch."""
-    with patch("tasks.celery_worker.process_pdf") as mock_pdf, \
-         patch("tasks.celery_worker.process_media") as mock_media:
+    with patch("routers.files.process_pdf") as mock_pdf, \
+         patch("routers.files.process_media") as mock_media:
         mock_pdf.delay = MagicMock()
         mock_media.delay = MagicMock()
         yield {"pdf": mock_pdf, "media": mock_media}
