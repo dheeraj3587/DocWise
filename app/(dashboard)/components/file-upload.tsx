@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import {
     Dialog,
@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { uploadFile } from "@/lib/api-client"
+import { getUploadCount, uploadFile } from "@/lib/api-client"
 import { useAuth } from "@clerk/nextjs"
-import { Loader2, Loader2Icon } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useUser } from "@clerk/clerk-react";
 
 export function FileUpload({ children }: { children: React.ReactNode }) {
@@ -28,6 +28,24 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [remaining, setRemaining] = useState<number | null>(null);
+    const [dailyLimit, setDailyLimit] = useState<number>(5);
+
+    // Fetch upload count when dialog opens
+    useEffect(() => {
+        if (!open) return;
+        (async () => {
+            try {
+                const token = await getToken();
+                const data = await getUploadCount(token);
+                setRemaining(data.remaining);
+                setDailyLimit(data.limit);
+            } catch {
+                // Fallback — allow upload
+                setRemaining(null);
+            }
+        })();
+    }, [open, getToken]);
 
     const onFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         setError(null)
@@ -36,6 +54,10 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
 
     const onUpload = async () => {
         if (!file) return;
+        if (remaining !== null && remaining <= 0) {
+            setError(`Daily upload limit reached (${dailyLimit} files/day). Try again tomorrow.`);
+            return;
+        }
         setLoading(true);
         try {
             const token = await getToken();
@@ -47,11 +69,15 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
             );
             setLoading(false);
             setOpen(false);
-            // Trigger a page refresh to show the new file
             window.location.reload();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Upload error:", error);
-            setError("Upload failed. Please try again.")
+            const msg = error?.message || "";
+            if (msg.includes("429") || msg.toLowerCase().includes("daily upload limit")) {
+                setError(`Daily upload limit reached (${dailyLimit} files/day). Try again tomorrow.`);
+            } else {
+                setError("Upload failed. Please try again.");
+            }
             setLoading(false);
         }
     }
@@ -68,6 +94,13 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                             Upload a PDF, audio, or video file. Click save when you&apos;re
                             done.
                         </DialogDescription>
+                        {remaining !== null && (
+                            <p className={`text-xs mt-1 ${remaining === 0 ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
+                                {remaining === 0
+                                    ? `Daily upload limit reached (${dailyLimit}/${dailyLimit})`
+                                    : `${remaining} upload${remaining !== 1 ? 's' : ''} remaining today (${dailyLimit - remaining}/${dailyLimit})`}
+                            </p>
+                        )}
                     </DialogHeader>
                     <div className="grid gap-4">
                         <div
@@ -100,7 +133,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                         <DialogClose asChild>
                             <Button variant="outline">Cancel</Button>
                         </DialogClose>
-                        <Button disabled={loading} onClick={onUpload} type="submit">
+                        <Button disabled={loading || (remaining !== null && remaining <= 0)} onClick={onUpload} type="submit">
                             {loading ? <Loader2
                                 className="flex justify-center items-center mr-2 h-4 w-4 animate-spin"
                             /> : 'Save'}</Button>

@@ -68,6 +68,7 @@ class Settings(BaseSettings):
 
     # Upload limits
     MAX_UPLOAD_SIZE_MB: int = 50
+    MAX_FILES_PER_USER_PER_DAY: int = 5
 
     # Clerk Auth
     CLERK_JWKS_URL: str = ""

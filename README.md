@@ -254,7 +254,7 @@ Open `http://YOUR_DROPLET_IP` in your browser.
 | Update code | `git pull && docker compose up -d --build` |
 | Resource usage | `docker stats` |
 | Access Postgres | `docker compose exec db psql -U kagaz` |
-| MinIO admin | `ssh -L 9001:localhost:9001 root@YOUR_IP` → `http://localhost:9001` |
+| MinIO logs | `docker compose logs -f minio` |
 
 ### 8. Backup
 

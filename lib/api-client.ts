@@ -138,10 +138,32 @@ export async function deleteFile(
   fileId: string,
   token?: string | null,
 ): Promise<void> {
-  await fetch(`${API_BASE}/api/files/${fileId}`, {
+  const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
     method: "DELETE",
     headers: buildHeaders(token),
   });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`deleteFile failed: ${err}`);
+  }
+}
+
+export interface UploadCountResponse {
+  count: number;
+  limit: number;
+  remaining: number;
+}
+
+export async function getUploadCount(
+  token?: string | null,
+): Promise<UploadCountResponse> {
+  const res = await fetch(`${API_BASE}/api/files/upload-count`, {
+    headers: buildHeaders(token),
+  });
+  if (!res.ok) {
+    return { count: 0, limit: 5, remaining: 5 };
+  }
+  return res.json();
 }
 
 // ─── Notes APIs ──────────────────────────────────────────────────────────────

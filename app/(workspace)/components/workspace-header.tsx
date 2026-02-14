@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Editor } from "@tiptap/react";
 import { Undo2, FileText, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { marked } from "marked";
 import type { LeftPanelView } from "../workspace/[fileId]/page";
 
 export const WorkspaceHeader = ({
@@ -88,13 +89,15 @@ export const WorkspaceHeader = ({
 
       // Insert complete summary at the end of the document
       if (summary) {
+        // Convert markdown to HTML for TipTap
+        const summaryHtml = await marked.parse(summary);
         const endPos = editor.state.doc.content.size;
         editor
           .chain()
           .focus()
           .insertContentAt(endPos, "<hr>")
           .insertContentAt(editor.state.doc.content.size, "<h2>Summary</h2>")
-          .insertContentAt(editor.state.doc.content.size, summary)
+          .insertContentAt(editor.state.doc.content.size, summaryHtml)
           .run();
       }
     } catch (e) {

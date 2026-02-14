@@ -1,27 +1,47 @@
 'use client'
-import { FileText, Upload, Music, Video } from 'lucide-react';
+import { FileText, Upload, Music, Video, Trash2 } from 'lucide-react';
 
 import React, { useState } from 'react';
 import { UserButton, useUser } from '@clerk/clerk-react';
 import { useApiQuery } from '@/lib/hooks';
-import { FileRecord } from '@/lib/api-client';
+import { deleteFile, FileRecord } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {Sidebar} from '../components/sidebar'
 import Header from '../components/header'
+import { useAuth } from '@clerk/nextjs';
 
 export default function Dashboard() {
 
   const path = usePathname();
 
   const { user } = useUser();
+  const { getToken } = useAuth();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const email = user?.primaryEmailAddress?.emailAddress;
-  const { data: getAllFiles, isLoading } = useApiQuery<FileRecord[]>(
+  const { data: getAllFiles, isLoading, refetch } = useApiQuery<FileRecord[]>(
     email ? `/api/files?user_email=${encodeURIComponent(email)}` : null,
     [email],
   );
+
+  const handleDelete = async (e: React.MouseEvent, fileId: string, fileName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete "${fileName}"? This cannot be undone.`)) return;
+    setDeletingId(fileId);
+    try {
+      const token = await getToken();
+      await deleteFile(fileId, token);
+      refetch();
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete file. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const getFileIcon = (fileType?: string) => {
     switch (fileType) {
@@ -78,9 +98,9 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {getAllFiles.map((pdf, index) => (
                   
-                    <button
+                    <div
                     key={index}
-                    className="bg-white rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all overflow-hidden text-left group"
+                    className="bg-white rounded-lg border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all overflow-hidden text-left group relative"
                   >
                     <Link href={`/workspace/${pdf.fileId}`}>
                     {/* File Preview */}
@@ -103,7 +123,17 @@ export default function Dashboard() {
                       </div>
                     </div>
                     </Link>
-                  </button>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => handleDelete(e, pdf.fileId, pdf.fileName)}
+                      disabled={deletingId === pdf.fileId}
+                      className="absolute top-2 right-2 p-1.5 rounded-md bg-white/80 backdrop-blur-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-slate-400 disabled:opacity-50"
+                      title="Delete file"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

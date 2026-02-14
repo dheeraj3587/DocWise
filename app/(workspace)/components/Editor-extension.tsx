@@ -24,6 +24,7 @@ import { saveNote } from "@/lib/api-client";
 import { useAuth } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { marked } from "marked";
 
 interface EditorExtensionProps {
   editor: Editor | null;
@@ -142,6 +143,9 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
                 .replace(/```html/g, "")
                 .replace(/```/g, "");
 
+              // Convert markdown to HTML for TipTap
+              const htmlAnswer = marked.parse(cleanedAnswer) as string;
+
               // Delete previous answer content and insert updated one
               const endPos = editor.state.doc.content.size;
 
@@ -151,8 +155,8 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
                 to: endPos,
               });
 
-              // Insert updated content
-              editor.commands.insertContentAt(answerStartPos, cleanedAnswer);
+              // Insert updated content as HTML
+              editor.commands.insertContentAt(answerStartPos, htmlAnswer);
             } catch (e) {
               // skip malformed lines
             }

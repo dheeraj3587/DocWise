@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import pytest_asyncio
 
+from core.config import settings
+
 
 @pytest.mark.asyncio
 class TestFileUpload:
@@ -287,3 +289,108 @@ class TestFileDelete:
         # Verify it's gone
         get_resp = await client.get(f"/api/files/{file_id}")
         assert get_resp.status_code == 404
+
+    async def test_delete_file_forbidden_for_other_user(self, client, mock_storage, mock_celery):
+        """Test that a user cannot delete another user's file."""
+        from models.database import async_session
+        from models.file import File
+
+        # Create a file owned by a different user
+        file_id = str(uuid.uuid4())
+        async with async_session() as session:
+            f = File(
+                file_id=uuid.UUID(file_id),
+                file_name="not-mine.pdf",
+                file_type="pdf",
+                storage_key="key",
+                created_by="other@example.com",
+                status="ready",
+            )
+            session.add(f)
+            await session.commit()
+
+        response = await client.delete(f"/api/files/{file_id}")
+        assert response.status_code == 403
+        assert "your own files" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+class TestDailyUploadLimit:
+    """Tests for the per-user daily upload limit."""
+
+    async def test_upload_count_endpoint(self, client):
+        """Test GET /api/files/upload-count with no uploads."""
+        response = await client.get("/api/files/upload-count")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 0
+        assert data["limit"] == settings.MAX_FILES_PER_USER_PER_DAY
+        assert data["remaining"] == settings.MAX_FILES_PER_USER_PER_DAY
+
+    async def test_upload_count_after_uploads(self, client, mock_storage, mock_celery):
+        """Test upload count increments after each upload."""
+        mock_storage.upload_file = MagicMock(return_value="pdf/test/file.pdf")
+
+        # Upload 2 files
+        for i in range(2):
+            resp = await client.post(
+                "/api/files/upload",
+                files={"file": (f"test{i}.pdf", b"%PDF-1.4", "application/pdf")},
+                data={"file_name": f"File {i}"},
+            )
+            assert resp.status_code == 200
+
+        response = await client.get("/api/files/upload-count")
+        data = response.json()
+        assert data["count"] == 2
+        assert data["remaining"] == settings.MAX_FILES_PER_USER_PER_DAY - 2
+
+    async def test_upload_blocked_after_limit(self, client, mock_storage, mock_celery):
+        """Test that uploads are blocked after daily limit is reached."""
+        mock_storage.upload_file = MagicMock(return_value="pdf/test/file.pdf")
+
+        # Use a low limit for the test
+        original_limit = settings.MAX_FILES_PER_USER_PER_DAY
+        settings.MAX_FILES_PER_USER_PER_DAY = 3
+
+        try:
+            # Upload up to the limit
+            for i in range(3):
+                resp = await client.post(
+                    "/api/files/upload",
+                    files={"file": (f"test{i}.pdf", b"%PDF-1.4", "application/pdf")},
+                    data={"file_name": f"File {i}"},
+                )
+                assert resp.status_code == 200
+
+            # Next upload should be rejected
+            resp = await client.post(
+                "/api/files/upload",
+                files={"file": ("extra.pdf", b"%PDF-1.4", "application/pdf")},
+                data={"file_name": "Extra File"},
+            )
+            assert resp.status_code == 429
+            assert "Daily upload limit" in resp.json()["detail"]
+        finally:
+            settings.MAX_FILES_PER_USER_PER_DAY = original_limit
+
+    async def test_upload_count_remaining_zero(self, client, mock_storage, mock_celery):
+        """Test remaining is 0 when limit reached."""
+        mock_storage.upload_file = MagicMock(return_value="pdf/test/file.pdf")
+
+        original_limit = settings.MAX_FILES_PER_USER_PER_DAY
+        settings.MAX_FILES_PER_USER_PER_DAY = 2
+
+        try:
+            for i in range(2):
+                await client.post(
+                    "/api/files/upload",
+                    files={"file": (f"test{i}.pdf", b"%PDF-1.4", "application/pdf")},
+                    data={"file_name": f"File {i}"},
+                )
+
+            response = await client.get("/api/files/upload-count")
+            data = response.json()
+            assert data["remaining"] == 0
+        finally:
+            settings.MAX_FILES_PER_USER_PER_DAY = original_limit

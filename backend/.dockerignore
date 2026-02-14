@@ -6,6 +6,3 @@ faiss_indices/
 htmlcov/
 coverage.xml
 *.egg-info
-.venv
-.venv*/
-**/__pycache__

@@ -1,14 +1,11 @@
 # --- Backend (FastAPI + Python) ---
 FROM python:3.11-slim AS backend
 
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
 WORKDIR /app
 
 # Install system deps for psycopg2, faiss-cpu
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev libgomp1 && \
+    gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .

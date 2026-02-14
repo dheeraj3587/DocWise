@@ -5,6 +5,7 @@ import { createUser, getUser as fetchUser } from "@/lib/api-client";
 import { useCallback, useEffect, useState } from "react";
 
 interface UserData {
+  upgrade: boolean;
   email: string;
   name: string;
 }
@@ -37,10 +38,7 @@ const Header = ({ name }: { name: string }) => {
 
   useEffect(() => {
     if (user) {
-      const timeoutId = setTimeout(() => {
-        void checkUser();
-      }, 0);
-      return () => clearTimeout(timeoutId);
+      checkUser();
     }
   }, [user, checkUser]);
 
@@ -49,7 +47,9 @@ const Header = ({ name }: { name: string }) => {
       <div className="flex items-center gap-4">
         <div className="hidden lg:block">
           <h1 className="text-lg font-semibold text-slate-900">{name}</h1>
-          <p className="text-xs text-slate-500">Manage your documents</p>
+          {name !== "Upgrade" && (
+            <p className="text-xs text-slate-500">Manage your documents</p>
+          )}
         </div>
         <div className="lg:hidden">
           <h1 className="text-lg font-semibold text-slate-900 ml-12">{name}</h1>
@@ -62,11 +62,14 @@ const Header = ({ name }: { name: string }) => {
           <p className="text-sm font-medium text-slate-900">
             {user?.firstName}
           </p>
+          <p className="text-xs text-slate-500">
+            {userData && userData?.upgrade == true ? "Pro plan" : "Free plan"}
+          </p>
         </div>
         <UserButton
           appearance={{
             elements: {
-              userButtonAvatar: "w-12 h-12",
+              userButtonAvatar: "w-12 h-12", // Tailwind classes
               userButtonTrigger: "p-2",
             },
           }}

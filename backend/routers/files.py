@@ -1,12 +1,14 @@
 """Files router — upload, retrieve, list, and delete files."""
 
 import uuid
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from core.rate_limit import rate_limit
 from core.security import get_current_user
 from models.database import get_db
@@ -37,6 +39,32 @@ def _classify_file(content_type: str) -> str:
     )
 
 
+async def _count_uploads_today(email: str, db: AsyncSession) -> int:
+    """Count files uploaded by a user in the current UTC day."""
+    start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    stmt = (
+        select(func.count())
+        .select_from(FileModel)
+        .where(FileModel.created_by == email)
+        .where(FileModel.created_at >= start_of_day)
+    )
+    result = await db.execute(stmt)
+    return result.scalar() or 0
+
+
+@router.get("/upload-count")
+async def get_upload_count(
+    _: None = Depends(rate_limit("default")),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return how many files the user has uploaded today and the daily limit."""
+    email = user.get("email", "")
+    count = await _count_uploads_today(email, db)
+    limit = settings.MAX_FILES_PER_USER_PER_DAY
+    return {"count": count, "limit": limit, "remaining": max(0, limit - count)}
+
+
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
@@ -49,7 +77,17 @@ async def upload_file(
     """
     Upload a PDF, audio, or video file.
     Processing (parsing/transcription/embedding) happens in the background via Celery.
+    Limited to MAX_FILES_PER_USER_PER_DAY uploads per user per UTC day.
     """
+    # ── Daily upload limit check ──────────────────────────────────────────
+    created_by_email = user.get("email") or user_email or ""
+    today_count = await _count_uploads_today(created_by_email, db)
+    if today_count >= settings.MAX_FILES_PER_USER_PER_DAY:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Daily upload limit reached. You can upload up to {settings.MAX_FILES_PER_USER_PER_DAY} files per day.",
+        )
+
     content_type = file.content_type or "application/octet-stream"
     file_type = _classify_file(content_type)
     file_bytes = await file.read()
@@ -60,9 +98,6 @@ async def upload_file(
 
     # Upload to MinIO
     storage_service.upload_file(file_bytes, storage_key, content_type)
-
-    # Use user_email from form if JWT email is empty (fallback)
-    created_by_email = user.get("email") or user_email or ""
 
     # Create database record with status='processing'
     file_record = FileModel(
@@ -186,6 +221,11 @@ async def delete_file(
 
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
+
+    # Ownership check — users can only delete their own files
+    user_email = user.get("email", "")
+    if file_record.created_by != user_email:
+        raise HTTPException(status_code=403, detail="You can only delete your own files")
 
     # Delete from MinIO
     storage_service.delete_file(file_record.storage_key)

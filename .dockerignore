@@ -4,11 +4,3 @@ node_modules
 *.md
 .env*
 convex/_generated
-.venv
-.venv*/
-backend/.venv
-backend/.venv*/
-backend/**/__pycache__
-backend/.pytest_cache
-backend/htmlcov
-backend/coverage.xml
