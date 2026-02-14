@@ -137,8 +137,12 @@ export async function getFileData(
 export async function deleteFile(
   fileId: string,
   token?: string | null,
+  userEmail?: string,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
+  const url = userEmail
+    ? `${API_BASE}/api/files/${fileId}?user_email=${encodeURIComponent(userEmail)}`
+    : `${API_BASE}/api/files/${fileId}`;
+  const res = await fetch(url, {
     method: "DELETE",
     headers: buildHeaders(token),
   });

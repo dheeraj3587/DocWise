@@ -210,6 +210,7 @@ async def list_files(
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: str,
+    user_email: Optional[str] = None,
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -222,9 +223,18 @@ async def delete_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Ownership check — users can only delete their own files
-    user_email = user.get("email", "")
-    if file_record.created_by != user_email:
+    # Ownership check — match by JWT email, fallback user_email, or JWT sub
+    jwt_email = (user.get("email") or "").strip().lower()
+    param_email = (user_email or "").strip().lower()
+    jwt_sub = (user.get("sub") or "").strip().lower()
+    file_owner = (file_record.created_by or "").strip().lower()
+
+    owner_match = (
+        (jwt_email and file_owner == jwt_email)
+        or (param_email and file_owner == param_email)
+        or (jwt_sub and file_owner == jwt_sub)
+    )
+    if not owner_match:
         raise HTTPException(status_code=403, detail="You can only delete your own files")
 
     # Delete from MinIO

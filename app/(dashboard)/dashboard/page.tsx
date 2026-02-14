@@ -33,7 +33,7 @@ export default function Dashboard() {
     setDeletingId(fileId);
     try {
       const token = await getToken();
-      await deleteFile(fileId, token);
+      await deleteFile(fileId, token, email);
       refetch();
     } catch (err) {
       console.error("Delete failed:", err);
