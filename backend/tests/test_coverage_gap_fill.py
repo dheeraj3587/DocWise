@@ -463,7 +463,13 @@ class TestRouterDirectCoverage:
 
             with patch("vector_store.faiss_index.faiss_index") as mock_faiss:
                 mock_faiss.delete_index = MagicMock()
-                deleted = await delete_file(media_id, None, {"email": "fallback@example.com"}, db_session)
+                deleted = await delete_file(
+                    file_id=media_id,
+                    user_email=None,
+                    _=None,
+                    user={"email": "fallback@example.com"},
+                    db=db_session
+                )
             assert deleted["status"] == "deleted"
 
     async def test_notes_direct_calls(self, db_session):
