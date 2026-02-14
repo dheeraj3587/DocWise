@@ -61,13 +61,23 @@ class TranscriptionService:
             segments = []
             if hasattr(response, "segments") and response.segments:
                 for seg in response.segments:
-                    segments.append(
-                        {
-                            "start": seg.get("start", seg.start) if hasattr(seg, "start") else seg["start"],
-                            "end": seg.get("end", seg.end) if hasattr(seg, "end") else seg["end"],
-                            "text": seg.get("text", seg.text) if hasattr(seg, "text") else seg["text"],
-                        }
-                    )
+                    # seg can be a Pydantic model (TranscriptionSegment) or a dict
+                    if isinstance(seg, dict):
+                        segments.append(
+                            {
+                                "start": seg.get("start", 0.0),
+                                "end": seg.get("end", 0.0),
+                                "text": seg.get("text", ""),
+                            }
+                        )
+                    else:
+                        segments.append(
+                            {
+                                "start": getattr(seg, "start", 0.0),
+                                "end": getattr(seg, "end", 0.0),
+                                "text": getattr(seg, "text", ""),
+                            }
+                        )
 
             duration = getattr(response, "duration", 0.0) or 0.0
 
