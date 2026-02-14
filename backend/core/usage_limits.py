@@ -18,7 +18,7 @@ class UsageLimiter:
     def __init__(self):
         self._redis: Redis | None = None
         self._lock = asyncio.Lock()
-        self._memory_daily_units: dict[str, tuple[int, float]] = {}
+        self._memory_daily_units: dict[str, tuple[int, float, float]] = {}
         self._memory_streams: dict[str, int] = defaultdict(int)
 
     async def _get_redis(self) -> Redis | None:
@@ -43,7 +43,10 @@ class UsageLimiter:
         day = self._day_key()
         key = f"usage:{endpoint}:{user_scope}:{day}"
 
-        redis = await self._get_redis()
+        try:
+            redis = await self._get_redis()
+        except Exception:
+            redis = None
         if redis is not None:
             try:
                 current = await redis.incrby(key, units)
@@ -65,17 +68,30 @@ class UsageLimiter:
             # Prune expired entries when map grows too large
             if len(self._memory_daily_units) > self._MAX_MEMORY_ENTRIES:
                 expired_keys = [
-                    k for k, (_, exp) in self._memory_daily_units.items() if now >= exp
+                    k for k, (_, exp, _) in self._memory_daily_units.items() if now >= exp
                 ]
                 for k in expired_keys:
                     self._memory_daily_units.pop(k, None)
+            if len(self._memory_daily_units) > self._MAX_MEMORY_ENTRIES:
+                excess = len(self._memory_daily_units) - self._MAX_MEMORY_ENTRIES
+                if excess > 0:
+                    oldest = sorted(
+                        self._memory_daily_units.items(), key=lambda item: item[1][2]
+                    )[:excess]
+                    for k, _ in oldest:
+                        self._memory_daily_units.pop(k, None)
 
-            current, expires_at = self._memory_daily_units.get(key, (0, 0.0))
+            value = self._memory_daily_units.get(key)
+            if value is None:
+                current, expires_at, created_at = 0, 0.0, now
+            else:
+                current, expires_at, created_at = value
             if now >= expires_at:
                 current = 0
                 expires_at = now + 86400
+                created_at = now
             current += units
-            self._memory_daily_units[key] = (current, expires_at)
+            self._memory_daily_units[key] = (current, expires_at, created_at)
             if current > limit:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
