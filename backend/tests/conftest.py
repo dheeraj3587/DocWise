@@ -235,6 +235,17 @@ async def cleanup_runtime_state():
 
     await cache_service.clear()
     await rate_limiter.clear()
+    
+    # Also flush Redis to ensure rate limits are reset
+    from redis.asyncio import Redis
+    redis = Redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/15"), decode_responses=True)
+    try:
+        await redis.flushdb()
+    except Exception:
+        pass
+    finally:
+        await redis.close()
+
     yield
     await cache_service.clear()
     await rate_limiter.clear()

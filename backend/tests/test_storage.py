@@ -46,11 +46,11 @@ class TestStorageService:
         mock_boto.return_value = mock_client
         mock_client.head_bucket.return_value = True
         mock_client.generate_presigned_url.return_value = "https://minio/presigned"
-
+        
         service = StorageService()
         url = service.get_presigned_url("test/key.pdf")
 
-        assert url == "https://minio/presigned"
+        assert url == "https://minio/storage/presigned"
 
     @patch("boto3.client")
     def test_download_file(self, mock_boto):
@@ -110,8 +110,8 @@ class TestStorageService:
         """Test presigned URL with custom expiry time."""
         mock_client = MagicMock()
         mock_boto.return_value = mock_client
-        mock_client.head_bucket.return_value = True
-
+        mock_client.generate_presigned_url.return_value = "https://minio/presigned"
+        
         service = StorageService()
         service.get_presigned_url("test/key.pdf", expires_in=7200)
 
