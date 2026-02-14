@@ -32,7 +32,13 @@ class Settings(BaseSettings):
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str = "text-embedding-3-large"
     AZURE_OPENAI_EMBEDDING_API_VERSION: str = "2024-12-01-preview"
 
-    # Legacy (kept for transcription service)
+    # Azure OpenAI - Whisper (transcription)
+    AZURE_OPENAI_WHISPER_API_KEY: str = ""
+    AZURE_OPENAI_WHISPER_ENDPOINT: str = ""
+    AZURE_OPENAI_WHISPER_DEPLOYMENT: str = "whisper"
+    AZURE_OPENAI_WHISPER_API_VERSION: str = "2024-06-01"
+
+    # Legacy (kept for fallback)
     OPENAI_API_KEY: str = ""
 
     # Redis

@@ -1,19 +1,30 @@
-"""Audio/Video transcription service using OpenAI Whisper API."""
+"""Audio/Video transcription service using Azure OpenAI Whisper API."""
 
 import tempfile
 import os
 from typing import List, Dict, Any
 
 import openai
+from openai import AzureOpenAI
 
 from core.config import settings
 
 
 class TranscriptionService:
-    """Transcribes audio/video files using OpenAI Whisper API and returns timestamped segments."""
+    """Transcribes audio/video files using Azure OpenAI Whisper API and returns timestamped segments."""
 
     def __init__(self):
-        self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+        if settings.AZURE_OPENAI_WHISPER_API_KEY and settings.AZURE_OPENAI_WHISPER_ENDPOINT:
+            self.client = AzureOpenAI(
+                api_key=settings.AZURE_OPENAI_WHISPER_API_KEY,
+                azure_endpoint=settings.AZURE_OPENAI_WHISPER_ENDPOINT,
+                api_version=settings.AZURE_OPENAI_WHISPER_API_VERSION,
+            )
+            self.model = settings.AZURE_OPENAI_WHISPER_DEPLOYMENT
+        else:
+            # Fallback to standard OpenAI if Azure Whisper not configured
+            self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            self.model = "whisper-1"
 
     def transcribe(self, file_bytes: bytes, file_name: str) -> Dict[str, Any]:
         """
@@ -41,7 +52,7 @@ class TranscriptionService:
         try:
             with open(tmp_path, "rb") as audio_file:
                 response = self.client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=self.model,
                     file=audio_file,
                     response_format="verbose_json",
                     timestamp_granularities=["segment"],
