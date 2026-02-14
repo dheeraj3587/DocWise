@@ -17,13 +17,14 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_API_URL || "https://dheerajjoshi.me"),
   title: "DocWise",
   description: "Smart note-taking editor",
 
   openGraph: {
     title: "DocWise",
     description: "Smart note-taking editor",
-    url: "https://docwise.vercel.app",
+    url: "https://dheerajjoshi.me",
     siteName: "DocWise",
     images: [
       {
