@@ -196,9 +196,11 @@ jobs:
             git pull origin main
             echo "==> Building and restarting containers..."
             docker compose up -d --build --remove-orphans
+            echo "==> Restarting nginx to resolve new container IPs..."
+            docker restart kagaz-nginx-1
             echo "==> Cleaning up old images..."
             docker image prune -f
-            echo "==> Waiting for health check..."
-            sleep 10
-            curl -sf http://localhost/health || { echo "Health check failed!"; exit 1; }
+            echo "==> Waiting for services to stabilize..."
+            sleep 15
+            curl -sf https://dheerajjoshi.me/health || curl -sf http://localhost/health || { echo "Health check failed!"; exit 1; }
             echo "==> Deployment complete!"
