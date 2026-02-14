@@ -2,6 +2,7 @@
 
 import io
 from typing import Optional
+from urllib.parse import urlparse, urlunparse
 
 import boto3
 from botocore.client import Config
@@ -27,7 +28,7 @@ class StorageService:
         )
 
         # Public client — used only for presigned URLs so the signature
-        # matches the hostname the browser will actually hit.
+        # matches the hostname the browser will actually hit via Nginx.
         public_endpoint = settings.MINIO_PUBLIC_ENDPOINT or settings.MINIO_ENDPOINT
         self.public_client = boto3.client(
             "s3",
@@ -73,8 +74,8 @@ class StorageService:
         """Generate a presigned URL for downloading a file.
 
         Uses the public client so the signature is computed against the
-        browser-accessible hostname (e.g. localhost:9000) rather than the
-        internal Docker hostname (e.g. minio:9000).
+        browser-accessible hostname. The URL path is rewritten to include
+        /storage/ so it routes through Nginx's reverse proxy to MinIO.
         """
         self._ensure_bucket()
         url = self.public_client.generate_presigned_url(
@@ -82,7 +83,11 @@ class StorageService:
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=expires_in,
         )
-        return url
+        # Rewrite URL to route through Nginx /storage/ proxy
+        # e.g. http://localhost/kagaz-files/... → http://localhost/storage/kagaz-files/...
+        parsed = urlparse(url)
+        rewritten = parsed._replace(path=f"/storage{parsed.path}")
+        return urlunparse(rewritten)
 
     def download_file(self, key: str) -> bytes:
         """Download a file from MinIO and return its bytes."""
