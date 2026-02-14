@@ -146,6 +146,21 @@ class TestUsageLimiterRedis:
         
         mock_redis.decr.assert_called()
 
+    @pytest.mark.asyncio
+    async def test_get_redis_returns_existing(self):
+        ul = UsageLimiter()
+        mock_redis = AsyncMock()
+        ul._redis = mock_redis
+        result = await ul._get_redis()
+        assert result is mock_redis
+
+    @pytest.mark.asyncio
+    async def test_get_redis_failure_returns_none(self):
+        ul = UsageLimiter()
+        with patch("core.usage_limits.Redis.from_url", side_effect=Exception("down")):
+            result = await ul._get_redis()
+        assert result is None
+
 
 
 

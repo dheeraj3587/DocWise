@@ -1,6 +1,7 @@
 """Tests for the health endpoint and application startup."""
 
 import pytest
+from starlette.requests import Request
 
 
 @pytest.mark.asyncio
@@ -31,3 +32,31 @@ class TestCORS:
         )
         # FastAPI will handle the CORS response
         assert response.status_code in (200, 405)
+
+
+@pytest.mark.asyncio
+class TestAppLifecycle:
+    """Tests for app lifecycle hooks."""
+
+    async def test_lifespan_runs(self):
+        """Test lifespan startup and shutdown."""
+        from main import app, lifespan
+        async with lifespan(app):
+            assert app is not None
+
+    async def test_global_exception_handler(self):
+        """Test global exception handler returns 500."""
+        from main import global_exception_handler
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/boom",
+            "headers": [],
+            "scheme": "http",
+            "server": ("test", 80),
+            "client": ("test", 1234),
+        }
+        request = Request(scope)
+        response = await global_exception_handler(request, Exception("boom"))
+        assert response.status_code == 500
+        assert response.body == b'{"detail":"Internal server error"}'

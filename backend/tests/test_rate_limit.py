@@ -93,6 +93,26 @@ class TestRateLimiterRedis:
         assert remaining == 0
         mock_redis.incr.assert_called_with("key")
 
+    @pytest.mark.asyncio
+    async def test_hit_redis_error_falls_back_to_memory(self):
+        rl = RateLimiter()
+        mock_redis = AsyncMock()
+        mock_redis.incr.side_effect = Exception("down")
+
+        with patch.object(rl, "_get_redis", new_callable=AsyncMock, return_value=mock_redis):
+            allowed, remaining = await rl.hit("key", limit=2, window_seconds=60)
+
+        assert allowed is True
+        assert remaining == 1
+
+    @pytest.mark.asyncio
+    async def test_clear_handles_redis_close_error(self):
+        rl = RateLimiter()
+        rl._redis = AsyncMock()
+        rl._redis.close = AsyncMock(side_effect=Exception("close failed"))
+        await rl.clear()
+        assert rl._redis is None
+
 
 
 
