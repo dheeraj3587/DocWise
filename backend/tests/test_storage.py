@@ -117,3 +117,40 @@ class TestStorageService:
 
         call_kwargs = mock_client.generate_presigned_url.call_args
         assert call_kwargs.kwargs.get("ExpiresIn", call_kwargs[1].get("ExpiresIn")) == 7200
+
+    @patch("boto3.client")
+    def test_get_presigned_url_respects_public_base_url(self, mock_boto):
+        """Presigned URL should use provided external scheme and host."""
+        mock_client = MagicMock()
+        mock_boto.return_value = mock_client
+        mock_client.head_bucket.return_value = True
+        mock_client.generate_presigned_url.return_value = (
+            "http://minio:9000/kagaz-files/test/key.pdf?X-Amz-Signature=abc"
+        )
+
+        service = StorageService()
+        url = service.get_presigned_url(
+            "test/key.pdf",
+            public_base_url="https://app.dheerajjoshi.me",
+        )
+        
+        assert url.startswith("https://app.dheerajjoshi.me/storage/kagaz-files/test/key.pdf")
+        assert "X-Amz-Signature=abc" in url
+
+    @patch("boto3.client")
+    def test_get_presigned_url_public_base_url_without_scheme_defaults_https(self, mock_boto):
+        """Public base URL without scheme should default to HTTPS."""
+        mock_client = MagicMock()
+        mock_boto.return_value = mock_client
+        mock_client.head_bucket.return_value = True
+        mock_client.generate_presigned_url.return_value = (
+            "http://minio:9000/kagaz-files/test/key.pdf?X-Amz-Signature=abc"
+        )
+
+        service = StorageService()
+        url = service.get_presigned_url(
+            "test/key.pdf",
+            public_base_url="app.dheerajjoshi.me",
+        )
+
+        assert url.startswith("https://app.dheerajjoshi.me/storage/kagaz-files/test/key.pdf")

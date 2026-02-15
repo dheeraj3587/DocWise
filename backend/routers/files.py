@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Request, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +37,17 @@ def _classify_file(content_type: str) -> str:
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=f"Unsupported file type: {content_type}. Allowed: PDF, audio, video.",
     )
+
+
+def _external_base_url(request: Request) -> str:
+    """Build external base URL, honoring reverse-proxy forwarded headers."""
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = (
+        request.headers.get("x-forwarded-host")
+        or request.headers.get("host")
+        or request.url.netloc
+    )
+    return f"{scheme}://{host}"
 
 
 async def _count_uploads_today(email: str, db: AsyncSession) -> int:
@@ -128,6 +139,7 @@ async def upload_file(
 @router.get("/{file_id}")
 async def get_file(
     file_id: str,
+    request: Request,
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -140,7 +152,10 @@ async def get_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
 
-    file_url = storage_service.get_presigned_url(file_record.storage_key)
+    file_url = storage_service.get_presigned_url(
+        file_record.storage_key,
+        public_base_url=_external_base_url(request),
+    )
 
     # Get timestamps if media file
     timestamps = []
@@ -175,6 +190,7 @@ async def get_file(
 
 @router.get("")
 async def list_files(
+    request: Request,
     user_email: Optional[str] = None,
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
@@ -191,8 +207,12 @@ async def list_files(
     files = result.scalars().all()
 
     file_list = []
+    public_base_url = _external_base_url(request)
     for f in files:
-        file_url = storage_service.get_presigned_url(f.storage_key)
+        file_url = storage_service.get_presigned_url(
+            f.storage_key,
+            public_base_url=public_base_url,
+        )
         file_list.append(
             {
                 "fileId": str(f.file_id),

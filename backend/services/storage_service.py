@@ -14,6 +14,16 @@ from core.config import settings
 class StorageService:
     """Handles file uploads/downloads to MinIO."""
 
+    @staticmethod
+    def _infer_public_ssl(endpoint: str) -> bool:
+        """Infer whether browser-facing endpoint should use HTTPS."""
+        host = endpoint.split(":", 1)[0].strip().lower()
+        if host in {"localhost", "127.0.0.1", "::1"}:
+            return False
+        if host.endswith(".local"):
+            return False
+        return True
+
     def __init__(self):
         protocol = "https" if settings.MINIO_USE_SSL else "http"
 
@@ -30,9 +40,15 @@ class StorageService:
         # Public client — used only for presigned URLs so the signature
         # matches the hostname the browser will actually hit via Nginx.
         public_endpoint = settings.MINIO_PUBLIC_ENDPOINT or settings.MINIO_ENDPOINT
+        public_ssl = (
+            settings.MINIO_PUBLIC_USE_SSL
+            if settings.MINIO_PUBLIC_USE_SSL is not None
+            else self._infer_public_ssl(public_endpoint)
+        )
+        public_protocol = "https" if public_ssl else "http"
         self.public_client = boto3.client(
             "s3",
-            endpoint_url=f"{protocol}://{public_endpoint}",
+            endpoint_url=f"{public_protocol}://{public_endpoint}",
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
             config=Config(signature_version="s3v4"),
@@ -70,7 +86,12 @@ class StorageService:
         )
         return key
 
-    def get_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+    def get_presigned_url(
+        self,
+        key: str,
+        expires_in: int = 3600,
+        public_base_url: Optional[str] = None,
+    ) -> str:
         """Generate a presigned URL for downloading a file.
 
         Uses the public client so the signature is computed against the
@@ -86,7 +107,20 @@ class StorageService:
         # Rewrite URL to route through Nginx /storage/ proxy
         # e.g. http://localhost/kagaz-files/... → http://localhost/storage/kagaz-files/...
         parsed = urlparse(url)
-        rewritten = parsed._replace(path=f"/storage{parsed.path}")
+        rewritten_path = f"/storage{parsed.path}"
+
+        if public_base_url:
+            normalized_base = public_base_url.strip()
+            if "://" not in normalized_base:
+                normalized_base = f"https://{normalized_base}"
+            base = urlparse(normalized_base)
+            rewritten = parsed._replace(
+                scheme=base.scheme or parsed.scheme,
+                netloc=base.netloc or base.path,
+                path=rewritten_path,
+            )
+        else:
+            rewritten = parsed._replace(path=rewritten_path)
         return urlunparse(rewritten)
 
     def download_file(self, key: str) -> bytes:

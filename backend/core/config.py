@@ -1,7 +1,7 @@
 """Application configuration loaded from environment variables."""
 
 import json
-from typing import Any, List
+from typing import Any, List, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # MinIO / S3
     MINIO_ENDPOINT: str = "minio:9000"
     MINIO_PUBLIC_ENDPOINT: str = "localhost"
+    MINIO_PUBLIC_USE_SSL: Optional[bool] = None
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET: str = "kagaz-files"
