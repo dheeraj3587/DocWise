@@ -39,8 +39,10 @@ def _classify_file(content_type: str) -> str:
     )
 
 
-def _external_base_url(request: Request) -> str:
+def _external_base_url(request: Optional[Request]) -> Optional[str]:
     """Build external base URL, honoring reverse-proxy forwarded headers."""
+    if request is None:
+        return None
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = (
         request.headers.get("x-forwarded-host")
@@ -139,10 +141,10 @@ async def upload_file(
 @router.get("/{file_id}")
 async def get_file(
     file_id: str,
-    request: Request,
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    request: Optional[Request] = None,
 ):
     """Get file metadata and a presigned download URL."""
     stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(file_id))
@@ -190,11 +192,11 @@ async def get_file(
 
 @router.get("")
 async def list_files(
-    request: Request,
     user_email: Optional[str] = None,
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    request: Optional[Request] = None,
 ):
     """List files. If user_email is provided, filter by creator."""
     email = user_email or user["email"]
