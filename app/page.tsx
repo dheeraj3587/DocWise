@@ -62,7 +62,7 @@ export default function Home() {
             onClick={() => router.push("/")}
             className="flex items-center gap-2 text-xl sm:text-2xl font-semibold text-slate-900 cursor-pointer"
           >
-            <img src="/logo.png" alt="DocWise Logo" className="w-8 h-8 rounded-lg" />
+            <img src="/logo.png" alt="DocWise Logo" className="h-8 w-auto object-contain" />
             DocWise
           </div>
           <div className="flex gap-2 sm:gap-4 items-center">

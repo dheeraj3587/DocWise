@@ -68,7 +68,7 @@ export const Sidebar = () => {
           className="h-16 flex items-center px-6 border-b border-slate-200 cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="DocWise Logo" className="w-8 h-8 rounded-lg" />
+            <img src="/logo.png" alt="DocWise Logo" className="h-8 w-auto object-contain" />
             <span className="text-xl font-semibold text-slate-900">DocWise</span>
           </div>
         </div>
