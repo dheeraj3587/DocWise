@@ -60,8 +60,9 @@ export default function Home() {
         <nav className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center max-w-6xl">
           <div
             onClick={() => router.push("/")}
-            className="text-xl sm:text-2xl font-semibold text-slate-900 cursor-pointer"
+            className="flex items-center gap-2 text-xl sm:text-2xl font-semibold text-slate-900 cursor-pointer"
           >
+            <img src="/logo.png" alt="DocWise Logo" className="w-8 h-8 rounded-lg" />
             DocWise
           </div>
           <div className="flex gap-2 sm:gap-4 items-center">
