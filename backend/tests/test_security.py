@@ -81,6 +81,32 @@ class TestSecurity:
 
         settings.API_KEYS = original_api_keys
 
+    async def test_get_current_user_with_valid_jwt_payload_fallback_email_address(self):
+        """JWT auth returns normalized user payload using email_address fallback."""
+        mock_creds = MagicMock()
+        mock_creds.credentials = "valid-token"
+
+        with patch("core.security._get_jwks", new_callable=AsyncMock) as mock_jwks:
+            mock_jwks.return_value = {"keys": [{"kid": "kid-1", "kty": "RSA"}]}
+            with patch("core.security.jwt.get_unverified_header", return_value={"kid": "kid-1"}):
+                with patch(
+                    "core.security.jwt.decode",
+                    return_value={
+                        "sub": "user_123",
+                        "email_address": "user@example.com",
+                        "name": "Test User",
+                        "image_url": "https://example.com/image.png",
+                    },
+                ):
+                    result = await get_current_user(mock_creds)
+
+        assert result == {
+            "sub": "user_123",
+            "email": "user@example.com",
+            "name": "Test User",
+            "image_url": "https://example.com/image.png",
+        }
+
     def test_verify_api_key_non_string(self):
         """Non-string API keys return None."""
         assert security._verify_api_key(None) is None
@@ -162,3 +188,15 @@ class TestSecurity:
         settings.CLERK_JWKS_URL = original_url
         security._jwks_cache = original_cache
         security._jwks_cache_time = original_cache_time
+
+    async def test_get_optional_user_with_valid_api_key(self):
+        """Optional auth returns API key identity when key is valid."""
+        original_api_keys = settings.API_KEYS
+        settings.API_KEYS = ["optional-key"]
+        try:
+            result = await get_optional_user(None, "optional-key")
+            assert result is not None
+            assert result["auth_type"] == "api_key"
+            assert result["sub"].startswith("api_key:")
+        finally:
+            settings.API_KEYS = original_api_keys
