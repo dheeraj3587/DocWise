@@ -1,13 +1,14 @@
 """Tests for vector search endpoint."""
 
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from core.cache import cache_service
 from core.config import settings
 from core.rate_limit import rate_limiter
+from routers.search import SearchRequest, search_documents
 
 
 @pytest.mark.asyncio
@@ -157,3 +158,53 @@ class TestSearch:
 
         assert first.status_code == 200
         assert second.status_code == 429
+
+    async def test_search_documents_direct_cache_hit(self):
+        """Direct call should return cached payload when available."""
+        file_id = str(uuid.uuid4())
+        body = SearchRequest(query="Find this", file_id=file_id, top_k=2)
+        user = {"email": "owner@example.com", "sub": "user_123"}
+
+        file_record = MagicMock()
+        file_record.created_by = "email:owner@example.com"
+
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = file_record
+
+        db = AsyncMock()
+        db.execute.return_value = execute_result
+
+        cached_payload = [{"text": "cached", "score": 0.99, "fileId": file_id}]
+
+        with patch("routers.search.cache_service.get_json", new_callable=AsyncMock) as mock_get_json:
+            with patch("routers.search.embedding_service.search_similar") as mock_search:
+                mock_get_json.return_value = cached_payload
+                result = await search_documents(body=body, user=user, db=db)
+
+        assert result == cached_payload
+        mock_search.assert_not_called()
+        db.execute.assert_awaited_once()
+
+    async def test_search_documents_direct_empty_query_after_owner_check(self):
+        """Direct call should return [] for blank query after file ownership check."""
+        file_id = str(uuid.uuid4())
+        body = SearchRequest(query="   ", file_id=file_id, top_k=5)
+        user = {"email": "owner@example.com", "sub": "user_123"}
+
+        file_record = MagicMock()
+        file_record.created_by = "email:owner@example.com"
+
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = file_record
+
+        db = AsyncMock()
+        db.execute.return_value = execute_result
+
+        with patch("routers.search.cache_service.get_json", new_callable=AsyncMock) as mock_get_json:
+            with patch("routers.search.embedding_service.search_similar") as mock_search:
+                result = await search_documents(body=body, user=user, db=db)
+
+        assert result == []
+        mock_get_json.assert_not_called()
+        mock_search.assert_not_called()
+        db.execute.assert_awaited_once()
