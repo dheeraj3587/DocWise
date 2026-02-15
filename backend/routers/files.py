@@ -144,7 +144,7 @@ async def get_file(
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    request: Optional[Request] = None,
+    request: Request = None,
 ):
     """Get file metadata and a presigned download URL."""
     if not hasattr(db, "execute") and request is not None and hasattr(request, "execute"):
@@ -199,7 +199,7 @@ async def list_files(
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    request: Optional[Request] = None,
+    request: Request = None,
 ):
     """List files. If user_email is provided, filter by creator."""
     if not hasattr(db, "execute") and request is not None and hasattr(request, "execute"):
