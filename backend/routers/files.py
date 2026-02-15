@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, R
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.authz import assert_file_owner
 from core.config import settings
 from core.rate_limit import rate_limit
 from core.security import get_current_user
@@ -82,7 +83,6 @@ async def get_upload_count(
 async def upload_file(
     file: UploadFile = File(...),
     file_name: str = Form(None),
-    user_email: str = Form(None),
     _: None = Depends(rate_limit("upload")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -93,7 +93,7 @@ async def upload_file(
     Limited to MAX_FILES_PER_USER_PER_DAY uploads per user per UTC day.
     """
     # ── Daily upload limit check ──────────────────────────────────────────
-    created_by_email = user.get("email") or user_email or ""
+    created_by_email = user.get("email") or ""
     today_count = await _count_uploads_today(created_by_email, db)
     if today_count >= settings.MAX_FILES_PER_USER_PER_DAY:
         raise HTTPException(
@@ -104,6 +104,14 @@ async def upload_file(
     content_type = file.content_type or "application/octet-stream"
     file_type = _classify_file(content_type)
     file_bytes = await file.read()
+
+    # ── Server-side file size enforcement ────────────────────────────────
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(file_bytes) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE_MB} MB.",
+        )
 
     file_id = str(uuid.uuid4())
     original_name = file_name or file.filename or "untitled"
@@ -157,6 +165,9 @@ async def get_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
 
+    # Ownership check — only the file owner can access it
+    assert_file_owner(file_record, user)
+
     file_url = storage_service.get_presigned_url(
         file_record.storage_key,
         public_base_url=_external_base_url(request),
@@ -195,17 +206,16 @@ async def get_file(
 
 @router.get("")
 async def list_files(
-    user_email: Optional[str] = None,
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     request: Request = None,
 ):
-    """List files. If user_email is provided, filter by creator."""
+    """List files for the authenticated user."""
     if not hasattr(db, "execute") and request is not None and hasattr(request, "execute"):
         db, request = request, None
 
-    email = user_email or user["email"]
+    email = user["email"]
     stmt = (
         select(FileModel)
         .where(FileModel.created_by == email)
@@ -238,7 +248,6 @@ async def list_files(
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: str,
-    user_email: Optional[str] = None,
     _: None = Depends(rate_limit("default")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -251,19 +260,8 @@ async def delete_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Ownership check — match by JWT email, fallback user_email, or JWT sub
-    jwt_email = (user.get("email") or "").strip().lower()
-    param_email = (user_email or "").strip().lower()
-    jwt_sub = (user.get("sub") or "").strip().lower()
-    file_owner = (file_record.created_by or "").strip().lower()
-
-    owner_match = (
-        (jwt_email and file_owner == jwt_email)
-        or (param_email and file_owner == param_email)
-        or (jwt_sub and file_owner == jwt_sub)
-    )
-    if not owner_match:
-        raise HTTPException(status_code=403, detail="You can only delete your own files")
+    # Ownership check — only JWT identity (email or sub) is trusted
+    assert_file_owner(file_record, user)
 
     # Delete from MinIO
     storage_service.delete_file(file_record.storage_key)

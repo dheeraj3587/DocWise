@@ -213,6 +213,31 @@ def sample_file_id():
     return str(uuid.uuid4())
 
 
+@pytest_asyncio.fixture
+async def create_owned_file():
+    """Factory fixture: create a file record owned by the mock test user."""
+    from models.file import File as FileModel
+
+    async def _create(file_name="test-file.pdf", file_type="pdf", **kwargs):
+        fid = uuid.uuid4()
+        async with test_session_factory() as session:
+            defaults = dict(
+                file_id=fid,
+                file_name=file_name,
+                file_type=file_type,
+                storage_key=f"{file_type}/{fid}/{file_name}",
+                created_by=MOCK_USER["email"],
+                status="ready",
+            )
+            defaults.update(kwargs)
+            f = FileModel(**defaults)
+            session.add(f)
+            await session.commit()
+        return str(fid)
+
+    return _create
+
+
 @pytest.fixture(autouse=True)
 def cleanup_faiss():
     """Clean up test FAISS indices after each test."""

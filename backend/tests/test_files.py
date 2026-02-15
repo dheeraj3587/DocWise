@@ -176,45 +176,38 @@ class TestFileRetrieval:
         files = response.json()
         assert len(files) == 2
 
-    async def test_list_files_filter_by_email(self, client):
-        """Test filtering files by user email."""
-        # Manually create files with different creators
+    async def test_list_files_only_returns_own(self, client):
+        """Test that list_files only returns files owned by the authenticated user."""
         from models.database import async_session
         from models.file import File
         
         async with async_session() as session:
             f1 = File(
                 file_id=uuid.uuid4(),
-                file_name="a.pdf",
+                file_name="mine.pdf",
                 file_type="pdf",
                 storage_key="key1",
-                created_by="user1@example.com",
+                created_by="test@example.com",
                 status="ready"
             )
             f2 = File(
                 file_id=uuid.uuid4(),
-                file_name="b.pdf",
+                file_name="not-mine.pdf",
                 file_type="pdf",
                 storage_key="key2",
-                created_by="user2@example.com",
+                created_by="other@example.com",
                 status="ready"
             )
             session.add(f1)
             session.add(f2)
             await session.commit()
 
-        # Filter for user 1
-        response = await client.get("/api/files?user_email=user1@example.com")
+        # Should only return the file owned by test@example.com
+        response = await client.get("/api/files")
         assert response.status_code == 200
         files = response.json()
         assert len(files) == 1
-        assert files[0]["fileName"] == "a.pdf"
-
-        # Verify default behavior (uses current user email test@example.com)
-        # Should return nothing as we didn't add any for test@example.com
-        response = await client.get("/api/files")
-        assert response.status_code == 200
-        assert len(response.json()) == 0
+        assert files[0]["fileName"] == "mine.pdf"
 
 
     async def test_get_file_with_timestamps(self, client):
@@ -311,7 +304,7 @@ class TestFileDelete:
 
         response = await client.delete(f"/api/files/{file_id}")
         assert response.status_code == 403
-        assert "your own files" in response.json()["detail"].lower()
+        assert response.json()["detail"].lower() == "forbidden"
 
 
 @pytest.mark.asyncio

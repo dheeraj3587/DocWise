@@ -18,10 +18,8 @@ import { Label } from "@/components/ui/label"
 import { getUploadCount, uploadFile } from "@/lib/api-client"
 import { useAuth } from "@clerk/nextjs"
 import { Loader2 } from "lucide-react"
-import { useUser } from "@clerk/clerk-react";
 
 export function FileUpload({ children }: { children: React.ReactNode }) {
-    const { user } = useUser();
     const { getToken } = useAuth();
     const [file, setFile] = useState<File | null>(null);
     const [name, setName] = useState<string | null>(null);
@@ -64,7 +62,6 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
             await uploadFile(
                 file,
                 name ?? "untitled file",
-                user?.primaryEmailAddress?.emailAddress as string,
                 token,
             );
             setLoading(false);

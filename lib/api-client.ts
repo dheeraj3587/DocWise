@@ -6,14 +6,6 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function getAuthHeaders(): Promise<HeadersInit> {
-  // Clerk exposes __clerk_db_jwt cookie or we can get the token from the Clerk client
-  // In Next.js client components, use useAuth().getToken() and pass it here.
-  return {
-    "Content-Type": "application/json",
-  };
-}
-
 function buildHeaders(token?: string | null): HeadersInit {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -82,13 +74,11 @@ export interface MediaTimestamp {
 export async function uploadFile(
   file: File,
   fileName: string,
-  userEmail: string,
   token?: string | null,
 ): Promise<FileRecord> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("file_name", fileName);
-  formData.append("user_email", userEmail);
 
   const headers: Record<string, string> = {};
   if (token) {
@@ -110,11 +100,10 @@ export async function uploadFile(
 }
 
 export async function getUserFiles(
-  userEmail: string,
   token?: string | null,
 ): Promise<FileRecord[]> {
   const res = await fetch(
-    `${API_BASE}/api/files?user_email=${encodeURIComponent(userEmail)}`,
+    `${API_BASE}/api/files`,
     {
       headers: buildHeaders(token),
     },
@@ -137,12 +126,8 @@ export async function getFileData(
 export async function deleteFile(
   fileId: string,
   token?: string | null,
-  userEmail?: string,
 ): Promise<void> {
-  const url = userEmail
-    ? `${API_BASE}/api/files/${fileId}?user_email=${encodeURIComponent(userEmail)}`
-    : `${API_BASE}/api/files/${fileId}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
     method: "DELETE",
     headers: buildHeaders(token),
   });
@@ -186,13 +171,12 @@ export async function getNotes(
 export async function saveNote(
   fileId: string,
   note: string,
-  createdBy: string,
   token?: string | null,
 ): Promise<void> {
   await fetch(`${API_BASE}/api/notes/${fileId}`, {
     method: "PUT",
     headers: buildHeaders(token),
-    body: JSON.stringify({ note, created_by: createdBy }),
+    body: JSON.stringify({ note }),
   });
 }
 

@@ -19,6 +19,11 @@ class UserCreate(BaseModel):
     image_url: str | None = None
 
 
+class UserUpdate(BaseModel):
+    name: str | None = None
+    image_url: str | None = None
+
+
 @router.post("")
 async def create_user(
     body: UserCreate,
@@ -26,7 +31,13 @@ async def create_user(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new user if they don't exist."""
+    """Create a new user profile (only for the authenticated user)."""
+    # Enforce that users can only create their own profile
+    jwt_email = (user.get("email") or "").strip().lower()
+    body_email = (body.email or "").strip().lower()
+    if not jwt_email or jwt_email != body_email:
+        raise HTTPException(status_code=403, detail="You can only create your own profile")
+
     stmt = select(User).where(User.email == body.email)
     result = await db.execute(stmt)
     existing = result.scalar_one_or_none()
@@ -68,12 +79,18 @@ async def get_me(
 @router.patch("/{email}")
 async def update_user(
     email: str,
-    body: dict,
+    body: UserUpdate,
     _: None = Depends(rate_limit("users")),
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update user fields (name, image, etc.)."""
+    """Update user fields (name, image). Users can only update their own profile."""
+    # Enforce self-only access
+    jwt_email = (user.get("email") or "").strip().lower()
+    target_email = (email or "").strip().lower()
+    if not jwt_email or jwt_email != target_email:
+        raise HTTPException(status_code=403, detail="You can only update your own profile")
+
     stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
     db_user = result.scalar_one_or_none()
@@ -81,9 +98,9 @@ async def update_user(
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if "name" in body:
-        db_user.name = body["name"]
-    if "image_url" in body:
-        db_user.image_url = body["image_url"]
+    if body.name is not None:
+        db_user.name = body.name
+    if body.image_url is not None:
+        db_user.image_url = body.image_url
 
     return {"status": "updated"}

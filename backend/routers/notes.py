@@ -7,9 +7,11 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.authz import assert_file_owner
 from core.rate_limit import rate_limit
 from core.security import get_current_user
 from models.database import get_db
+from models.file import File as FileModel
 from models.note import Note
 
 router = APIRouter()
@@ -17,7 +19,17 @@ router = APIRouter()
 
 class NoteUpdate(BaseModel):
     note: str
-    created_by: str | None = None
+
+
+async def _get_owned_file(file_id: str, user: dict, db: AsyncSession) -> FileModel:
+    """Look up a file and verify the current user owns it."""
+    stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(file_id))
+    result = await db.execute(stmt)
+    file_record = result.scalar_one_or_none()
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    assert_file_owner(file_record, user)
+    return file_record
 
 
 @router.get("/{file_id}")
@@ -27,7 +39,9 @@ async def get_notes(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get notes for a file."""
+    """Get notes for a file (owner only)."""
+    await _get_owned_file(file_id, user, db)
+
     stmt = select(Note).where(Note.file_id == uuid.UUID(file_id))
     result = await db.execute(stmt)
     notes = result.scalars().all()
@@ -52,20 +66,23 @@ async def save_note(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create or update a note for a file (upsert)."""
+    """Create or update a note for a file (upsert, owner only)."""
+    await _get_owned_file(file_id, user, db)
+
     stmt = select(Note).where(Note.file_id == uuid.UUID(file_id))
     result = await db.execute(stmt)
     existing = result.scalar_one_or_none()
 
+    created_by = user.get("email") or user.get("sub") or ""
+
     if existing:
         existing.note = body.note
-        if body.created_by:
-            existing.created_by = body.created_by
+        existing.created_by = created_by
     else:
         new_note = Note(
             file_id=uuid.UUID(file_id),
             note=body.note,
-            created_by=body.created_by or user["email"],
+            created_by=created_by,
         )
         db.add(new_note)
 
@@ -79,7 +96,9 @@ async def delete_note(
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete notes for a file."""
+    """Delete notes for a file (owner only)."""
+    await _get_owned_file(file_id, user, db)
+
     stmt = select(Note).where(Note.file_id == uuid.UUID(file_id))
     result = await db.execute(stmt)
     notes = result.scalars().all()

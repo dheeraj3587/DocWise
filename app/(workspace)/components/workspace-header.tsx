@@ -3,7 +3,6 @@ import { UserButton } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { saveNote } from "@/lib/api-client";
-import { useUser } from "@clerk/nextjs";
 import { useState } from "react";
 import { Editor } from "@tiptap/react";
 import { Undo2, FileText, MessageCircle } from "lucide-react";
@@ -27,7 +26,6 @@ export const WorkspaceHeader = ({
   const [loading, setLoading] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
 
-  const { user } = useUser();
   const { getToken } = useAuth();
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -38,7 +36,6 @@ export const WorkspaceHeader = ({
       await saveNote(
         fileId as string,
         editor?.getHTML() as string,
-        user?.primaryEmailAddress?.emailAddress as string,
         token,
       );
     } catch (error) {

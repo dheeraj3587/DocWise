@@ -1,12 +1,19 @@
 """Search router — vector similarity search across file embeddings."""
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+import uuid
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.authz import assert_file_owner
 from core.cache import cache_service
 from core.config import settings
 from core.rate_limit import rate_limit
 from core.security import get_current_user
+from models.database import get_db
+from models.file import File as FileModel
 from services.embedding_service import embedding_service
 
 router = APIRouter()
@@ -23,11 +30,20 @@ async def search_documents(
     body: SearchRequest,
     _: None = Depends(rate_limit("search")),
     user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Search for similar chunks in a file's vector index.
     Returns ranked results with text, score, and optional timestamps.
     """
+    # Ownership check — verify the user owns this file
+    stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(body.file_id))
+    result = await db.execute(stmt)
+    file_record = result.scalar_one_or_none()
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    assert_file_owner(file_record, user)
+
     if not body.query.strip():
         return []
 

@@ -13,9 +13,9 @@ from models.file import File as FileModel
 class TestChat:
     """Tests for /api/chat endpoints."""
 
-    async def test_chat_ask_stream(self, client, mock_embedding_service):
+    async def test_chat_ask_stream(self, client, mock_embedding_service, create_owned_file):
         """Test chat ask endpoint returns streaming response."""
-        file_id = str(uuid.uuid4())
+        file_id = await create_owned_file()
 
         response = await client.post(
             "/api/chat/ask",
@@ -25,9 +25,9 @@ class TestChat:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
 
-    async def test_chat_ask_content(self, client, mock_embedding_service, mock_ai_service):
+    async def test_chat_ask_content(self, client, mock_embedding_service, mock_ai_service, create_owned_file):
         """Test chat ask returns text content in SSE format."""
-        file_id = str(uuid.uuid4())
+        file_id = await create_owned_file()
 
         response = await client.post(
             "/api/chat/ask",
@@ -38,9 +38,9 @@ class TestChat:
         assert "data:" in content
         assert "[DONE]" in content
 
-    async def test_chat_ask_with_timestamps(self, client):
+    async def test_chat_ask_with_timestamps(self, client, create_owned_file):
         """Test chat returns timestamp info for media files."""
-        file_id = str(uuid.uuid4())
+        file_id = await create_owned_file(file_type="audio", file_name="test.mp3")
 
         with patch("routers.chat.embedding_service") as mock_embed:
             mock_embed.search_similar = MagicMock(
@@ -64,13 +64,22 @@ class TestChat:
             content = response.text
             assert "data:" in content
 
-    async def test_chat_ask_empty_query(self, client, mock_embedding_service):
+    async def test_chat_ask_empty_query(self, client, mock_embedding_service, create_owned_file):
         """Test chat with empty query."""
+        file_id = await create_owned_file()
         response = await client.post(
             "/api/chat/ask",
-            json={"question": "", "file_id": str(uuid.uuid4())},
+            json={"question": "", "file_id": file_id},
         )
         assert response.status_code == 200
+
+    async def test_chat_ask_file_not_found(self, client):
+        """Test chat ask with non-existent file returns 404."""
+        response = await client.post(
+            "/api/chat/ask",
+            json={"question": "Hello", "file_id": str(uuid.uuid4())},
+        )
+        assert response.status_code == 404
 
     async def test_chat_ask_missing_fields(self, client):
         """Test chat with missing required fields."""
@@ -186,9 +195,9 @@ class TestSummarize:
 class TestChatCache:
     """Tests for chat caching."""
 
-    async def test_chat_ask_cached(self, client):
+    async def test_chat_ask_cached(self, client, create_owned_file):
         """Test chat ask returns cached response if available."""
-        file_id = str(uuid.uuid4())
+        file_id = await create_owned_file()
         # Mock cache hit
         with patch("routers.chat.cache_service.get_json", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = "Cached answer"

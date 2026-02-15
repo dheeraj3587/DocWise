@@ -1,7 +1,7 @@
 """FAISS vector store — stores and searches document/transcript embeddings."""
 
+import json
 import os
-import pickle
 from typing import List, Dict, Any, Optional
 
 import faiss
@@ -25,7 +25,32 @@ class FAISSIndex:
         return os.path.join(self.index_dir, f"{file_id}.index")
 
     def _meta_path(self, file_id: str) -> str:
+        return os.path.join(self.index_dir, f"{file_id}.meta.json")
+
+    def _legacy_meta_path(self, file_id: str) -> str:
+        """Legacy pickle-based metadata path for migration compatibility."""
         return os.path.join(self.index_dir, f"{file_id}.meta")
+
+    def _load_metadata(self, file_id: str) -> Optional[List[Dict[str, Any]]]:
+        """Load metadata, supporting both JSON (preferred) and legacy pickle formats."""
+        json_path = self._meta_path(file_id)
+        if os.path.exists(json_path):
+            with open(json_path, "r") as f:
+                return json.load(f)
+
+        # Fallback: read legacy pickle and migrate to JSON
+        legacy_path = self._legacy_meta_path(file_id)
+        if os.path.exists(legacy_path):
+            import pickle
+            with open(legacy_path, "rb") as f:
+                metadata = pickle.load(f)
+            # Migrate: write JSON and remove pickle
+            with open(json_path, "w") as f:
+                json.dump(metadata, f)
+            os.remove(legacy_path)
+            return metadata
+
+        return None
 
     def add_embeddings(
         self,
@@ -53,9 +78,9 @@ class FAISSIndex:
         # Save FAISS index
         faiss.write_index(index, self._index_path(file_id))
 
-        # Save metadata
-        with open(self._meta_path(file_id), "wb") as f:
-            pickle.dump(metadata, f)
+        # Save metadata as JSON (safe serialisation)
+        with open(self._meta_path(file_id), "w") as f:
+            json.dump(metadata, f)
 
     def search(
         self,
@@ -69,15 +94,15 @@ class FAISSIndex:
         Returns list of metadata dicts with an added 'score' field.
         """
         index_path = self._index_path(file_id)
-        meta_path = self._meta_path(file_id)
 
-        if not os.path.exists(index_path) or not os.path.exists(meta_path):
+        if not os.path.exists(index_path):
+            return []
+
+        metadata = self._load_metadata(file_id)
+        if metadata is None:
             return []
 
         index = faiss.read_index(index_path)
-
-        with open(meta_path, "rb") as f:
-            metadata = pickle.load(f)
 
         query_vector = np.array([query_embedding], dtype=np.float32)
         distances, indices = index.search(query_vector, min(top_k, index.ntotal))
@@ -93,7 +118,7 @@ class FAISSIndex:
 
     def delete_index(self, file_id: str) -> None:
         """Delete a file's FAISS index and metadata."""
-        for path in [self._index_path(file_id), self._meta_path(file_id)]:
+        for path in [self._index_path(file_id), self._meta_path(file_id), self._legacy_meta_path(file_id)]:
             if os.path.exists(path):
                 os.remove(path)
 

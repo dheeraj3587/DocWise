@@ -8,23 +8,35 @@ class TestUsers:
     """Tests for /api/users endpoints."""
 
     async def test_create_user(self, client):
-        """Test creating a new user."""
+        """Test creating a new user (must match authenticated email)."""
         response = await client.post(
             "/api/users",
             json={
-                "email": "new@example.com",
-                "name": "New User",
+                "email": "test@example.com",
+                "name": "Test User",
                 "image_url": "https://example.com/avatar.png",
             },
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "created"
-        assert data["email"] == "new@example.com"
+        assert data["email"] == "test@example.com"
+
+    async def test_create_user_forbidden_for_other_email(self, client):
+        """Test that creating a profile for another email is rejected."""
+        response = await client.post(
+            "/api/users",
+            json={
+                "email": "other@example.com",
+                "name": "Other User",
+            },
+        )
+        assert response.status_code == 403
+        assert "own profile" in response.json()["detail"].lower()
 
     async def test_create_user_already_exists(self, client):
         """Test creating a user that already exists returns 'exists'."""
-        user_data = {"email": "dup@example.com", "name": "User 1"}
+        user_data = {"email": "test@example.com", "name": "Test User"}
 
         # Create first
         await client.post("/api/users", json=user_data)
@@ -55,22 +67,31 @@ class TestUsers:
         assert data["email"] == "test@example.com"
 
     async def test_update_user_not_found(self, client):
-        """Test updating a non-existent user."""
+        """Test updating own profile when no DB record exists returns 404."""
         response = await client.patch(
-            "/api/users/nobody@example.com",
-            json={"name": "Nobody"},
+            "/api/users/test@example.com",
+            json={"name": "New Name"},
         )
         assert response.status_code == 404
+
+    async def test_update_user_forbidden_for_other_email(self, client):
+        """Test that updating another user's profile is rejected."""
+        response = await client.patch(
+            "/api/users/other@example.com",
+            json={"name": "Hacked"},
+        )
+        assert response.status_code == 403
+        assert "own profile" in response.json()["detail"].lower()
 
     async def test_update_user_name(self, client):
         """Test updating user name."""
         await client.post(
             "/api/users",
-            json={"email": "rename@example.com", "name": "Old Name"},
+            json={"email": "test@example.com", "name": "Old Name"},
         )
 
         response = await client.patch(
-            "/api/users/rename@example.com",
+            "/api/users/test@example.com",
             json={"name": "New Name"},
         )
         assert response.status_code == 200
@@ -79,30 +100,20 @@ class TestUsers:
         """Test creating user without image_url."""
         response = await client.post(
             "/api/users",
-            json={"email": "noimg@example.com", "name": "No Image"},
+            json={"email": "test@example.com", "name": "No Image"},
         )
         assert response.status_code == 200
         assert response.json()["status"] == "created"
 
     async def test_update_user_image(self, client):
         """Test updating user image URL."""
-        email = "imgupdate@example.com"
         await client.post(
             "/api/users",
-            json={"email": email, "name": "Img User"},
+            json={"email": "test@example.com", "name": "Img User"},
         )
 
         response = await client.patch(
-            f"/api/users/{email}",
+            "/api/users/test@example.com",
             json={"image_url": "https://new.com/pic.jpg"},
         )
         assert response.status_code == 200
-        
-        # Verify
-        get_resp = await client.get("/api/users/me")
-        # Note: /me uses authenticated user mocked in conftest, which is fixed to test@example.com
-        # So we can't easily verify /me for this specific user unless we change auth.
-        # But we can assume the PATCH 200 means it worked if covered by code.
-        # Or we can check the DB directly if we wanted to be thorough.
-        # For now, just exercising the endpoint code path is enough for coverage.
-

@@ -1,5 +1,6 @@
 """Authentication & security utilities — Clerk JWT verification."""
 
+import time
 from typing import Optional
 import hashlib
 import secrets
@@ -15,6 +16,8 @@ security = HTTPBearer(auto_error=False)
 api_key_security = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 _jwks_cache: Optional[dict] = None
+_jwks_cache_time: float = 0.0
+_JWKS_CACHE_TTL_SECONDS: int = 3600  # Refresh JWKS every hour
 
 
 def _verify_api_key(api_key: Optional[str]) -> Optional[dict]:
@@ -45,28 +48,31 @@ def _verify_api_key(api_key: Optional[str]) -> Optional[dict]:
 
 
 async def _get_jwks() -> dict:
-    """Fetch Clerk JWKS (cached after first call)."""
-    global _jwks_cache
-    if _jwks_cache is not None:
+    """Fetch Clerk JWKS (cached with a TTL)."""
+    global _jwks_cache, _jwks_cache_time
+    now = time.time()
+    if _jwks_cache is not None and (now - _jwks_cache_time) < _JWKS_CACHE_TTL_SECONDS:
         return _jwks_cache
 
     if not settings.CLERK_JWKS_URL:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service not configured (CLERK_JWKS_URL missing)",
+            detail="Authentication service not configured",
         )
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(settings.CLERK_JWKS_URL)
         resp.raise_for_status()
         _jwks_cache = resp.json()
+        _jwks_cache_time = now
         return _jwks_cache
 
 
 def clear_jwks_cache():
     """Clear the JWKS cache (useful for testing)."""
-    global _jwks_cache
+    global _jwks_cache, _jwks_cache_time
     _jwks_cache = None
+    _jwks_cache_time = 0.0
 
 
 async def get_current_user(
@@ -122,10 +128,10 @@ async def get_current_user(
             "image_url": payload.get("image_url", ""),
         }
 
-    except JWTError as e:
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}",
+            detail="Invalid or expired token",
         )
 
 

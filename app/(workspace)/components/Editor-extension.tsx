@@ -23,7 +23,6 @@ import "@tiptap/extension-text-align";
 import { saveNote } from "@/lib/api-client";
 import { useAuth } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
 import { marked } from "marked";
 
 interface EditorExtensionProps {
@@ -32,7 +31,6 @@ interface EditorExtensionProps {
 
 export const EditorExtension = ({ editor }: EditorExtensionProps) => {
   const [isActive, setIsActive] = useState(false);
-  const { user } = useUser();
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [deepMode, setDeepMode] = useState(false);
@@ -170,7 +168,6 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
       await saveNote(
         fileId as string,
         Allnote,
-        user?.primaryEmailAddress?.emailAddress as string,
         saveToken,
       );
 

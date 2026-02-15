@@ -22,7 +22,7 @@ export default function Dashboard() {
 
   const email = user?.primaryEmailAddress?.emailAddress;
   const { data: getAllFiles, isLoading, refetch } = useApiQuery<FileRecord[]>(
-    email ? `/api/files?user_email=${encodeURIComponent(email)}` : null,
+    email ? `/api/files` : null,
     [email],
   );
 
@@ -33,7 +33,7 @@ export default function Dashboard() {
     setDeletingId(fileId);
     try {
       const token = await getToken();
-      await deleteFile(fileId, token, email);
+      await deleteFile(fileId, token);
       refetch();
     } catch (err) {
       console.error("Delete failed:", err);
