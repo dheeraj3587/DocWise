@@ -147,6 +147,9 @@ async def get_file(
     request: Optional[Request] = None,
 ):
     """Get file metadata and a presigned download URL."""
+    if not hasattr(db, "execute") and request is not None and hasattr(request, "execute"):
+        db, request = request, None
+
     stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(file_id))
     result = await db.execute(stmt)
     file_record = result.scalar_one_or_none()
@@ -199,6 +202,9 @@ async def list_files(
     request: Optional[Request] = None,
 ):
     """List files. If user_email is provided, filter by creator."""
+    if not hasattr(db, "execute") and request is not None and hasattr(request, "execute"):
+        db, request = request, None
+
     email = user_email or user["email"]
     stmt = (
         select(FileModel)
