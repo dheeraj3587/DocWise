@@ -1,7 +1,9 @@
+export const dynamic = 'force-dynamic'
+
 import React from 'react'
 import {Sidebar} from '../components/sidebar'
 
-const layout = ({children}:{children: React.ReactNode}) => {
+const DashboardLayout = ({children}:{children: React.ReactNode}) => {
   return (
     <div className="flex h-screen bg-mesh">
       <Sidebar />
@@ -10,4 +12,4 @@ const layout = ({children}:{children: React.ReactNode}) => {
   )
 }
 
-export default layout
+export default DashboardLayout

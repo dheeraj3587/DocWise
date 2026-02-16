@@ -228,7 +228,7 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-r-lg transition-all duration-150 font-medium text-sm border border-border border-l-0 ${
               deepMode
                 ? "bg-accent text-accent-foreground hover:bg-accent/80"
-                : "surface-3 hover:surface-2 text-muted-foreground border border-border"
+                : "surface-3 hover:surface-2 text-muted-foreground"
             }`}
             title={deepMode ? "Deep Mode ON (GPT-5.2)" : "Deep Mode OFF (GPT-5-mini)"}
           >

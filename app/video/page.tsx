@@ -12,7 +12,7 @@ const VideoPage = () => {
       <Button
         variant="outline"
         onClick={() => router.back()}
-        className="absolute top-6 left-6 glass"
+        className="fixed top-6 left-6 z-50 glass"
       >
         ← Back
       </Button>

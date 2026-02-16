@@ -1,4 +1,5 @@
 'use client'
+
 import { FileText, Upload, Music, Video, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useUser } from '@clerk/clerk-react';

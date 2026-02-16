@@ -67,9 +67,9 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
             setLoading(false);
             setOpen(false);
             window.location.reload();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Upload error:", error);
-            const msg = error?.message || "";
+            const msg = error instanceof Error ? error.message : "";
             if (msg.includes("429") || msg.toLowerCase().includes("daily upload limit")) {
                 setError(`Daily upload limit reached (${dailyLimit} files/day). Try again tomorrow.`);
             } else {
