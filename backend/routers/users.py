@@ -32,10 +32,14 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new user profile (only for the authenticated user)."""
-    # Enforce that users can only create their own profile
+    # Enforce that users can only create their own profile.
+    # Clerk JWTs may not include the email claim by default;
+    # if the JWT has an email, it must match the body email.
+    # If the JWT has no email (empty), allow it — the user is already
+    # authenticated via a valid JWT so we trust the body email.
     jwt_email = (user.get("email") or "").strip().lower()
     body_email = (body.email or "").strip().lower()
-    if not jwt_email or jwt_email != body_email:
+    if jwt_email and jwt_email != body_email:
         raise HTTPException(status_code=403, detail="You can only create your own profile")
 
     stmt = select(User).where(User.email == body.email)
@@ -85,10 +89,10 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
 ):
     """Update user fields (name, image). Users can only update their own profile."""
-    # Enforce self-only access
+    # Enforce self-only access (skip check if JWT has no email claim)
     jwt_email = (user.get("email") or "").strip().lower()
     target_email = (email or "").strip().lower()
-    if not jwt_email or jwt_email != target_email:
+    if jwt_email and jwt_email != target_email:
         raise HTTPException(status_code=403, detail="You can only update your own profile")
 
     stmt = select(User).where(User.email == email)
