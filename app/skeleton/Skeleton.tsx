@@ -5,7 +5,7 @@ interface SkeletonProps {
 export const Skeleton = ({ className = "" }: SkeletonProps) => {
     return (
         <div
-            className={`animate-pulse bg-slate-200 rounded ${className}`}
+            className={`animate-pulse surface-3 rounded-lg ${className}`}
         />
     )
 }

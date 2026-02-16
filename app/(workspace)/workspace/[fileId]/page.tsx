@@ -57,7 +57,7 @@ const Workspace = () => {
     ],
     editorProps: {
       attributes: {
-        class: 'prose prose-slate max-w-none focus:outline-none min-h-[500px] px-8 py-6',
+        class: 'prose max-w-none focus:outline-none min-h-[500px] px-8 py-6',
       },
     },
     content: '',
@@ -79,7 +79,7 @@ const Workspace = () => {
   const isMedia = fileData.fileType === 'audio' || fileData.fileType === 'video'
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-mesh">
       <WorkspaceHeader
         editor={editor}
         fileName={fileData.fileName}

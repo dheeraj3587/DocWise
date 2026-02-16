@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
-import { ClerkProvider } from "@clerk/nextjs";
+import { ClerkThemeProvider } from "@/components/clerk-theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -50,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Polyfill crypto.randomUUID for non-secure (HTTP) contexts */}
         <script
@@ -74,10 +75,12 @@ export default function RootLayout({
         className={`${inter.variable} ${outfit.variable} antialiased font-sans`}
         style={{ fontFamily: "var(--font-inter)" }}
       >
-        <ClerkProvider dynamic>
-          {children}
-        </ClerkProvider>
-        <Toaster />
+        <ThemeProvider>
+          <ClerkThemeProvider>
+            {children}
+          </ClerkThemeProvider>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

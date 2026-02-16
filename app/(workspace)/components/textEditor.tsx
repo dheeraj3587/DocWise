@@ -1,10 +1,9 @@
 'use client'
 import { EditorExtension } from './Editor-extension'
-import { useEditor, EditorContent } from '@tiptap/react'
 import { useApiQuery } from '@/lib/hooks'
 import { useParams } from 'next/navigation'
 import { useEffect } from 'react'
-import { Editor } from '@tiptap/react'
+import { Editor, EditorContent } from '@tiptap/react'
 
 interface NoteData {
     id: number
@@ -37,14 +36,11 @@ export const TextEditor = ({editor}: EditorExtensionProps) => {
     }
 
     return (
-        <div className='border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col h-full'>
-            {/* Toolbar */}
-            <div className="shrink-0 z-10 sticky top-0 bg-white">
+        <div className='glass rounded-xl overflow-hidden flex flex-col h-full'>
+            <div className="shrink-0 z-10 sticky top-0">
                 <EditorExtension editor={editor} />
             </div>
-
-            {/* Editor Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
+            <div className="flex-1 overflow-y-auto custom-scrollbar surface-1">
                 <EditorContent editor={editor} />
             </div>
         </div>

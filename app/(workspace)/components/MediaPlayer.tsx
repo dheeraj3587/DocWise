@@ -64,7 +64,6 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
 
         const onTimeUpdate = () => {
             setCurrentTime(media.currentTime)
-            // Highlight active timestamp
             const active = timestamps.findIndex(
                 ts => media.currentTime >= ts.start_time && media.currentTime <= ts.end_time
             )
@@ -94,9 +93,9 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
     const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0
 
     return (
-        <div className="flex flex-col h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex flex-col h-full glass rounded-xl overflow-hidden">
             {/* Media Element */}
-            <div className="flex-shrink-0 bg-black flex items-center justify-center">
+            <div className="shrink-0 bg-card/70 flex items-center justify-center">
                 {fileType === 'video' ? (
                     <video
                         ref={mediaRef as React.RefObject<HTMLVideoElement>}
@@ -105,7 +104,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
                         preload="metadata"
                     />
                 ) : (
-                    <div className="w-full py-16 flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+                    <div className="w-full py-16 flex items-center justify-center bg-linear-to-br from-purple-500/5 via-background to-gold/5 dark:from-purple-500/10 dark:to-gold/5">
                         <div className="text-6xl">🎧</div>
                         <audio
                             ref={mediaRef as React.RefObject<HTMLAudioElement>}
@@ -117,10 +116,9 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
             </div>
 
             {/* Controls */}
-            <div className="flex-shrink-0 p-4 border-b border-slate-200">
-                {/* Progress bar */}
+            <div className="shrink-0 p-4 border-b border-border">
                 <div
-                    className="w-full h-2 bg-slate-200 rounded-full cursor-pointer mb-3"
+                    className="w-full h-2 surface-3 rounded-full cursor-pointer mb-3 overflow-hidden"
                     onClick={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect()
                         const pos = (e.clientX - rect.left) / rect.width
@@ -128,60 +126,60 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
                     }}
                 >
                     <div
-                        className="h-full bg-indigo-500 rounded-full transition-all duration-100"
+                        className="h-full bg-gold rounded-full transition-all duration-100"
                         style={{ width: `${progressPercent}%` }}
                     />
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => skip(-10)}>
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground">
                             <SkipBack size={16} />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={togglePlay}>
+                        <Button variant="ghost" size="sm" onClick={togglePlay} className="text-foreground">
                             {isPlaying ? <Pause size={20} /> : <Play size={20} />}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => skip(10)}>
+                        <Button variant="ghost" size="sm" onClick={() => skip(10)} className="text-muted-foreground hover:text-foreground">
                             <SkipForward size={16} />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={toggleMute}>
+                        <Button variant="ghost" size="sm" onClick={toggleMute} className="text-muted-foreground hover:text-foreground">
                             {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                         </Button>
                     </div>
-                    <span className="text-sm text-slate-500 font-mono">
+                    <span className="text-sm text-muted-foreground font-mono">
                         {formatTime(currentTime)} / {formatTime(duration)}
                     </span>
                 </div>
             </div>
 
-            {/* Timestamps / Topics */}
+            {/* Timestamps */}
             {timestamps.length > 0 && (
-                <div className="flex-1 overflow-y-auto p-4">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Topics &amp; Timestamps</h3>
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3">Topics &amp; Timestamps</h3>
                     <div className="space-y-2">
                         {timestamps.map((ts, index) => (
                             <button
                                 key={ts.id || index}
                                 onClick={() => seekTo(ts.start_time)}
-                                className={`w-full text-left p-3 rounded-lg border transition-all duration-200 hover:bg-indigo-50 hover:border-indigo-300 ${
+                                className={`w-full text-left p-3 rounded-xl border transition-all duration-200 ${
                                     activeTimestamp === index
-                                        ? 'bg-indigo-50 border-indigo-400 shadow-sm'
-                                        : 'bg-white border-slate-200'
+                                        ? 'surface-3 border-gold/30 glow-gold-subtle'
+                                        : 'surface-1 border-border hover:surface-2 hover:border-gold/20'
                                 }`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <span className="text-xs font-mono text-indigo-600 bg-indigo-100 px-2 py-1 rounded whitespace-nowrap">
+                                    <span className="text-xs font-mono text-gold bg-gold/10 px-2 py-1 rounded-lg whitespace-nowrap">
                                         {formatTime(ts.start_time)}
                                     </span>
                                     <div className="flex-1 min-w-0">
                                         {ts.topic && (
-                                            <p className="text-sm font-medium text-slate-900 truncate">
+                                            <p className="text-sm font-medium text-foreground truncate">
                                                 {ts.topic}
                                             </p>
                                         )}
-                                        <p className="text-xs text-slate-500 truncate">{ts.text}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{ts.text}</p>
                                     </div>
-                                    <Play size={14} className="text-slate-400 flex-shrink-0" />
+                                    <Play size={14} className="text-muted-foreground shrink-0" />
                                 </div>
                             </button>
                         ))}

@@ -92,7 +92,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                             done.
                         </DialogDescription>
                         {remaining !== null && (
-                            <p className={`text-xs mt-1 ${remaining === 0 ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
+                            <p className={`text-xs mt-1 ${remaining === 0 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
                                 {remaining === 0
                                     ? `Daily upload limit reached (${dailyLimit}/${dailyLimit})`
                                     : `${remaining} upload${remaining !== 1 ? 's' : ''} remaining today (${dailyLimit - remaining}/${dailyLimit})`}
@@ -108,7 +108,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                                 const f = e.dataTransfer.files?.[0];
                                 if (f) setFile(f);
                             }}
-                            className="border-2 border-dashed border-slate-300 rounded-md p-4 text-center text-sm text-slate-600"
+                            className="border-2 border-dashed border-border rounded-xl p-4 text-center text-sm text-muted-foreground hover:border-gold/30 transition-colors"
                         >
                             {file ? (
                                 <span>{file.name}</span>
@@ -124,7 +124,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                             <Label htmlFor="name-1">File name</Label>
                             <Input onChange={(e) => setName(e.target.value)} placeholder="Enter file name" id="name-1" name="name" />
                         </div>
-                        {error && <p className="text-sm text-red-600">{error}</p>}
+                        {error && <p className="text-sm text-destructive">{error}</p>}
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
