@@ -66,12 +66,17 @@ async def get_me(
     db: AsyncSession = Depends(get_db),
 ):
     """Get current user data."""
-    stmt = select(User).where(User.email == user["email"])
+    email = user.get("email") or ""
+    if not email:
+        # JWT has no email claim; return basic info from token
+        return {"email": "", "name": user.get("name", "")}
+
+    stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
     db_user = result.scalar_one_or_none()
 
     if not db_user:
-        return {"email": user["email"], "name": user.get("name", "")}
+        return {"email": email, "name": user.get("name", "")}
 
     return {
         "email": db_user.email,

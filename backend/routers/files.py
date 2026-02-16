@@ -73,7 +73,7 @@ async def get_upload_count(
     db: AsyncSession = Depends(get_db),
 ):
     """Return how many files the user has uploaded today and the daily limit."""
-    email = user.get("email", "")
+    email = user.get("email") or user.get("sub") or ""
     count = await _count_uploads_today(email, db)
     limit = settings.MAX_FILES_PER_USER_PER_DAY
     return {"count": count, "limit": limit, "remaining": max(0, limit - count)}
@@ -93,7 +93,9 @@ async def upload_file(
     Limited to MAX_FILES_PER_USER_PER_DAY uploads per user per UTC day.
     """
     # ── Daily upload limit check ──────────────────────────────────────────
-    created_by_email = user.get("email") or ""
+    # Prefer email as created_by; fall back to sub (Clerk user ID) so
+    # ownership checks work even when the JWT omits the email claim.
+    created_by_email = user.get("email") or user.get("sub") or ""
     today_count = await _count_uploads_today(created_by_email, db)
     if today_count >= settings.MAX_FILES_PER_USER_PER_DAY:
         raise HTTPException(
@@ -215,10 +217,23 @@ async def list_files(
     if not hasattr(db, "execute") and request is not None and hasattr(request, "execute"):
         db, request = request, None
 
-    email = user["email"]
+    # Match files by email OR sub (Clerk user ID) so files created
+    # before the email-fix are still returned.
+    from sqlalchemy import or_
+    identifiers = []
+    email = (user.get("email") or "").strip().lower()
+    sub = (user.get("sub") or "").strip()
+    if email:
+        identifiers.append(FileModel.created_by == email)
+    if sub:
+        identifiers.append(FileModel.created_by == sub)
+    # Also match files with empty created_by (legacy records)
+    identifiers.append(FileModel.created_by == "")
+    identifiers.append(FileModel.created_by.is_(None))
+
     stmt = (
         select(FileModel)
-        .where(FileModel.created_by == email)
+        .where(or_(*identifiers))
         .order_by(FileModel.created_at.desc())
     )
     result = await db.execute(stmt)

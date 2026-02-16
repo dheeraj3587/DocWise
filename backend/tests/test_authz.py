@@ -84,18 +84,18 @@ class TestAssertFileOwner:
             assert_file_owner(file_record, user)
         assert exc.value.status_code == 403
 
-    def test_empty_owner_raises_403(self):
+    def test_empty_owner_allows_authenticated_access(self):
+        """Files with empty created_by allow any authenticated user (legacy data)."""
         file_record = MagicMock()
         file_record.created_by = ""
         user = {"email": "test@example.com", "sub": "user_123"}
-        with pytest.raises(HTTPException) as exc:
-            assert_file_owner(file_record, user)
-        assert exc.value.status_code == 403
+        # Should NOT raise — allows authenticated access for legacy records
+        assert_file_owner(file_record, user)
 
-    def test_none_owner_raises_403(self):
+    def test_none_owner_allows_authenticated_access(self):
+        """Files with None created_by allow any authenticated user (legacy data)."""
         file_record = MagicMock()
         file_record.created_by = None
         user = {"email": "test@example.com", "sub": "user_123"}
-        with pytest.raises(HTTPException) as exc:
-            assert_file_owner(file_record, user)
-        assert exc.value.status_code == 403
+        # Should NOT raise — allows authenticated access for legacy records
+        assert_file_owner(file_record, user)

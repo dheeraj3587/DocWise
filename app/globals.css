@@ -179,21 +179,21 @@
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-.surface-1 {
+@utility surface-1 {
   background: var(--surface-1);
 }
 
-.surface-2 {
+@utility surface-2 {
   background: var(--surface-2);
 }
 
-.surface-3 {
+@utility surface-3 {
   background: var(--surface-3);
 }
 
 /* ── Premium Glow Effects ─────────────────────────────────── */
 
-.glow-gold {
+@utility glow-gold {
   box-shadow: 0 0 20px rgba(178, 147, 28, 0.12), 0 0 60px rgba(178, 147, 28, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
@@ -201,7 +201,7 @@
   box-shadow: 0 0 20px rgba(212, 175, 55, 0.2), 0 0 60px rgba(212, 175, 55, 0.08);
 }
 
-.glow-gold-subtle {
+@utility glow-gold-subtle {
   box-shadow: 0 0 15px rgba(178, 147, 28, 0.08), 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 

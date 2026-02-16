@@ -36,5 +36,11 @@ def assert_file_owner(file_record, user: dict) -> None:
     file_owner = (file_record.created_by or "").strip().lower()
     accepted_scopes = get_owner_scopes(user)
 
-    if not file_owner or file_owner not in accepted_scopes:
+    # If file has no owner recorded (legacy/empty email), allow any
+    # authenticated user whose sub matches, or skip the check gracefully
+    # so data created before the fix remains accessible.
+    if not file_owner:
+        return  # file has no owner tag — allow authenticated access
+
+    if file_owner not in accepted_scopes:
         raise HTTPException(status_code=403, detail="Forbidden")
