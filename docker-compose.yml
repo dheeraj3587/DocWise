@@ -139,7 +139,8 @@ services:
       retries: 5
 
   judge0-server:
-    image: judge0/judge0:1.13.1
+    image: judge0/judge0:latest
+    cgroupns: host
     volumes:
       - ./judge0.conf:/judge0.conf:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
@@ -160,7 +161,8 @@ services:
       - redis
 
   judge0-workers:
-    image: judge0/judge0:1.13.1
+    image: judge0/judge0:latest
+    cgroupns: host
     command: ["./scripts/workers", "1"]
     volumes:
       - ./judge0.conf:/judge0.conf:ro
