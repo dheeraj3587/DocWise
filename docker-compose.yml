@@ -140,10 +140,9 @@ services:
 
   judge0-server:
     image: judge0/judge0:latest
-    cgroupns: host
     volumes:
       - ./judge0.conf:/judge0.conf:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
     ports:
       - "2358:2358"
     environment:
@@ -162,11 +161,10 @@ services:
 
   judge0-workers:
     image: judge0/judge0:latest
-    cgroupns: host
     command: ["./scripts/workers", "1"]
     volumes:
       - ./judge0.conf:/judge0.conf:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
