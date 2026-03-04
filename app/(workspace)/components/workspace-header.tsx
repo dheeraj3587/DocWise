@@ -30,7 +30,7 @@ export const WorkspaceHeader = ({
   const { getToken } = useAuth();
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  const HandleSave = async () => {
+  const handleSave = async () => {
     setLoading(true);
     try {
       const token = await getToken();
@@ -108,7 +108,7 @@ export const WorkspaceHeader = ({
   };
 
   return (
-    <header className="h-16 glass-subtle border-b border-border px-4 lg:px-8 flex items-center justify-between">
+    <header className="h-16 glass-subtle border-b border-border px-4 lg:px-8 flex-between">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <Undo2
@@ -123,8 +123,8 @@ export const WorkspaceHeader = ({
           <button
             onClick={() => onLeftPanelChange("document")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${leftPanel === "document"
-                ? "surface-3 text-foreground glow-gold-subtle"
-                : "text-muted-foreground hover:text-foreground"
+              ? "surface-3 text-foreground glow-gold-subtle"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             <FileText className="w-4 h-4" />
@@ -133,8 +133,8 @@ export const WorkspaceHeader = ({
           <button
             onClick={() => onLeftPanelChange("chat")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${leftPanel === "chat"
-                ? "surface-3 text-foreground glow-gold-subtle"
-                : "text-muted-foreground hover:text-foreground"
+              ? "surface-3 text-foreground glow-gold-subtle"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             <MessageCircle className="w-4 h-4" />
@@ -153,7 +153,7 @@ export const WorkspaceHeader = ({
         <Button variant="outline" onClick={handleSummarize} disabled={summarizing} className="text-sm">
           {summarizing ? "Summarizing..." : "Summarize"}
         </Button>
-        <Button onClick={HandleSave} disabled={loading} className="text-sm">
+        <Button onClick={handleSave} disabled={loading} className="text-sm">
           {loading ? "Saving..." : "Save"}
         </Button>
         <ThemeToggle />

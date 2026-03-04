@@ -92,9 +92,6 @@ async def upload_file(
     Processing (parsing/transcription/embedding) happens in the background via Celery.
     Limited to MAX_FILES_PER_USER_PER_DAY uploads per user per UTC day.
     """
-    # ── Daily upload limit check ──────────────────────────────────────────
-    # Prefer email as created_by; fall back to sub (Clerk user ID) so
-    # ownership checks work even when the JWT omits the email claim.
     created_by_email = user.get("email") or user.get("sub") or ""
     today_count = await _count_uploads_today(created_by_email, db)
     if today_count >= settings.MAX_FILES_PER_USER_PER_DAY:
@@ -107,7 +104,6 @@ async def upload_file(
     file_type = _classify_file(content_type)
     file_bytes = await file.read()
 
-    # ── Server-side file size enforcement ────────────────────────────────
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(file_bytes) > max_bytes:
         raise HTTPException(
@@ -119,10 +115,8 @@ async def upload_file(
     original_name = file_name or file.filename or "untitled"
     storage_key = f"{file_type}/{file_id}/{original_name}"
 
-    # Upload to MinIO
     storage_service.upload_file(file_bytes, storage_key, content_type)
 
-    # Create database record with status='processing'
     file_record = FileModel(
         file_id=uuid.UUID(file_id),
         file_name=original_name,
@@ -134,7 +128,6 @@ async def upload_file(
     db.add(file_record)
     await db.flush()
 
-    # Dispatch background task based on file type
     if file_type == "pdf":
         process_pdf.delay(file_id, storage_key)
     else:
@@ -175,7 +168,6 @@ async def get_file(
         public_base_url=_external_base_url(request),
     )
 
-    # Get timestamps if media file
     timestamps = []
     if file_record.file_type in ("audio", "video"):
         ts_stmt = select(MediaTimestamp).where(
@@ -278,20 +270,16 @@ async def delete_file(
     # Ownership check — only JWT identity (email or sub) is trusted
     assert_file_owner(file_record, user)
 
-    # Delete from MinIO
     storage_service.delete_file(file_record.storage_key)
 
-    # Delete FAISS index
     from vector_store.faiss_index import faiss_index
     faiss_index.delete_index(file_id)
 
-    # Delete timestamps
     ts_stmt = select(MediaTimestamp).where(MediaTimestamp.file_id == uuid.UUID(file_id))
     ts_result = await db.execute(ts_stmt)
     for ts in ts_result.scalars().all():
         await db.delete(ts)
 
-    # Delete file record
     await db.delete(file_record)
 
     return {"status": "deleted"}

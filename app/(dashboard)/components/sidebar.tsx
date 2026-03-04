@@ -72,11 +72,10 @@ export const Sidebar = () => {
         <nav className="flex-1 px-4 py-6 space-y-5">
           <button
             onClick={() => router.push("/dashboard")}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl w-full transition-all font-medium text-sm ${
-              path === "/dashboard"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl w-full transition-all font-medium text-sm ${path === "/dashboard"
                 ? "surface-3 text-foreground glow-gold-subtle border border-gold/20 dark:border-gold/10"
                 : "text-muted-foreground hover:text-foreground hover:surface-2"
-            }`}
+              }`}
           >
             <LayoutDashboard size={18} />
             <span>Dashboard</span>
@@ -95,7 +94,7 @@ export const Sidebar = () => {
         {/* Storage Info */}
         <div className="p-6 border-t border-border space-y-4">
           <div className="p-4 rounded-xl surface-2 border border-border">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex-between mb-3">
               <span className="text-sm font-medium text-muted-foreground">
                 Storage
               </span>

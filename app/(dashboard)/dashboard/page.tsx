@@ -70,8 +70,8 @@ export default function Dashboard() {
             </div>
           </div>
         ) : !getAllFiles || getAllFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-16 h-16 rounded-2xl glass flex items-center justify-center mb-4">
+          <div className="flex-col-center justify-center h-full text-center px-4">
+            <div className="w-16 h-16 rounded-2xl glass flex-center mb-4">
               <FileText size={32} className="text-muted-foreground" />
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-2">No documents yet</h3>
@@ -91,14 +91,14 @@ export default function Dashboard() {
                   className="glass rounded-xl hover:glow-gold-subtle transition-all overflow-hidden text-left group relative"
                 >
                   <Link href={`/workspace/${pdf.fileId}`}>
-                    <div className="h-40 surface-2 flex items-center justify-center border-b border-border group-hover:surface-3 transition-colors">
+                    <div className="h-40 surface-2 flex-center border-b border-border group-hover:surface-3 transition-colors">
                       {getFileIcon(pdf.fileType)}
                     </div>
                     <div className="p-4">
                       <h3 className="font-medium text-foreground mb-2 truncate text-sm">
                         {pdf?.fileName}
                       </h3>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex-between text-xs text-muted-foreground">
                         <span className="uppercase px-1.5 py-0.5 surface-3 rounded text-[10px] font-medium">
                           {pdf.fileType}
                         </span>

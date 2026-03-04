@@ -104,7 +104,6 @@ class TestSummarize:
         mock_storage.upload_file = MagicMock(return_value="pdf/test/file.pdf")
         mock_storage.download_file = MagicMock(return_value=b"%PDF-1.4 test content")
 
-        # Upload file first
         upload_resp = await client.post(
             "/api/files/upload",
             files={"file": ("test.pdf", b"%PDF-1.4 test", "application/pdf")},
@@ -126,7 +125,6 @@ class TestSummarize:
 
     async def test_summarize_media(self, client, db_session):
         """Test summarizing a media file using its transcript."""
-        # Create a file with transcript in DB
         file_id = str(uuid.uuid4())
         from models.file import File
         

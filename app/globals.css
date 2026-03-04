@@ -209,6 +209,24 @@
   box-shadow: 0 0 15px rgba(212, 175, 55, 0.12);
 }
 
+/* ── Flexbox Utilities ────────────────────────────────────── */
+
+@utility flex-center {
+  @apply flex items-center justify-center;
+}
+
+@utility flex-between {
+  @apply flex items-center justify-between;
+}
+
+@utility flex-col-center {
+  @apply flex flex-col items-center;
+}
+
+@utility flex-start {
+  @apply flex items-center justify-start;
+}
+
 /* ── Dark Mode Mesh Gradient Background ───────────────────── */
 
 .bg-mesh {
@@ -281,6 +299,19 @@
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Reduced Motion ──────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Smooth transitions for theme changes ─────────────────── */

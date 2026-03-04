@@ -8,7 +8,7 @@ const VideoPage = () => {
   const [videoError, setVideoError] = useState(false);
 
   return (
-    <div className="min-h-screen bg-mesh flex flex-col items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-mesh flex-col-center justify-center px-4 py-8">
       <Button
         variant="outline"
         onClick={() => router.back()}
@@ -24,7 +24,7 @@ const VideoPage = () => {
 
         <div className="glass-strong rounded-2xl p-6 md:p-8">
           {videoError ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="flex-col-center justify-center py-20 text-center">
               <div className="text-6xl mb-4">⚠️</div>
               <p className="text-muted-foreground text-lg">
                 Video failed to load. Please refresh the page.

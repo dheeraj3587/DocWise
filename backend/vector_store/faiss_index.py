@@ -75,10 +75,8 @@ class FAISSIndex:
         index = faiss.IndexFlatL2(dim)
         index.add(vectors)
 
-        # Save FAISS index
         faiss.write_index(index, self._index_path(file_id))
 
-        # Save metadata as JSON (safe serialisation)
         with open(self._meta_path(file_id), "w") as f:
             json.dump(metadata, f)
 

@@ -153,7 +153,7 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
   const chatContent = (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <div className="flex-between px-4 py-3 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
           <Sparkle className="w-4 h-4 text-gold" />
           <span className="font-semibold text-sm text-foreground">AI Chat</span>
@@ -164,11 +164,10 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setDeepMode(!deepMode)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
-              deepMode
-                ? 'bg-accent text-accent-foreground hover:bg-accent/80'
-                : 'surface-3 text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${deepMode
+              ? 'bg-accent text-accent-foreground hover:bg-accent/80'
+              : 'surface-3 text-muted-foreground hover:text-foreground'
+              }`}
             title={deepMode ? 'Deep Mode ON' : 'Deep Mode OFF'}
           >
             <Brain className="w-3.5 h-3.5" />
@@ -188,7 +187,7 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 custom-scrollbar">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+          <div className="flex-col-center justify-center h-full text-center text-muted-foreground">
             <MessageCircle className="w-10 h-10 mb-3 opacity-30" />
             <p className="text-sm font-medium text-foreground/70">Ask about this document</p>
             <p className="text-xs mt-1">Type a question below to get started</p>
@@ -197,11 +196,10 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-foreground text-background rounded-br-sm'
-                  : 'surface-2 text-foreground rounded-bl-sm border border-border'
-              }`}
+              className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${msg.role === 'user'
+                ? 'bg-foreground text-background rounded-br-sm'
+                : 'surface-2 text-foreground rounded-bl-sm border border-border'
+                }`}
             >
               {msg.content ? (
                 msg.role === 'assistant' ? (

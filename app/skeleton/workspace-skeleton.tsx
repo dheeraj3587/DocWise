@@ -6,7 +6,7 @@ export const WorkspaceSkeleton = () => {
         <div className="flex flex-col h-screen bg-mesh">
             {/* Header Skeleton */}
             <div className="border-b border-border glass-subtle p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex-between">
                     <div className="flex items-center gap-3">
                         <Skeleton className="h-8 w-8 rounded-xl" />
                         <Skeleton className="h-6 w-48" />
@@ -41,7 +41,7 @@ export const WorkspaceSkeleton = () => {
 
                     <div className="flex-1 glass rounded-xl p-4">
                         <div className="flex flex-col h-full gap-4">
-                            <div className="flex items-center justify-between border-b border-border pb-3">
+                            <div className="flex-between border-b border-border pb-3">
                                 <div className="flex gap-2">
                                     <Skeleton className="h-8 w-8 rounded-lg" />
                                     <Skeleton className="h-8 w-8 rounded-lg" />
@@ -52,7 +52,7 @@ export const WorkspaceSkeleton = () => {
                                     <Skeleton className="h-8 w-8 rounded-lg" />
                                 </div>
                             </div>
-                            <div className="flex-1 surface-2 rounded-xl flex items-center justify-center">
+                            <div className="flex-1 surface-2 rounded-xl flex-center">
                                 <div className="space-y-4 w-full max-w-2xl px-8">
                                     <Skeleton className="h-64 w-full rounded-xl" />
                                     <Skeleton className="h-4 w-3/4 mx-auto" />

@@ -4,7 +4,7 @@ import { useTheme } from "next-themes"
 import { Moon, Sun } from "lucide-react"
 import { useSyncExternalStore } from "react"
 
-const emptySubscribe = () => () => {}
+const emptySubscribe = () => () => { }
 const returnTrue = () => true
 const returnFalse = () => false
 
@@ -23,7 +23,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
   return (
     <button
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 cursor-pointer
+      className={`relative w-9 h-9 rounded-xl flex-center transition-all duration-300 cursor-pointer
         ${isDark
           ? "surface-2 hover:surface-3 border border-border text-accent-foreground"
           : "surface-1 hover:surface-2 border border-border text-muted-foreground hover:text-foreground shadow-xs"

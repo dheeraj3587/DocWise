@@ -1,0 +1,116 @@
+Deploy to Production	Deploy via SSH	﻿2026-02-19T23:47:04.4633374Z ##[group]Run appleboy/ssh-action@v1
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4634647Z with:
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4635497Z   host: ***
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4636265Z   username: ***
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4661354Z   key: ***
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4664899Z   script: set -e
+Deploy to Production	Deploy via SSH	cd ~/kagaz
+Deploy to Production	Deploy via SSH	echo "==> Pulling latest code..."
+Deploy to Production	Deploy via SSH	git pull origin main
+Deploy to Production	Deploy via SSH	echo "==> Building and restarting containers..."
+Deploy to Production	Deploy via SSH	docker compose up -d --build --remove-orphans
+Deploy to Production	Deploy via SSH	echo "==> Restarting nginx to resolve new container IPs..."
+Deploy to Production	Deploy via SSH	docker restart kagaz-nginx-1
+Deploy to Production	Deploy via SSH	echo "==> Cleaning up old images..."
+Deploy to Production	Deploy via SSH	docker image prune -f
+Deploy to Production	Deploy via SSH	echo "==> Waiting for services to stabilize..."
+Deploy to Production	Deploy via SSH	sleep 15
+Deploy to Production	Deploy via SSH	curl -sf https://dheerajjoshi.me/health || curl -sf http://localhost/health || { echo "Health check failed!"; exit 1; }
+Deploy to Production	Deploy via SSH	echo "==> Deployment complete!"
+Deploy to Production	Deploy via SSH	
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4668458Z   port: 22
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4669186Z   protocol: tcp
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4669927Z   timeout: 30s
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4670669Z   command_timeout: 10m
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4671433Z   proxy_port: 22
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4672298Z   proxy_protocol: tcp
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4673116Z   proxy_timeout: 30s
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4673900Z   curl_insecure: false
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4674675Z   capture_stdout: false
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4675748Z env:
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4676487Z   PYTHON_VERSION: 3.11
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4677260Z   NODE_VERSION: 20
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4677997Z ##[endgroup]
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4951719Z ##[group]Run echo "$GITHUB_ACTION_PATH" >> $GITHUB_PATH
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4952920Z [36;1mecho "$GITHUB_ACTION_PATH" >> $GITHUB_PATH[0m
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4990372Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4991386Z env:
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4992272Z   PYTHON_VERSION: 3.11
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4993027Z   NODE_VERSION: 20
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4993972Z   GITHUB_ACTION_PATH: /home/runner/work/_actions/appleboy/ssh-action/v1
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.4995028Z ##[endgroup]
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5442761Z ##[group]Run entrypoint.sh
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5443654Z [36;1mentrypoint.sh[0m
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5479526Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5480530Z env:
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5481230Z   PYTHON_VERSION: 3.11
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5482106Z   NODE_VERSION: 20
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5483310Z   GITHUB_ACTION_PATH: /home/runner/work/_actions/appleboy/ssh-action/v1
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5484486Z   INPUT_HOST: ***
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5485230Z   INPUT_PORT: 22
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5485957Z   INPUT_PROTOCOL: tcp
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5486751Z   INPUT_USERNAME: ***
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5487501Z   INPUT_PASSWORD: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5488244Z   INPUT_PASSPHRASE: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5513011Z   INPUT_KEY: ***
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5513751Z   INPUT_KEY_PATH: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5514481Z   INPUT_FINGERPRINT: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5515232Z   INPUT_PROXY_HOST: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5515978Z   INPUT_PROXY_PORT: 22
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5516732Z   INPUT_PROXY_USERNAME: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5517503Z   INPUT_PROXY_PASSWORD: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5518286Z   INPUT_PROXY_PASSPHRASE: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5519176Z   INPUT_PROXY_KEY: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5519942Z   INPUT_PROXY_KEY_PATH: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5520719Z   INPUT_PROXY_FINGERPRINT: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5521499Z   INPUT_TIMEOUT: 30s
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5522357Z   INPUT_PROXY_TIMEOUT: 30s
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5523143Z   INPUT_COMMAND_TIMEOUT: 10m
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5526628Z   INPUT_SCRIPT: set -e
+Deploy to Production	Deploy via SSH	cd ~/kagaz
+Deploy to Production	Deploy via SSH	echo "==> Pulling latest code..."
+Deploy to Production	Deploy via SSH	git pull origin main
+Deploy to Production	Deploy via SSH	echo "==> Building and restarting containers..."
+Deploy to Production	Deploy via SSH	docker compose up -d --build --remove-orphans
+Deploy to Production	Deploy via SSH	echo "==> Restarting nginx to resolve new container IPs..."
+Deploy to Production	Deploy via SSH	docker restart kagaz-nginx-1
+Deploy to Production	Deploy via SSH	echo "==> Cleaning up old images..."
+Deploy to Production	Deploy via SSH	docker image prune -f
+Deploy to Production	Deploy via SSH	echo "==> Waiting for services to stabilize..."
+Deploy to Production	Deploy via SSH	sleep 15
+Deploy to Production	Deploy via SSH	curl -sf https://dheerajjoshi.me/health || curl -sf http://localhost/health || { echo "Health check failed!"; exit 1; }
+Deploy to Production	Deploy via SSH	echo "==> Deployment complete!"
+Deploy to Production	Deploy via SSH	
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5530239Z   INPUT_SCRIPT_FILE: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5531019Z   INPUT_ENVS: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5531824Z   INPUT_ENVS_FORMAT: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5532799Z   INPUT_DEBUG: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5533529Z   INPUT_ALL_ENVS: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5534472Z   INPUT_REQUEST_PTY: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5535244Z   INPUT_USE_INSECURE_CIPHER: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5536043Z   INPUT_CIPHER: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5536787Z   INPUT_PROXY_USE_INSECURE_CIPHER: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5537618Z   INPUT_PROXY_CIPHER: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5538365Z   INPUT_SYNC: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5539096Z   INPUT_CAPTURE_STDOUT: false
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5539906Z   INPUT_CURL_INSECURE: false
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5540686Z   DRONE_SSH_VERSION: 
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5541426Z ##[endgroup]
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.5676631Z Downloading drone-ssh-1.8.2-linux-amd64 from https://github.com/appleboy/drone-ssh/releases/download/v1.8.2
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.7833440Z ======= CLI Version Information =======
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.7850896Z Drone SSH version 1.8.2
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:04.7855117Z =======================================
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:07.7310078Z ==> Pulling latest code...
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5374871Z From https://github.com/dheeraj3587/DocWise
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5376470Z  * branch            main       -> FETCH_HEAD
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5377830Z    5fe4b02..ad1c7cf  main       -> origin/main
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5460799Z Updating 93f76fb..ad1c7cf
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5461879Z error: Your local changes to the following files would be overwritten by merge:
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5462765Z 	docker-compose.yml
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5463405Z Please commit your changes or stash them before you merge.
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5464284Z error: The following untracked working tree files would be overwritten by merge:
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5465088Z 	judge0.conf
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5465588Z Please move or remove them before you merge.
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5466207Z Aborting
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5475684Z 2026/02/19 23:47:08 Process exited with status 1
+Deploy to Production	Deploy via SSH	2026-02-19T23:47:08.5495666Z ##[error]Process completed with exit code 1.

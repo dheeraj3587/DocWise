@@ -95,7 +95,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
     return (
         <div className="flex flex-col h-full glass rounded-xl overflow-hidden">
             {/* Media Element */}
-            <div className="shrink-0 bg-card/70 flex items-center justify-center">
+            <div className="shrink-0 bg-card/70 flex-center">
                 {fileType === 'video' ? (
                     <video
                         ref={mediaRef as React.RefObject<HTMLVideoElement>}
@@ -104,7 +104,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
                         preload="metadata"
                     />
                 ) : (
-                    <div className="w-full py-16 flex items-center justify-center bg-linear-to-br from-purple-500/5 via-background to-gold/5 dark:from-purple-500/10 dark:to-gold/5">
+                    <div className="w-full py-16 flex-center bg-linear-to-br from-purple-500/5 via-background to-gold/5 dark:from-purple-500/10 dark:to-gold/5">
                         <div className="text-6xl">🎧</div>
                         <audio
                             ref={mediaRef as React.RefObject<HTMLAudioElement>}
@@ -131,7 +131,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
                     />
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex-between">
                     <div className="flex items-center gap-1">
                         <Button variant="ghost" size="sm" onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground">
                             <SkipBack size={16} />
@@ -161,11 +161,10 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
                             <button
                                 key={ts.id || index}
                                 onClick={() => seekTo(ts.start_time)}
-                                className={`w-full text-left p-3 rounded-xl border transition-all duration-200 ${
-                                    activeTimestamp === index
-                                        ? 'surface-3 border-gold/30 glow-gold-subtle'
-                                        : 'surface-1 border-border hover:surface-2 hover:border-gold/20'
-                                }`}
+                                className={`w-full text-left p-3 rounded-xl border transition-all duration-200 ${activeTimestamp === index
+                                    ? 'surface-3 border-gold/30 glow-gold-subtle'
+                                    : 'surface-1 border-border hover:surface-2 hover:border-gold/20'
+                                    }`}
                             >
                                 <div className="flex items-center gap-3">
                                     <span className="text-xs font-mono text-gold bg-gold/10 px-2 py-1 rounded-lg whitespace-nowrap">

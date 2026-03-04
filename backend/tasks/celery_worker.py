@@ -55,16 +55,12 @@ async def _process_pdf_async(file_id: str, storage_key: str):
     from sqlalchemy import select
     import uuid as uuid_mod
 
-    # Download PDF from MinIO
     pdf_bytes = storage_service.download_file(storage_key)
 
-    # Extract and chunk
     chunks = pdf_service.extract_and_chunk(pdf_bytes)
 
-    # Embed into FAISS
     embedding_service.ingest_document(file_id, chunks)
 
-    # Update file status
     async with async_session() as session:
         stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
         result = await session.execute(stmt)
@@ -99,10 +95,8 @@ async def _process_media_async(file_id: str, storage_key: str, file_name: str):
     from sqlalchemy import select
     import uuid as uuid_mod
 
-    # Download media from MinIO
     media_bytes = storage_service.download_file(storage_key)
 
-    # Transcribe with Whisper
     result = transcription_service.transcribe(media_bytes, file_name)
 
     transcript = result["text"]
@@ -118,15 +112,12 @@ async def _process_media_async(file_id: str, storage_key: str, file_name: str):
         for c in chunks_with_ts
     ]
 
-    # Embed into FAISS
     embedding_service.ingest_document(file_id, chunk_texts, timestamp_data)
 
     # Extract topic-level timestamps using LLM
     topics = await timestamp_service.extract_topics(segments)
 
-    # Update database
     async with async_session() as session:
-        # Update file record
         stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
         res = await session.execute(stmt)
         file_record = res.scalar_one_or_none()
@@ -135,7 +126,6 @@ async def _process_media_async(file_id: str, storage_key: str, file_name: str):
             file_record.duration_seconds = duration
             file_record.status = "ready"
 
-        # Store timestamps
         for topic in topics:
             ts = MediaTimestamp(
                 file_id=uuid_mod.UUID(file_id),

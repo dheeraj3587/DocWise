@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 
-# Create FAISS index directory
 RUN mkdir -p /app/faiss_indices
 
 EXPOSE 8000

@@ -38,17 +38,14 @@ class TestUsers:
         """Test creating a user that already exists returns 'exists'."""
         user_data = {"email": "test@example.com", "name": "Test User"}
 
-        # Create first
         await client.post("/api/users", json=user_data)
 
-        # Create again
         response = await client.post("/api/users", json=user_data)
         assert response.status_code == 200
         assert response.json()["status"] == "exists"
 
     async def test_get_me(self, client):
         """Test getting current user profile."""
-        # Create user first
         await client.post(
             "/api/users",
             json={"email": "test@example.com", "name": "Test User"},

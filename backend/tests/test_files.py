@@ -131,7 +131,6 @@ class TestFileRetrieval:
         mock_storage.upload_file = MagicMock(return_value="pdf/test/file.pdf")
         mock_storage.get_presigned_url = MagicMock(return_value="https://minio/url")
 
-        # Upload first
         upload_resp = await client.post(
             "/api/files/upload",
             files={"file": ("test.pdf", b"%PDF-1.4", "application/pdf")},
@@ -264,7 +263,6 @@ class TestFileDelete:
         mock_storage.upload_file = MagicMock(return_value="pdf/test/file.pdf")
         mock_storage.delete_file = MagicMock()
 
-        # Upload first
         upload_resp = await client.post(
             "/api/files/upload",
             files={"file": ("test.pdf", b"%PDF-1.4", "application/pdf")},

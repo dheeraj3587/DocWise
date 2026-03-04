@@ -44,7 +44,7 @@ const Header = ({ name }: { name: string }) => {
   }, [getToken, user]);
 
   return (
-    <header className="h-16 glass-subtle border-b border-border px-4 lg:px-8 flex items-center justify-between">
+    <header className="h-16 glass-subtle border-b border-border px-4 lg:px-8 flex-between">
       <div className="flex items-center gap-4">
         <div className="hidden lg:block">
           <h1 className="text-lg font-semibold text-foreground">{name}</h1>
