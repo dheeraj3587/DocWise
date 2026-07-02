@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "katex/dist/katex.min.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -52,21 +53,21 @@
 
 :root {
   --radius: 0.625rem;
-  --background: #f8f7f4;
-  --foreground: #1a1a1f;
+  --background: #f7f4ee;
+  --foreground: #15151a;
   --card: rgba(255, 255, 255, 0.85);
-  --card-foreground: #1a1a1f;
+  --card-foreground: #15151a;
   --popover: rgba(255, 255, 255, 0.95);
-  --popover-foreground: #1a1a1f;
-  --primary: #1a1a1f;
-  --primary-foreground: #faf9f6;
+  --popover-foreground: #15151a;
+  --primary: #18161d;
+  --primary-foreground: #fffaf0;
   --secondary: rgba(0, 0, 0, 0.04);
-  --secondary-foreground: #1a1a1f;
+  --secondary-foreground: #15151a;
   --muted: rgba(0, 0, 0, 0.04);
-  --muted-foreground: #6b6b7b;
-  --accent: rgba(178, 147, 28, 0.08);
-  --accent-foreground: #8b7420;
-  --destructive: #dc3545;
+  --muted-foreground: #696878;
+  --accent: rgba(176, 129, 42, 0.1);
+  --accent-foreground: #805d1d;
+  --destructive: #b43f4a;
   --border: rgba(0, 0, 0, 0.08);
   --input: rgba(0, 0, 0, 0.08);
   --ring: rgba(178, 147, 28, 0.35);
@@ -83,29 +84,32 @@
   --sidebar-accent-foreground: #8b7420;
   --sidebar-border: rgba(0, 0, 0, 0.06);
   --sidebar-ring: rgba(178, 147, 28, 0.3);
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(0, 0, 0, 0.06);
-  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --surface-1: rgba(255, 255, 255, 0.7);
-  --surface-2: rgba(255, 255, 255, 0.5);
-  --surface-3: rgba(0, 0, 0, 0.03);
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-border: rgba(41, 35, 27, 0.09);
+  --glass-shadow: 0 16px 40px rgba(58, 47, 32, 0.08), 0 1px 2px rgba(24, 22, 29, 0.05);
+  --surface-1: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(255, 255, 255, 0.54);
+  --surface-3: rgba(24, 22, 29, 0.045);
+  --premium-teal: #0f766e;
+  --premium-wine: #8f3d4a;
+  --premium-amber: #c49a3a;
 }
 
 .dark {
-  --background: #0a0a0f;
-  --foreground: #ececf1;
-  --card: rgba(255, 255, 255, 0.05);
-  --card-foreground: #ececf1;
-  --popover: rgba(18, 18, 26, 0.95);
-  --popover-foreground: #ececf1;
-  --primary: #ececf1;
-  --primary-foreground: #0a0a0f;
-  --secondary: rgba(255, 255, 255, 0.08);
-  --secondary-foreground: #ececf1;
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: #8b8b9e;
-  --accent: rgba(212, 175, 55, 0.12);
-  --accent-foreground: #e6c84d;
+  --background: #090a0d;
+  --foreground: #f0eee8;
+  --card: rgba(255, 255, 255, 0.055);
+  --card-foreground: #f0eee8;
+  --popover: rgba(16, 17, 22, 0.96);
+  --popover-foreground: #f0eee8;
+  --primary: #f0eee8;
+  --primary-foreground: #090a0d;
+  --secondary: rgba(255, 255, 255, 0.075);
+  --secondary-foreground: #f0eee8;
+  --muted: rgba(255, 255, 255, 0.055);
+  --muted-foreground: #9b9aa8;
+  --accent: rgba(201, 155, 58, 0.14);
+  --accent-foreground: #f1ce73;
   --destructive: #f87171;
   --border: rgba(255, 255, 255, 0.08);
   --input: rgba(255, 255, 255, 0.1);
@@ -123,12 +127,15 @@
   --sidebar-accent-foreground: #e6c84d;
   --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: rgba(212, 175, 55, 0.3);
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  --surface-1: rgba(255, 255, 255, 0.04);
-  --surface-2: rgba(255, 255, 255, 0.06);
-  --surface-3: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(20, 21, 27, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.095);
+  --glass-shadow: 0 18px 55px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --surface-1: rgba(255, 255, 255, 0.045);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-3: rgba(255, 255, 255, 0.1);
+  --premium-teal: #2dd4bf;
+  --premium-wine: #f08b9a;
+  --premium-amber: #f1ce73;
 }
 
 @layer base {
@@ -231,18 +238,59 @@
 
 .bg-mesh {
   background:
-    radial-gradient(ellipse at 15% 50%, rgba(178, 147, 28, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 20%, rgba(99, 102, 241, 0.025) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 100%, rgba(178, 147, 28, 0.02) 0%, transparent 50%),
+    linear-gradient(135deg, rgba(196, 154, 58, 0.08), transparent 32%),
+    linear-gradient(225deg, rgba(15, 118, 110, 0.055), transparent 38%),
+    linear-gradient(0deg, rgba(143, 61, 74, 0.035), transparent 42%),
     var(--background);
 }
 
 .dark .bg-mesh {
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(212, 175, 55, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 100%, rgba(212, 175, 55, 0.02) 0%, transparent 50%),
+    linear-gradient(135deg, rgba(241, 206, 115, 0.07), transparent 30%),
+    linear-gradient(225deg, rgba(45, 212, 191, 0.045), transparent 36%),
+    linear-gradient(0deg, rgba(240, 139, 154, 0.035), transparent 42%),
     var(--background);
+}
+
+.workspace-topbar {
+  background: color-mix(in srgb, var(--background) 78%, transparent);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06), 0 12px 40px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+}
+
+.workspace-tab-active {
+  color: var(--foreground);
+  background:
+    linear-gradient(135deg, rgba(196, 154, 58, 0.18), rgba(15, 118, 110, 0.1)),
+    var(--surface-3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+.premium-action {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 78%, var(--premium-teal)));
+}
+
+.chat-stream {
+  background:
+    linear-gradient(180deg, transparent, rgba(196, 154, 58, 0.025)),
+    var(--surface-1);
+}
+
+.animate-panel-in {
+  animation: panel-in 180ms ease-out both;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Premium Scrollbar ────────────────────────────────────── */

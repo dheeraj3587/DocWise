@@ -73,12 +73,15 @@ export interface MediaTimestamp {
 
 export async function uploadFile(
   file: File,
-  fileName: string,
+  fileName?: string | null,
   token?: string | null,
 ): Promise<FileRecord> {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("file_name", fileName);
+  const displayName = fileName?.trim();
+  if (displayName) {
+    formData.append("file_name", displayName);
+  }
 
   const headers: Record<string, string> = {};
   if (token) {

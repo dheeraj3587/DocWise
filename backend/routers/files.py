@@ -1,6 +1,7 @@
 """Files router — upload, retrieve, list, and delete files."""
 
 import uuid
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -24,6 +25,12 @@ router = APIRouter()
 PDF_TYPES = {"application/pdf"}
 AUDIO_TYPES = {"audio/mpeg", "audio/wav", "audio/mp4", "audio/x-m4a", "audio/webm", "audio/ogg"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/ogg"}
+
+
+def _safe_storage_name(file_name: str) -> str:
+    """Make object keys proxy/signature friendly while preserving display names in DB."""
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", file_name).strip("._")
+    return safe_name or "file"
 
 
 def _classify_file(content_type: str) -> str:
@@ -112,8 +119,8 @@ async def upload_file(
         )
 
     file_id = str(uuid.uuid4())
-    original_name = file_name or file.filename or "untitled"
-    storage_key = f"{file_type}/{file_id}/{original_name}"
+    original_name = (file_name or "").strip() or file.filename or "untitled"
+    storage_key = f"{file_type}/{file_id}/{_safe_storage_name(original_name)}"
 
     storage_service.upload_file(file_bytes, storage_key, content_type)
 

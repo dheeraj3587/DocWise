@@ -23,7 +23,7 @@
 - **🤖 AI Chat (RAG)** — Context-aware Q&A powered by Azure OpenAI with retrieval-augmented generation.
 - **📝 Rich Text Notes** — Full WYSIWYG editor (TipTap) with formatting, highlights, and AI-assisted writing.
 - **⚡ AI Summarization** — One-click document summaries streamed directly into your notes.
-- **🧠 Deep Mode** — Toggle between fast (GPT-5-mini) and deep reasoning (GPT-5.2) modes.
+- **🧠 Deep Mode** — Toggle between fast GPT-OSS responses and high-reasoning GLM 4.7.
 - **🔐 Secure Auth** — Clerk-powered authentication with JWT + API key support.
 - **📦 Fully Dockerized** — One command to spin up the entire stack.
 
@@ -75,7 +75,11 @@
    CEREBRAS_API_KEY=your-cerebras-key
    CEREBRAS_BASE_URL=https://api.cerebras.ai/v1
    CEREBRAS_CHAT_MODEL=gpt-oss-120b
-   CEREBRAS_DEEP_MODEL=gpt-oss-120b
+   CEREBRAS_DEEP_MODEL=zai-glm-4.7
+   CEREBRAS_REASONING_EFFORT=low
+   CEREBRAS_CHAT_REASONING_EFFORT=low
+   CEREBRAS_DEEP_REASONING_EFFORT=high
+   CHAT_DAILY_LIMIT_PER_USER=30
 
    # Free local document embeddings
    LOCAL_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5

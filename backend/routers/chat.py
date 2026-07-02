@@ -2,11 +2,12 @@
 
 import uuid
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.authz import assert_file_owner
@@ -15,6 +16,7 @@ from core.security import get_current_user
 from core.rate_limit import rate_limit
 from core.config import settings
 from models.database import get_db
+from models.chat_message import ChatMessage
 from models.file import File as FileModel
 from services.ai_service import ai_service
 from services.embedding_service import embedding_service
@@ -35,6 +37,95 @@ class SummarizeRequest(BaseModel):
     deep_mode: bool = False
 
 
+class ChatMessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    createdAt: str
+
+
+def _user_identity(user: dict) -> str:
+    return user.get("email") or user.get("sub") or ""
+
+
+async def _get_owned_file(file_id: str, user: dict, db: AsyncSession) -> FileModel:
+    stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(file_id))
+    result = await db.execute(stmt)
+    file_record = result.scalar_one_or_none()
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    assert_file_owner(file_record, user)
+    return file_record
+
+
+async def _count_chats_today(created_by: str, db: AsyncSession) -> int:
+    start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    stmt = (
+        select(func.count())
+        .select_from(ChatMessage)
+        .where(ChatMessage.created_by == created_by)
+        .where(ChatMessage.role == "user")
+        .where(ChatMessage.created_at >= start_of_day)
+    )
+    result = await db.execute(stmt)
+    return result.scalar() or 0
+
+
+async def _save_chat_pair(
+    file_id: str,
+    created_by: str,
+    question: str,
+    answer: str,
+    db: AsyncSession,
+) -> None:
+    db.add_all(
+        [
+            ChatMessage(
+                file_id=file_id,
+                role="user",
+                content=question,
+                created_by=created_by,
+            ),
+            ChatMessage(
+                file_id=file_id,
+                role="assistant",
+                content=answer,
+                created_by=created_by,
+            ),
+        ]
+    )
+    await db.flush()
+    await db.commit()
+
+
+@router.get("/history/{file_id}", response_model=list[ChatMessageResponse])
+async def get_chat_history(
+    file_id: str,
+    _: None = Depends(rate_limit("chat")),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return saved chat history for the authenticated user and file."""
+    await _get_owned_file(file_id, user, db)
+    created_by = _user_identity(user)
+    stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.file_id == file_id)
+        .where(ChatMessage.created_by == created_by)
+        .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+    )
+    result = await db.execute(stmt)
+    return [
+        {
+            "id": str(message.id),
+            "role": message.role,
+            "content": message.content,
+            "createdAt": message.created_at.isoformat() if message.created_at else "",
+        }
+        for message in result.scalars().all()
+    ]
+
+
 @router.post("/ask")
 async def chat_ask(
     body: ChatRequest,
@@ -46,18 +137,21 @@ async def chat_ask(
     Ask a question about a file. Uses RAG: search similar chunks → LLM answer.
     Returns Server-Sent Events (SSE) stream.
     """
-    # Ownership check — verify the user owns this file
-    stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(body.file_id))
-    result = await db.execute(stmt)
-    file_record = result.scalar_one_or_none()
-    if not file_record:
-        raise HTTPException(status_code=404, detail="File not found")
-    assert_file_owner(file_record, user)
+    await _get_owned_file(body.file_id, user, db)
+    created_by = _user_identity(user)
+    chats_today = await _count_chats_today(created_by, db)
+    if chats_today >= settings.CHAT_DAILY_LIMIT_PER_USER:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily chat limit reached. You can ask up to {settings.CHAT_DAILY_LIMIT_PER_USER} questions per day.",
+        )
 
     cache_key = f"chat:ask:{body.file_id}:{body.question.strip().lower()}"
     cached_response = await cache_service.get_json(cache_key)
 
     if cached_response:
+        await _save_chat_pair(body.file_id, created_by, body.question, cached_response, db)
+
         async def cached_event_generator():
             yield f"data: {json.dumps({'text': cached_response})}\n\n"
             yield "data: [DONE]\n\n"
@@ -101,6 +195,7 @@ async def chat_ask(
 
             if response_parts:
                 full_response = "".join(response_parts)
+                await _save_chat_pair(body.file_id, created_by, body.question, full_response, db)
                 await cache_service.set_json(
                     cache_key,
                     full_response,
@@ -135,15 +230,7 @@ async def summarize_file(
     For PDFs: downloads and extracts text.
     For audio/video: uses stored transcript.
     """
-    stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(body.file_id))
-    result = await db.execute(stmt)
-    file_record = result.scalar_one_or_none()
-
-    if not file_record:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    # Ownership check — verify the user owns this file
-    assert_file_owner(file_record, user)
+    file_record = await _get_owned_file(body.file_id, user, db)
 
     # Get text content
     if file_record.file_type == "pdf":

@@ -61,6 +61,16 @@ class TestAIServiceModelSelection:
         svc = AIService()
         assert svc._get_model(deep_mode=True) == "deep-model"
 
+    @patch("services.ai_service.settings")
+    @patch("services.ai_service.AsyncOpenAI")
+    def test_reasoning_effort_by_mode(self, mock_client, mock_settings):
+        mock_settings.CEREBRAS_REASONING_EFFORT = "low"
+        mock_settings.CEREBRAS_CHAT_REASONING_EFFORT = "low"
+        mock_settings.CEREBRAS_DEEP_REASONING_EFFORT = "high"
+        svc = AIService()
+        assert svc._get_reasoning_effort(deep_mode=False) == "low"
+        assert svc._get_reasoning_effort(deep_mode=True) == "high"
+
 
 @pytest.mark.asyncio
 class TestAIServiceChat:
@@ -79,6 +89,7 @@ class TestAIServiceChat:
             chunks.append(chunk)
 
         assert chunks == ["Hello ", "world"]
+        svc.client.chat.completions.create.assert_awaited()
 
     @patch("services.ai_service.AsyncOpenAI")
     async def test_chat_stream_with_timestamps(self, mock_client_cls):

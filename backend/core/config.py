@@ -1,7 +1,7 @@
 """Application configuration loaded from environment variables."""
 
 import json
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -24,7 +24,10 @@ class Settings(BaseSettings):
     CEREBRAS_API_KEY: str = ""
     CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
     CEREBRAS_CHAT_MODEL: str = "gpt-oss-120b"
-    CEREBRAS_DEEP_MODEL: str = "gpt-oss-120b"
+    CEREBRAS_DEEP_MODEL: str = "zai-glm-4.7"
+    CEREBRAS_REASONING_EFFORT: str = "low"
+    CEREBRAS_CHAT_REASONING_EFFORT: str = "low"
+    CEREBRAS_DEEP_REASONING_EFFORT: str = "high"
 
     # Local embeddings - free document indexing/search
     LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
@@ -62,6 +65,7 @@ class Settings(BaseSettings):
     # LLM usage guardrails
     LLM_DAILY_BUDGET_UNITS_PER_USER: int = 500
     LLM_MAX_CONCURRENT_STREAMS_PER_USER: int = 3
+    CHAT_DAILY_LIMIT_PER_USER: int = 30
 
     # Upload limits
     MAX_UPLOAD_SIZE_MB: int = 50
@@ -72,7 +76,7 @@ class Settings(BaseSettings):
     CLERK_ISSUER: str = ""
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000"
 
     # FAISS
     FAISS_INDEX_PATH: str = "./faiss_indices"
@@ -113,6 +117,10 @@ class Settings(BaseSettings):
                 return [str(item).strip() for item in parsed if str(item).strip()]
             return [part.strip() for part in stripped.split(",") if part.strip()]
         return []
+
+    @property
+    def cors_origins(self) -> List[str]:
+        return self.parse_cors_origins(self.CORS_ORIGINS)
 
 
 settings = Settings()

@@ -18,7 +18,9 @@ interface MediaPlayerProps {
     timestamps?: Timestamp[]
 }
 
-export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerProps) => {
+const EMPTY_TIMESTAMPS: Timestamp[] = []
+
+export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS }: MediaPlayerProps) => {
     const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null)
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -117,8 +119,10 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
 
             {/* Controls */}
             <div className="shrink-0 p-4 border-b border-border">
-                <div
-                    className="w-full h-2 surface-3 rounded-full cursor-pointer mb-3 overflow-hidden"
+                <button
+                    type="button"
+                    aria-label="Seek media"
+                    className="w-full h-2 surface-3 rounded-full cursor-pointer mb-3 overflow-hidden block"
                     onClick={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect()
                         const pos = (e.clientX - rect.left) / rect.width
@@ -129,20 +133,20 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
                         className="h-full bg-gold rounded-full transition-all duration-100"
                         style={{ width: `${progressPercent}%` }}
                     />
-                </div>
+                </button>
 
                 <div className="flex-between">
                     <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground">
+                        <Button aria-label="Skip back 10 seconds" variant="ghost" size="sm" onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground">
                             <SkipBack size={16} />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={togglePlay} className="text-foreground">
+                        <Button aria-label={isPlaying ? "Pause media" : "Play media"} variant="ghost" size="sm" onClick={togglePlay} className="text-foreground">
                             {isPlaying ? <Pause size={20} /> : <Play size={20} />}
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => skip(10)} className="text-muted-foreground hover:text-foreground">
+                        <Button aria-label="Skip forward 10 seconds" variant="ghost" size="sm" onClick={() => skip(10)} className="text-muted-foreground hover:text-foreground">
                             <SkipForward size={16} />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={toggleMute} className="text-muted-foreground hover:text-foreground">
+                        <Button aria-label={isMuted ? "Unmute media" : "Mute media"} variant="ghost" size="sm" onClick={toggleMute} className="text-muted-foreground hover:text-foreground">
                             {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                         </Button>
                     </div>
@@ -160,6 +164,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = [] }: MediaPlayerP
                         {timestamps.map((ts, index) => (
                             <button
                                 key={ts.id || index}
+                                type="button"
                                 onClick={() => seekTo(ts.start_time)}
                                 className={`w-full text-left p-3 rounded-xl border transition-all duration-200 ${activeTimestamp === index
                                     ? 'surface-3 border-gold/30 glow-gold-subtle'

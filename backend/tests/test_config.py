@@ -33,6 +33,10 @@ class TestParseCorOrigins:
         result = Settings.parse_cors_origins(123)
         assert result == ["http://localhost:3000"]
 
+    def test_settings_accepts_json_array_env(self, monkeypatch):
+        monkeypatch.setenv("CORS_ORIGINS", '["https://app.dheerajjoshi.dev"]')
+        assert Settings().cors_origins == ["https://app.dheerajjoshi.dev"]
+
 
 class TestParseApiKeys:
     """Tests for Settings.parse_api_keys validator."""

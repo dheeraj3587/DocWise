@@ -63,8 +63,9 @@ Return JSON array:"""
         response = await self.client.chat.completions.create(
             model=settings.CEREBRAS_CHAT_MODEL,
             messages=[{"role": "user", "content": prompt}],
+            reasoning_effort=settings.CEREBRAS_REASONING_EFFORT,
         )
-        content = response.choices[0].message.content.strip() if response.choices else ""
+        content = (response.choices[0].message.content or "").strip() if response.choices else ""
 
         # Clean up markdown code blocks if present
         if content.startswith("```"):

@@ -21,10 +21,17 @@ class AIService:
         """Return the appropriate Cerebras model based on mode."""
         return settings.CEREBRAS_DEEP_MODEL if deep_mode else settings.CEREBRAS_CHAT_MODEL
 
+    def _get_reasoning_effort(self, deep_mode: bool = False) -> str:
+        """Return reasoning effort for the selected mode."""
+        if deep_mode:
+            return settings.CEREBRAS_DEEP_REASONING_EFFORT
+        return settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT
+
     async def _stream_prompt(self, prompt: str, deep_mode: bool = False) -> AsyncGenerator[str, None]:
         stream = await self.client.chat.completions.create(
             model=self._get_model(deep_mode),
             messages=[{"role": "user", "content": prompt}],
+            reasoning_effort=self._get_reasoning_effort(deep_mode),
             stream=True,
         )
         async for chunk in stream:
@@ -36,6 +43,7 @@ class AIService:
         response = await self.client.chat.completions.create(
             model=self._get_model(deep_mode),
             messages=[{"role": "user", "content": prompt}],
+            reasoning_effort=self._get_reasoning_effort(deep_mode),
         )
         if not response.choices:
             return ""

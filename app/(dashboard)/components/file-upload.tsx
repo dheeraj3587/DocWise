@@ -22,7 +22,7 @@ import { Loader2 } from "lucide-react"
 export function FileUpload({ children }: { children: React.ReactNode }) {
     const { getToken } = useAuth();
     const [file, setFile] = useState<File | null>(null);
-    const [name, setName] = useState<string | null>(null);
+    const [name, setName] = useState("");
     const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
             const token = await getToken();
             await uploadFile(
                 file,
-                name ?? "untitled file",
+                name,
                 token,
             );
             setLoading(false);
@@ -122,7 +122,13 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                         </div>
                         <div className="grid gap-3">
                             <Label htmlFor="name-1">File name</Label>
-                            <Input onChange={(e) => setName(e.target.value)} placeholder="Enter file name" id="name-1" name="name" />
+                            <Input
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder={file ? file.name : "Defaults to uploaded file name"}
+                                id="name-1"
+                                name="name"
+                            />
                         </div>
                         {error && <p className="text-sm text-destructive">{error}</p>}
                     </div>
@@ -130,7 +136,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                         <DialogClose asChild>
                             <Button variant="outline">Cancel</Button>
                         </DialogClose>
-                        <Button disabled={loading || (remaining !== null && remaining <= 0)} onClick={onUpload} type="submit">
+                        <Button disabled={loading || (remaining !== null && remaining <= 0)} onClick={onUpload}>
                             {loading ? <Loader2
                                 className="flex justify-center items-center mr-2 h-4 w-4 animate-spin"
                             /> : 'Save'}</Button>

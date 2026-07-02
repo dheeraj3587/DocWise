@@ -22,6 +22,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
 
   return (
     <button
+      type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className={`relative w-9 h-9 rounded-xl flex-center transition-all duration-300 cursor-pointer
         ${isDark

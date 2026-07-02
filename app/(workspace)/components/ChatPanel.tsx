@@ -1,25 +1,37 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { Dispatch, SetStateAction, useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { useParams } from 'next/navigation'
 import { Send, Brain, Sparkle, MessageCircle, X, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
 }
 
-export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
+interface ChatPanelProps {
+  embedded?: boolean
+  messages?: ChatMessage[]
+  setMessages?: Dispatch<SetStateAction<ChatMessage[]>>
+}
+
+export const ChatPanel = ({
+  embedded = false,
+  messages: controlledMessages,
+  setMessages: controlledSetMessages,
+}: ChatPanelProps) => {
   const { fileId } = useParams()
   const { getToken } = useAuth()
 
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [deepMode, setDeepMode] = useState(false)
@@ -29,10 +41,12 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const messages = controlledMessages ?? localMessages
+  const setMessages = controlledSetMessages ?? setLocalMessages
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
+    messagesEndRef.current?.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' })
+  }, [isStreaming])
 
   useEffect(() => {
     scrollToBottom()
@@ -43,6 +57,50 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
       inputRef.current?.focus()
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!fileId) return
+
+    let cancelled = false
+
+    const loadHistory = async () => {
+      try {
+        const token = await getToken()
+        const response = await fetch(`${API_BASE}/api/chat/history/${fileId}`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        })
+        if (!response.ok) return
+
+        const history: Array<{
+          id: string | number
+          role: 'user' | 'assistant'
+          content: string
+          createdAt?: string
+        }> = await response.json()
+
+        if (cancelled) return
+        setMessages(
+          history
+            .filter((message) => message.role === 'user' || message.role === 'assistant')
+            .map((message) => ({
+              id: String(message.id),
+              role: message.role,
+              content: message.content,
+            })),
+        )
+      } catch {
+        // History is a convenience; chat should still work if loading fails.
+      }
+    }
+
+    loadHistory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [API_BASE, fileId, getToken, setMessages])
 
   const handleSend = async () => {
     const question = input.trim()
@@ -80,7 +138,16 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
       })
 
       if (!response.ok || !response.body) {
-        throw new Error(`Request failed: ${response.status}`)
+        let message = `Request failed: ${response.status}`
+        try {
+          const errorBody = await response.json()
+          if (errorBody?.detail) {
+            message = errorBody.detail
+          }
+        } catch {
+          // keep fallback
+        }
+        throw new Error(message)
       }
 
       const reader = response.body.getReader()
@@ -158,11 +225,12 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
           <Sparkle className="w-4 h-4 text-gold" />
           <span className="font-semibold text-sm text-foreground">AI Chat</span>
           <span className="text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 surface-3 rounded">
-            {deepMode ? 'GPT-5.2' : 'GPT-5-mini'}
+            {deepMode ? 'GPT-OSS Deep' : 'GPT-OSS'}
           </span>
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => setDeepMode(!deepMode)}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${deepMode
               ? 'bg-accent text-accent-foreground hover:bg-accent/80'
@@ -175,6 +243,7 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
           </button>
           {!embedded && (
             <button
+              type="button"
               onClick={() => setIsOpen(false)}
               className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:surface-2 transition-colors"
             >
@@ -185,7 +254,7 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 custom-scrollbar chat-stream">
         {messages.length === 0 && (
           <div className="flex-col-center justify-center h-full text-center text-muted-foreground">
             <MessageCircle className="w-10 h-10 mb-3 opacity-30" />
@@ -196,15 +265,17 @@ export const ChatPanel = ({ embedded = false }: { embedded?: boolean }) => {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${msg.role === 'user'
-                ? 'bg-foreground text-background rounded-br-sm'
-                : 'surface-2 text-foreground rounded-bl-sm border border-border'
+              className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
+                ? 'bg-primary text-primary-foreground rounded-br-sm'
+                : 'surface-2 text-foreground rounded-bl-sm border border-border/80'
                 }`}
             >
               {msg.content ? (
                 msg.role === 'assistant' ? (
                   <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-code:surface-3 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:text-foreground">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
                 ) : (
                   msg.content

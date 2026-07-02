@@ -86,6 +86,48 @@ class TestChat:
         response = await client.post("/api/chat/ask", json={})
         assert response.status_code == 422
 
+    async def test_chat_history_persists_after_ask(self, client, mock_embedding_service, mock_ai_service, create_owned_file):
+        """Test successful chats are saved and returned later."""
+        file_id = await create_owned_file()
+
+        ask_response = await client.post(
+            "/api/chat/ask",
+            json={"question": "Remember this?", "file_id": file_id},
+        )
+        assert ask_response.status_code == 200
+
+        history_response = await client.get(f"/api/chat/history/{file_id}")
+        assert history_response.status_code == 200
+        history = history_response.json()
+        assert [message["role"] for message in history] == ["user", "assistant"]
+        assert history[0]["content"] == "Remember this?"
+        assert "test answer" in history[1]["content"]
+
+    async def test_chat_daily_limit_blocks_after_configured_limit(
+        self,
+        client,
+        mock_embedding_service,
+        mock_ai_service,
+        create_owned_file,
+        monkeypatch,
+    ):
+        """Test per-user daily chat question limit."""
+        file_id = await create_owned_file()
+        monkeypatch.setattr("routers.chat.settings.CHAT_DAILY_LIMIT_PER_USER", 1)
+
+        first = await client.post(
+            "/api/chat/ask",
+            json={"question": "First?", "file_id": file_id},
+        )
+        assert first.status_code == 200
+
+        second = await client.post(
+            "/api/chat/ask",
+            json={"question": "Second?", "file_id": file_id},
+        )
+        assert second.status_code == 429
+        assert "Daily chat limit reached" in second.text
+
 
 @pytest.mark.asyncio
 class TestSummarize:
@@ -208,4 +250,3 @@ class TestChatCache:
             assert response.status_code == 200
             content = response.text
             assert "Cached answer" in content
-

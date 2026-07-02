@@ -16,7 +16,7 @@ import { WorkspaceHeader } from '../../components/workspace-header'
 import { PdfViewer } from '../../components/PdfViewer'
 import { MediaPlayer } from '../../components/MediaPlayer'
 import { TextEditor } from '../../components/textEditor'
-import { ChatPanel } from '../../components/ChatPanel'
+import { ChatMessage, ChatPanel } from '../../components/ChatPanel'
 import { WorkspaceSkeleton } from '@/app/skeleton/workspace-skeleton'
 
 import {
@@ -30,6 +30,7 @@ export type LeftPanelView = 'document' | 'chat'
 const Workspace = () => {
   const { fileId } = useParams()
   const [leftPanel, setLeftPanel] = useState<LeftPanelView>('document')
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
 
   const { data: fileData, isLoading } = useApiQuery<FileRecord>(
     fileId ? `/api/files/${fileId}` : null,
@@ -85,16 +86,18 @@ const Workspace = () => {
         fileName={fileData.fileName}
         leftPanel={leftPanel}
         onLeftPanelChange={setLeftPanel}
+        chatMessages={chatMessages}
       />
 
       <div className="flex-1 overflow-hidden p-4">
         <PanelGroup orientation="horizontal" className="h-full">
           <Panel defaultSize={50} minSize={20} className="h-full">
-            {leftPanel === 'chat' ? (
-              <ChatPanel embedded />
-            ) : (
+            <div className={leftPanel === 'document' ? 'h-full animate-panel-in' : 'hidden h-full'}>
               <TextEditor editor={editor} />
-            )}
+            </div>
+            <div className={leftPanel === 'chat' ? 'h-full animate-panel-in' : 'hidden h-full'}>
+              <ChatPanel embedded messages={chatMessages} setMessages={setChatMessages} />
+            </div>
           </Panel>
 
           <PanelResizeHandle className="w-2 cursor-col-resize" />
