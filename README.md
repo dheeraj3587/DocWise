@@ -35,7 +35,7 @@
 |-------|-----------|
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS |
 | **Backend** | FastAPI (async), PostgreSQL, Celery |
-| **AI/RAG** | LangChain, Azure OpenAI, FAISS vector search |
+| **AI/RAG** | Cerebras chat, local FastEmbed embeddings, FAISS vector search |
 | **Auth** | Clerk JWT + API key auth |
 | **Storage** | MinIO (S3-compatible) |
 | **Cache** | Redis (response caching + rate limiting) |
@@ -71,19 +71,19 @@
    CLERK_JWKS_URL=https://your-clerk.clerk.accounts.dev/.well-known/jwks.json
    CLERK_ISSUER=https://your-clerk.clerk.accounts.dev
 
-   # Azure OpenAI
-   AZURE_OPENAI_API_KEY=your-key
-   AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-   AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-5-mini
-   AZURE_OPENAI_DEEP_DEPLOYMENT=gpt-5.2-chat
+   # Cerebras chat / summarization
+   CEREBRAS_API_KEY=your-cerebras-key
+   CEREBRAS_BASE_URL=https://api.cerebras.ai/v1
+   CEREBRAS_CHAT_MODEL=gpt-oss-120b
+   CEREBRAS_DEEP_MODEL=gpt-oss-120b
 
-   # Azure OpenAI - Embeddings
-   AZURE_OPENAI_EMBEDDING_API_KEY=your-key
-   AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-resource.openai.azure.com/
+   # Free local document embeddings
+   LOCAL_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 
-   # Azure OpenAI - Whisper (transcription)
-   AZURE_OPENAI_WHISPER_API_KEY=your-key
-   AZURE_OPENAI_WHISPER_ENDPOINT=https://your-resource.openai.azure.com/
+   # Optional audio/video transcription
+   AZURE_OPENAI_WHISPER_API_KEY=
+   AZURE_OPENAI_WHISPER_ENDPOINT=
+   OPENAI_API_KEY=
    ```
 
 3. **Start everything**

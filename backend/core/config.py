@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Cerebras - Chat / Summarization
     CEREBRAS_API_KEY: str = ""
     CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
-    CEREBRAS_CHAT_MODEL: str = "llama-3.3-70b"
+    CEREBRAS_CHAT_MODEL: str = "gpt-oss-120b"
     CEREBRAS_DEEP_MODEL: str = "gpt-oss-120b"
 
     # Local embeddings - free document indexing/search
