@@ -3,7 +3,7 @@
 from typing import List, Dict, Any
 import json
 
-from langchain_openai import AzureChatOpenAI
+from openai import AsyncOpenAI
 from core.config import settings
 
 
@@ -11,11 +11,9 @@ class TimestampService:
     """Extracts topic-level timestamps from transcription segments."""
 
     def __init__(self):
-        self.llm = AzureChatOpenAI(
-            azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
+        self.client = AsyncOpenAI(
+            api_key=settings.CEREBRAS_API_KEY,
+            base_url=settings.CEREBRAS_BASE_URL,
         )
 
     async def extract_topics(
@@ -62,8 +60,11 @@ Transcript:
 
 Return JSON array:"""
 
-        response = await self.llm.ainvoke(prompt)
-        content = response.content.strip()
+        response = await self.client.chat.completions.create(
+            model=settings.CEREBRAS_CHAT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        content = response.choices[0].message.content.strip() if response.choices else ""
 
         # Clean up markdown code blocks if present
         if content.startswith("```"):

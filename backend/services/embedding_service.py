@@ -1,8 +1,8 @@
-"""Embedding service — generates embeddings using Azure OpenAI."""
+"""Embedding service - generates local embeddings for free document search."""
 
 from typing import List
 
-from langchain_openai import AzureOpenAIEmbeddings
+from fastembed import TextEmbedding
 
 from core.config import settings
 from vector_store.faiss_index import faiss_index
@@ -12,20 +12,16 @@ class EmbeddingService:
     """Generates embeddings and stores them in FAISS."""
 
     def __init__(self):
-        self.embeddings_model = AzureOpenAIEmbeddings(
-            azure_deployment=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-            azure_endpoint=settings.AZURE_OPENAI_EMBEDDING_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_EMBEDDING_API_KEY,
-            api_version=settings.AZURE_OPENAI_EMBEDDING_API_VERSION,
-        )
+        self.embeddings_model = TextEmbedding(model_name=settings.LOCAL_EMBEDDING_MODEL)
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of text chunks."""
-        return self.embeddings_model.embed_documents(texts)
+        return [embedding.tolist() for embedding in self.embeddings_model.embed(texts)]
 
     def embed_query(self, query: str) -> List[float]:
         """Generate an embedding for a single query."""
-        return self.embeddings_model.embed_query(query)
+        embeddings = list(self.embeddings_model.embed([query]))
+        return embeddings[0].tolist() if embeddings else []
 
     def ingest_document(
         self,

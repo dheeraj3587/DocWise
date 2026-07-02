@@ -20,18 +20,14 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "kagaz-files"
     MINIO_USE_SSL: bool = False
 
-    # Azure OpenAI - Chat
-    AZURE_OPENAI_API_KEY: str = ""
-    AZURE_OPENAI_ENDPOINT: str = ""
-    AZURE_OPENAI_CHAT_DEPLOYMENT: str = "gpt-5-mini"
-    AZURE_OPENAI_DEEP_DEPLOYMENT: str = "gpt-5.2-chat"
-    AZURE_OPENAI_API_VERSION: str = "2024-12-01-preview"
+    # Cerebras - Chat / Summarization
+    CEREBRAS_API_KEY: str = ""
+    CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
+    CEREBRAS_CHAT_MODEL: str = "llama-3.3-70b"
+    CEREBRAS_DEEP_MODEL: str = "gpt-oss-120b"
 
-    # Azure OpenAI - Embeddings (can be on a different resource)
-    AZURE_OPENAI_EMBEDDING_API_KEY: str = ""
-    AZURE_OPENAI_EMBEDDING_ENDPOINT: str = ""
-    AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str = "text-embedding-3-large"
-    AZURE_OPENAI_EMBEDDING_API_VERSION: str = "2024-12-01-preview"
+    # Local embeddings - free document indexing/search
+    LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
 
     # Azure OpenAI - Whisper (transcription)
     AZURE_OPENAI_WHISPER_API_KEY: str = ""

@@ -16,6 +16,7 @@ langchain==0.3.14
 langchain-openai==0.3.12
 langchain-community==0.3.14
 faiss-cpu==1.13.2
+fastembed==0.7.3
 
 # File Processing
 pypdf==5.1.0

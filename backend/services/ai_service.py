@@ -1,9 +1,9 @@
-"""AI service — LLM calls for chat, summarization, and RAG responses (Azure OpenAI)."""
+"""AI service - LLM calls for chat, summarization, and RAG responses via Cerebras."""
 
 import json
 from typing import AsyncGenerator, List, Dict, Any, Optional
 
-from langchain_openai import AzureChatOpenAI
+from openai import AsyncOpenAI
 
 from core.config import settings
 
@@ -12,42 +12,34 @@ class AIService:
     """Handles all LLM interactions — chat, summarization, RAG."""
 
     def __init__(self):
-        # Normal mode — gpt-5-mini (fast, cost-effective)
-        self.llm = AzureChatOpenAI(
-            azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-            streaming=True,
-        )
-        self.llm_sync = AzureChatOpenAI(
-            azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-            streaming=False,
-        )
-        # Deep mode — gpt-5.2 (more capable, deeper reasoning)
-        self.llm_deep = AzureChatOpenAI(
-            azure_deployment=settings.AZURE_OPENAI_DEEP_DEPLOYMENT,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-            streaming=True,
-        )
-        self.llm_deep_sync = AzureChatOpenAI(
-            azure_deployment=settings.AZURE_OPENAI_DEEP_DEPLOYMENT,
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-            streaming=False,
+        self.client = AsyncOpenAI(
+            api_key=settings.CEREBRAS_API_KEY,
+            base_url=settings.CEREBRAS_BASE_URL,
         )
 
-    def _get_llm(self, deep_mode: bool = False, sync: bool = False):
-        """Return the appropriate LLM based on mode."""
-        if deep_mode:
-            return self.llm_deep_sync if sync else self.llm_deep
-        return self.llm_sync if sync else self.llm
+    def _get_model(self, deep_mode: bool = False) -> str:
+        """Return the appropriate Cerebras model based on mode."""
+        return settings.CEREBRAS_DEEP_MODEL if deep_mode else settings.CEREBRAS_CHAT_MODEL
+
+    async def _stream_prompt(self, prompt: str, deep_mode: bool = False) -> AsyncGenerator[str, None]:
+        stream = await self.client.chat.completions.create(
+            model=self._get_model(deep_mode),
+            messages=[{"role": "user", "content": prompt}],
+            stream=True,
+        )
+        async for chunk in stream:
+            text = chunk.choices[0].delta.content if chunk.choices else None
+            if text:
+                yield text
+
+    async def _complete_prompt(self, prompt: str, deep_mode: bool = False) -> str:
+        response = await self.client.chat.completions.create(
+            model=self._get_model(deep_mode),
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if not response.choices:
+            return ""
+        return response.choices[0].message.content or ""
 
     async def chat_stream(
         self, question: str, context_chunks: List[Dict[str, Any]], deep_mode: bool = False
@@ -97,17 +89,13 @@ Question: {question}
 
 Answer:"""
 
-        llm = self._get_llm(deep_mode=deep_mode)
-        async for chunk in llm.astream(prompt):
-            if chunk.content:
-                yield chunk.content
+        async for text in self._stream_prompt(prompt, deep_mode=deep_mode):
+            yield text
 
     async def chat_no_context(self, question: str, deep_mode: bool = False) -> AsyncGenerator[str, None]:
         """Stream answer without RAG context (general question)."""
-        llm = self._get_llm(deep_mode=deep_mode)
-        async for chunk in llm.astream(question):
-            if chunk.content:
-                yield chunk.content
+        async for text in self._stream_prompt(question, deep_mode=deep_mode):
+            yield text
 
     async def summarize(self, text: str, deep_mode: bool = False) -> str:
         """Generate a summary of the given text."""
@@ -124,9 +112,7 @@ Content:
 
 Summary:"""
 
-        llm = self._get_llm(deep_mode=deep_mode, sync=True)
-        response = await llm.ainvoke(prompt)
-        return response.content
+        return await self._complete_prompt(prompt, deep_mode=deep_mode)
 
     async def summarize_stream(self, text: str, deep_mode: bool = False) -> AsyncGenerator[str, None]:
         """Stream a summary of the given text."""
@@ -143,10 +129,8 @@ Content:
 
 Summary:"""
 
-        llm = self._get_llm(deep_mode=deep_mode)
-        async for chunk in llm.astream(prompt):
-            if chunk.content:
-                yield chunk.content
+        async for text in self._stream_prompt(prompt, deep_mode=deep_mode):
+            yield text
 
 
 # Singleton
