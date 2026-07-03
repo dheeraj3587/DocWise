@@ -5,7 +5,19 @@ import { useAuth } from "@clerk/nextjs";
 import { saveNote } from "@/lib/api-client";
 import { useState } from "react";
 import { Editor } from "@tiptap/react";
-import { ArrowLeft, Download, FileText, MessageCircle, Save, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  FileText,
+  MessageCircle,
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Save,
+  Sparkles,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { escapeHtml, renderMarkdownWithMath } from "@/lib/markdown-math";
@@ -19,12 +31,20 @@ export const WorkspaceHeader = ({
   leftPanel,
   onLeftPanelChange,
   chatMessages,
+  outlineOpen,
+  onToggleOutline,
+  sidePanelOpen,
+  onToggleSidePanel,
 }: {
   fileName: string;
   editor: Editor | null;
   leftPanel: LeftPanelView;
   onLeftPanelChange: (view: LeftPanelView) => void;
   chatMessages: ChatMessage[];
+  outlineOpen: boolean;
+  onToggleOutline: () => void;
+  sidePanelOpen: boolean;
+  onToggleSidePanel: () => void;
 }) => {
   const router = useRouter();
   const { fileId } = useParams();
@@ -245,75 +265,145 @@ export const WorkspaceHeader = ({
     printWindow.document.close();
   };
 
+  const switchPanel = (view: LeftPanelView) => {
+    onLeftPanelChange(view);
+  };
+
+  const iconButtonClass =
+    "grid h-9 w-9 place-items-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground";
+  const activeIconButtonClass =
+    "grid h-9 w-9 place-items-center rounded-lg border border-border bg-secondary text-foreground transition-colors hover:bg-secondary/80";
+
   return (
-    <header className="h-[72px] workspace-topbar px-4 lg:px-8 flex-between">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleBack}
-            aria-label="Back to dashboard"
-            className="surface-3 w-10 h-10 rounded-xl flex-center text-muted-foreground hover:text-foreground hover:surface-2 transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Workspace</h1>
-        </div>
+    <header className="flex h-[68px] shrink-0 items-center gap-2 border-b border-border bg-background px-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="flex h-9 items-center gap-2 rounded-lg border border-transparent px-2.5 text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
+          <span className="hidden text-[13px] sm:inline">Dashboard</span>
+        </button>
 
-        <div className="flex items-center glass rounded-2xl p-1 gap-1 shadow-sm">
-          <button
-            type="button"
-            onClick={() => onLeftPanelChange("document")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${leftPanel === "document"
-              ? "workspace-tab-active"
-              : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">Notes</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onLeftPanelChange("chat")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${leftPanel === "chat"
-              ? "workspace-tab-active"
-              : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">AI Chat</span>
-          </button>
-        </div>
+        <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
 
-        <div className="lg:hidden flex flex-col justify-center items-center">
-          <h1 className="text-lg font-semibold text-foreground">Workspace</h1>
+        <button
+          type="button"
+          aria-label="Toggle outline"
+          title="Toggle outline"
+          onClick={onToggleOutline}
+          className={outlineOpen ? activeIconButtonClass : iconButtonClass}
+        >
+          {outlineOpen ? (
+            <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          ) : (
+            <PanelLeftOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          )}
+        </button>
+
+        <div className="ml-1 flex min-w-0 flex-col justify-center">
+          <span className="truncate text-[14px] text-foreground">{fileName}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
+            <span className="mono-label text-emerald-300/80">Ready</span>
+          </span>
         </div>
       </div>
 
-      <div className="hidden md:flex min-w-0 max-w-[36vw] flex-col items-center">
-        <div className="font-semibold text-foreground uppercase text-sm tracking-[0.18em] truncate">{fileName}</div>
-        <div className="mt-1 h-px w-24 bg-linear-to-r from-transparent via-gold/60 to-transparent" />
-      </div>
+      <div className="ml-auto flex items-center gap-2">
+        <div className="hidden items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 md:flex">
+          <button
+            type="button"
+            onClick={() => switchPanel("document")}
+            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors ${
+              leftPanel === "document"
+                ? "bg-secondary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <FileText className="h-4 w-4" strokeWidth={1.75} />
+            Notes
+          </button>
+          <button
+            type="button"
+            onClick={() => switchPanel("chat")}
+            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors ${
+              leftPanel === "chat"
+                ? "bg-secondary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <MessageCircle className="h-4 w-4" strokeWidth={1.75} />
+            Chat
+          </button>
+        </div>
 
-      <div className="flex items-center gap-3">
-        <Button variant="outline" onClick={handleSummarize} disabled={summarizing} className="text-sm rounded-xl h-10">
-          <Sparkles className="w-4 h-4" />
-          {summarizing ? "Summarizing..." : "Summarize"}
+        <div className="mx-1 hidden h-6 w-px bg-border md:block" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleSummarize}
+          disabled={summarizing}
+          className="hidden h-9 rounded-lg px-2.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground md:inline-flex"
+        >
+          <Sparkles className="h-4 w-4" />
+          {summarizing ? "Summarizing" : "Summarize"}
         </Button>
-        <Button variant="outline" onClick={handleExportPdf} disabled={!editor} className="text-sm rounded-xl h-10">
-          <Download className="w-4 h-4" />
-          Export PDF
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleExportPdf}
+          disabled={!editor}
+          className="hidden h-9 rounded-lg px-2.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground md:inline-flex"
+        >
+          <Download className="h-4 w-4" />
+          Export
         </Button>
-        <Button onClick={handleSave} disabled={loading} className="text-sm rounded-xl h-10 premium-action">
-          <Save className="w-4 h-4" />
-          {loading ? "Saving..." : "Save"}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleSave}
+          disabled={loading}
+          className="h-9 rounded-lg px-2.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+        >
+          <Save className="h-4 w-4" />
+          <span className="hidden sm:inline">{loading ? "Saving" : "Save"}</span>
         </Button>
-        <ThemeToggle />
+
+        <div className="mx-1 h-6 w-px bg-border" />
+
+        <button
+          type="button"
+          aria-label="Toggle workspace panel"
+          title="Toggle workspace panel"
+          onClick={onToggleSidePanel}
+          className={sidePanelOpen ? activeIconButtonClass : iconButtonClass}
+        >
+          {sidePanelOpen ? (
+            <PanelRightClose className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          ) : (
+            <PanelRightOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          )}
+        </button>
+
+        <button
+          type="button"
+          aria-label="More options"
+          className={iconButtonClass}
+        >
+          <MoreHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
+        </button>
+
+        <div className="hidden md:block">
+          <ThemeToggle />
+        </div>
         <UserButton
           appearance={{
             elements: {
-              userButtonAvatar: "w-12 h-12",
-              userButtonTrigger: "p-2",
+              userButtonAvatar: "h-9 w-9",
+              userButtonTrigger: "p-0",
             },
           }}
         />

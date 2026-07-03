@@ -17,12 +17,13 @@ import { PdfViewer } from '../../components/PdfViewer'
 import { MediaPlayer } from '../../components/MediaPlayer'
 import { TextEditor } from '../../components/textEditor'
 import { ChatMessage, ChatPanel } from '../../components/ChatPanel'
+import { WorkspaceOutline } from '../../components/workspace-outline'
 import { WorkspaceSkeleton } from '@/app/skeleton/workspace-skeleton'
 
 import {
   Group as PanelGroup,
   Panel,
-  Separator as PanelResizeHandle
+  Separator as PanelResizeHandle,
 } from 'react-resizable-panels'
 
 export type LeftPanelView = 'document' | 'chat'
@@ -31,6 +32,8 @@ const Workspace = () => {
   const { fileId } = useParams()
   const [leftPanel, setLeftPanel] = useState<LeftPanelView>('document')
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [outlineOpen, setOutlineOpen] = useState(true)
+  const [sidePanelOpen, setSidePanelOpen] = useState(true)
 
   const { data: fileData, isLoading } = useApiQuery<FileRecord>(
     fileId ? `/api/files/${fileId}` : null,
@@ -80,29 +83,37 @@ const Workspace = () => {
   const isMedia = fileData.fileType === 'audio' || fileData.fileType === 'video'
 
   return (
-    <div className="flex flex-col h-screen bg-mesh">
+    <div className="dark flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <WorkspaceHeader
         editor={editor}
         fileName={fileData.fileName}
         leftPanel={leftPanel}
-        onLeftPanelChange={setLeftPanel}
+        onLeftPanelChange={(view) => {
+          setLeftPanel(view)
+          setSidePanelOpen(true)
+        }}
         chatMessages={chatMessages}
+        outlineOpen={outlineOpen}
+        onToggleOutline={() => setOutlineOpen((open) => !open)}
+        sidePanelOpen={sidePanelOpen}
+        onToggleSidePanel={() => setSidePanelOpen((open) => !open)}
       />
 
-      <div className="flex-1 overflow-hidden p-4">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {outlineOpen ? (
+          <WorkspaceOutline
+            file={fileData}
+            activePanel={leftPanel}
+            onPanelChange={(view) => {
+              setLeftPanel(view)
+              setSidePanelOpen(true)
+            }}
+            onClose={() => setOutlineOpen(false)}
+          />
+        ) : null}
+
         <PanelGroup orientation="horizontal" className="h-full">
-          <Panel defaultSize={50} minSize={20} className="h-full">
-            <div className={leftPanel === 'document' ? 'h-full animate-panel-in' : 'hidden h-full'}>
-              <TextEditor editor={editor} />
-            </div>
-            <div className={leftPanel === 'chat' ? 'h-full animate-panel-in' : 'hidden h-full'}>
-              <ChatPanel embedded messages={chatMessages} setMessages={setChatMessages} />
-            </div>
-          </Panel>
-
-          <PanelResizeHandle className="w-2 cursor-col-resize" />
-
-          <Panel defaultSize={50} minSize={20} className="h-full">
+          <Panel defaultSize={sidePanelOpen ? 68 : 100} minSize={35} className="h-full">
             {isMedia ? (
               <MediaPlayer
                 fileUrl={fileData.fileUrl}
@@ -113,6 +124,21 @@ const Workspace = () => {
               <PdfViewer fileUrl={fileData.fileUrl} />
             )}
           </Panel>
+
+          {sidePanelOpen ? (
+            <>
+              <PanelResizeHandle className="w-px cursor-col-resize bg-border transition-colors hover:bg-ring" />
+
+              <Panel defaultSize={32} minSize={24} maxSize={44} className="h-full">
+                <div className={leftPanel === 'document' ? 'h-full animate-panel-in' : 'hidden h-full'}>
+                  <TextEditor editor={editor} />
+                </div>
+                <div className={leftPanel === 'chat' ? 'h-full animate-panel-in' : 'hidden h-full'}>
+                  <ChatPanel embedded messages={chatMessages} setMessages={setChatMessages} />
+                </div>
+              </Panel>
+            </>
+          ) : null}
         </PanelGroup>
       </div>
     </div>

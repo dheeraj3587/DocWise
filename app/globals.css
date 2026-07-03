@@ -282,6 +282,16 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(0, 0, 0, 0.08);
 }
 
+.mono-label {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .premium-action {
   background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 78%, var(--premium-teal)));
 }

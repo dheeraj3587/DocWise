@@ -36,13 +36,13 @@ export const TextEditor = ({editor}: EditorExtensionProps) => {
     }
 
     return (
-        <div className='glass rounded-xl overflow-hidden flex flex-col h-full'>
-            <div className="shrink-0 z-10 sticky top-0">
+        <section className='flex h-full flex-col overflow-hidden border-l border-border bg-background'>
+            <div className="z-10 shrink-0 border-b border-border bg-background">
                 <EditorExtension editor={editor} />
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar surface-1">
+            <div className="custom-scrollbar flex-1 overflow-y-auto bg-background">
                 <EditorContent editor={editor} />
             </div>
-        </div>
+        </section>
     )
 }

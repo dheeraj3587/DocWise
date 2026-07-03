@@ -318,11 +318,11 @@ export const ChatPanel = ({
   const chatContent = (
     <>
       {/* Header */}
-      <div className="flex-between px-4 py-3 border-b border-border shrink-0">
+      <div className="flex-between shrink-0 border-b border-border px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Sparkle className="w-4 h-4 text-gold" />
-          <span className="font-semibold text-sm text-foreground">AI Chat</span>
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 surface-3 rounded">
+          <Sparkle className="h-4 w-4 text-muted-foreground" />
+          <span className="mono-label text-foreground">Document Chat</span>
+          <span className="hidden items-center gap-1 rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
             <CircleGauge className="h-3 w-3" />
             {credits.remaining}/{credits.limit}
           </span>
@@ -340,7 +340,7 @@ export const ChatPanel = ({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:surface-2 transition-colors"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <X className="w-4 h-4" />
             </button>
@@ -349,20 +349,20 @@ export const ChatPanel = ({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 custom-scrollbar chat-stream">
+      <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto bg-background px-4 py-4">
         {messages.length === 0 && (
           <div className="flex-col-center justify-center h-full text-center text-muted-foreground">
-            <MessageCircle className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-sm font-medium text-foreground/70">Ask about this document</p>
+            <MessageCircle className="mb-3 h-10 w-10 opacity-30" />
+            <p className="text-sm font-medium text-foreground">Ask about this document</p>
             <p className="text-xs mt-1">Type a question below to get started</p>
           </div>
         )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[85%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
-                ? 'bg-primary text-primary-foreground rounded-br-sm'
-                : 'surface-2 text-foreground rounded-bl-sm border border-border/80'
+              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
+                ? 'rounded-br-sm border border-border bg-secondary text-foreground'
+                : 'rounded-bl-sm border border-border bg-secondary/60 text-foreground'
                 }`}
             >
               {msg.content ? (
@@ -394,7 +394,7 @@ export const ChatPanel = ({
       </div>
 
       {/* Input */}
-      <div className="border-t border-border px-3 py-3 shrink-0">
+      <div className="shrink-0 border-t border-border px-3 py-3">
         <div className="flex items-center gap-2">
           <Input
             ref={inputRef}
@@ -404,13 +404,13 @@ export const ChatPanel = ({
             onKeyDown={handleKeyDown}
             placeholder="Ask a question..."
             disabled={isStreaming}
-            className="flex-1 h-10 text-sm rounded-xl"
+            className="h-10 flex-1 rounded-lg border-border bg-input text-sm text-foreground placeholder:text-muted-foreground"
           />
           <Button
             onClick={handleSend}
             disabled={isStreaming || !input.trim()}
             size="icon"
-            className="h-10 w-10 rounded-xl"
+            className="h-10 w-10 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isStreaming ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -425,14 +425,14 @@ export const ChatPanel = ({
 
   if (embedded) {
     return (
-      <div className="flex flex-col h-full glass rounded-xl overflow-hidden">
+      <section className="flex h-full flex-col overflow-hidden border-l border-border bg-background">
         {chatContent}
-      </div>
+      </section>
     )
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-105 h-150 glass-strong rounded-2xl flex flex-col overflow-hidden shadow-xl">
+    <div className="fixed bottom-6 right-6 z-50 flex h-150 w-105 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-xl">
       {chatContent}
     </div>
   )
