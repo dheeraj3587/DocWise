@@ -17,7 +17,7 @@ type Variant = "welcome" | "request-access" | "onboarding";
 const FIGURES: Record<Variant, string> = {
   welcome: "/logo.png",
   "request-access": "/logo.png",
-  onboarding: "/home-page.png",
+  onboarding: "/onboarding-figure.svg",
 };
 
 export function AuthShell({
