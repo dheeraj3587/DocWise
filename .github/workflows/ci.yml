@@ -181,6 +181,8 @@ jobs:
           host: 147.182.140.59
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
+          # Give the entire SSH session 45 minutes (default is 10m which is too short)
+          command_timeout: 45m
           script: |
             set -e
             APP_DIR="${{ secrets.DROPLET_APP_DIR }}"
@@ -197,14 +199,28 @@ jobs:
               set +a
             fi
             echo "==> Building images..."
-            timeout 8m docker build --progress=plain -f backend/Dockerfile -t docwise-backend .
-            timeout 8m docker build --progress=plain -f backend/Dockerfile.worker -t docwise-worker .
-            timeout 8m docker build --progress=plain \
+            # Enable BuildKit for --mount=type=cache support (speeds up repeated builds)
+            export DOCKER_BUILDKIT=1
+
+            # Backend: pip cache persists between builds via BuildKit cache mount
+            timeout 15m docker build --progress=plain \
+              -f backend/Dockerfile \
+              -t docwise-backend .
+
+            # Worker: shares same pip cache
+            timeout 15m docker build --progress=plain \
+              -f backend/Dockerfile.worker \
+              -t docwise-worker .
+
+            # Frontend: npm ci takes 5-6 min on first run; subsequent runs use layer cache.
+            # Increased timeout to 25m to safely cover cold npm ci + Next.js build.
+            timeout 25m docker build --progress=plain \
               --build-arg NEXT_PUBLIC_API_URL=https://app.dheerajjoshi.dev \
               --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}" \
               -f Dockerfile -t docwise-frontend .
+
             echo "==> Restarting containers..."
-            timeout 4m docker compose up -d --no-build db redis minio backend worker frontend nginx
+            timeout 5m docker compose up -d --no-build db redis minio backend worker frontend nginx
             echo "==> Restarting nginx to resolve new container IPs..."
             docker compose restart nginx
             echo "==> Cleaning up old images..."
@@ -221,7 +237,7 @@ jobs:
               sleep 5
             done
             for attempt in $(seq 1 12); do
-              if curl -sf https://app.dheerajjoshi.dev/ >/dev/null; then
+              if curl -sf https://app.dheerajjoshi.dev/ > /dev/null; then
                 break
               fi
               if [ "$attempt" -eq 12 ]; then
