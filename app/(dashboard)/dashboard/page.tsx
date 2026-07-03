@@ -8,6 +8,7 @@ import {
   FileText,
   Loader2,
   Music,
+  Search,
   Trash2,
   Video,
 } from "lucide-react";
@@ -17,7 +18,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { deleteFile, type FileRecord } from "@/lib/api-client";
 import { showRetryToast, showSuccessToast } from "@/lib/app-toasts";
 import { useApiQuery } from "@/lib/hooks";
-import { ChatPanel } from "@/app/(workspace)/components/ChatPanel";
 import { FileUpload } from "../components/file-upload";
 
 
@@ -36,7 +36,6 @@ export default function Dashboard() {
 
   const documents = files ?? [];
   const readyCount = documents.filter((doc) => doc.status !== "processing").length;
-  const firstReadyDocument = documents.find((doc) => doc.status !== "processing");
   const firstName = user?.firstName || "there";
 
   const deleteDocument = async (
@@ -112,7 +111,7 @@ export default function Dashboard() {
             <DotSphere />
           </div>
 
-          <div className="relative z-10 max-w-[860px]">
+          <div className="relative z-10 max-w-[640px]">
             <span className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
               Your library
             </span>
@@ -124,24 +123,21 @@ export default function Dashboard() {
               started.
             </p>
 
-            <ChatPanel
-              embedded
-              fileId={firstReadyDocument?.fileId}
-              title="Library Chat"
-              subtitle={
-                firstReadyDocument
-                  ? `Using ${firstReadyDocument.fileName}`
-                  : "Upload a document to start chatting"
-              }
-              placeholder="How can DocWise help?"
-              emptyTitle={firstReadyDocument ? "Ask from your library" : "No ready documents yet"}
-              emptyDescription={
-                firstReadyDocument
-                  ? "Start with a question about your latest ready document."
-                  : "Upload a PDF, audio, or video file first."
-              }
-              className="mt-7 h-[460px] rounded-[28px] border border-border bg-background/40"
-            />
+            <Link
+              href="/chat"
+              className="flex max-w-[620px] items-center gap-2.5 rounded-lg border border-border bg-background/40 py-1.5 pl-4 pr-2 transition-colors hover:border-ring"
+            >
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground/72">
+                Ask anything across your documents...
+              </span>
+              <span
+                title="Open chat"
+                className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"
+              >
+                <ArrowRight className="size-4" />
+              </span>
+            </Link>
           </div>
         </section>
 

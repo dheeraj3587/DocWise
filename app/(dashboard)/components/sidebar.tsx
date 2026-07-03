@@ -35,7 +35,7 @@ export const Sidebar = () => {
     getAllFiles && getAllFiles.length ? (getAllFiles.length / 5) * 100 : 0;
 
   const openChat = () => {
-    window.dispatchEvent(new CustomEvent("docwise:focus-chat"));
+    router.push("/chat");
     setSidebarOpen(false);
   };
 
@@ -115,7 +115,10 @@ export const Sidebar = () => {
           <button
             type="button"
             onClick={openChat}
-            className="flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${path === "/chat"
+                ? "border-border bg-background/40 text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
           >
             <MessageSquare size={18} />
             <span>Chat</span>
