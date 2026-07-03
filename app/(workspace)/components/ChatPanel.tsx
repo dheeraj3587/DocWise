@@ -1,25 +1,49 @@
 'use client'
 
-import { Dispatch, SetStateAction, useState, useRef, useEffect, useCallback } from 'react'
+import {
+  AudioWaveformIcon,
+  ChevronDownIcon,
+  FileIcon,
+  ImageIcon,
+  LightbulbIcon,
+  Loader2,
+  MessageCircle,
+  PaperclipIcon,
+  SearchIcon,
+  Send,
+  X,
+} from 'lucide-react'
 import { useAuth } from '@clerk/nextjs'
 import { useParams } from 'next/navigation'
-import { Send, Sparkle, MessageCircle, X, Loader2, CircleGauge } from 'lucide-react'
+import {
+  Dispatch,
+  type KeyboardEvent,
+  SetStateAction,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
-import { Input } from '@/components/ui/input'
+
 import { Button } from '@/components/ui/button'
 import { ThinkingIndicator } from '@/components/ui/thinking-indicator'
-import { ModelDropdown, type ModelOption } from '@/components/ui/model-dropdown'
 import { getApiBase } from '@/lib/api-base'
 import { normalizeMathDelimiters } from '@/lib/markdown-math'
+import { cn } from '@/lib/utils'
 
-// Memoize plugin arrays to avoid recreating on every render
+// Memoize plugin arrays to avoid recreating on every render.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REMARK_PLUGINS: any = [remarkGfm, remarkMath];
+const REMARK_PLUGINS: any = [remarkGfm, remarkMath]
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REHYPE_PLUGINS: any = [rehypeKatex];
+const REHYPE_PLUGINS: any = [rehypeKatex]
+
+const THINK_CREDIT_SURCHARGE = 3
 
 export interface ChatMessage {
   id: string
@@ -28,8 +52,25 @@ export interface ChatMessage {
   reasoning?: boolean
 }
 
+export interface ModelOption {
+  id: string
+  name: string
+  description: string
+  creditCost: number
+  reasoning: boolean
+  badge?: string | null
+}
+
 interface ChatPanelProps {
   embedded?: boolean
+  compact?: boolean
+  fileId?: string
+  title?: string
+  subtitle?: string
+  placeholder?: string
+  emptyTitle?: string
+  emptyDescription?: string
+  className?: string
   messages?: ChatMessage[]
   setMessages?: Dispatch<SetStateAction<ChatMessage[]>>
 }
@@ -46,27 +87,41 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
   {
     id: 'gemma-4-31b',
     name: 'Gemma 4 31B',
-    description: 'Document and multimodal reasoning model.',
+    description: 'Document and multimodal model for richer files.',
     creditCost: 1,
     reasoning: false,
     badge: 'Docs',
   },
   {
     id: 'zai-glm-4.7',
-    name: 'GLM 4.7 Reasoning',
-    description: 'Deep reasoning for harder questions.',
+    name: 'GLM 4.7',
+    description: 'Higher-capacity model for complex documents.',
     creditCost: 3,
-    reasoning: true,
-    badge: 'Deep',
+    reasoning: false,
+    badge: 'Heavy',
   },
 ]
 
+const getRouteFileId = (value: unknown) => {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0]
+  return undefined
+}
+
 export const ChatPanel = ({
   embedded = false,
+  compact = false,
+  fileId: fileIdProp,
+  title = 'DocWise Chat',
+  subtitle = 'Ask questions about this file',
+  placeholder = 'How can DocWise help?',
+  emptyTitle = 'Ask about this document',
+  emptyDescription = 'Type a question below to get started',
+  className,
   messages: controlledMessages,
   setMessages: controlledSetMessages,
 }: ChatPanelProps) => {
-  const { fileId } = useParams()
+  const params = useParams()
   const { getToken } = useAuth()
 
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
@@ -74,18 +129,25 @@ export const ChatPanel = ({
   const [isStreaming, setIsStreaming] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
+  const [thinkEnabled, setThinkEnabled] = useState(false)
+  const [deepSearchEnabled, setDeepSearchEnabled] = useState(false)
   const [models, setModels] = useState<ModelOption[]>(FALLBACK_CHAT_MODELS)
   const [selectedModelId, setSelectedModelId] = useState('gpt-oss-120b')
   const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 })
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const API_BASE = getApiBase()
+  const routeFileId = getRouteFileId((params as { fileId?: unknown })?.fileId)
+  const fileId = fileIdProp || routeFileId
   const messages = controlledMessages ?? localMessages
   const setMessages = controlledSetMessages ?? setLocalMessages
   const selectedModel = models.find((model) => model.id === selectedModelId) || models[0]
-  const reasoningActive = Boolean(selectedModel?.reasoning)
+  const selectedCreditCost = (selectedModel?.creditCost || 1) + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
+
+  const modelLabel = useMemo(() => selectedModel?.name || 'Model', [selectedModel])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' })
@@ -102,7 +164,16 @@ export const ChatPanel = ({
   }, [isOpen])
 
   useEffect(() => {
-    if (!fileId) return
+    const focusChat = () => inputRef.current?.focus()
+    window.addEventListener('docwise:focus-chat', focusChat)
+    return () => window.removeEventListener('docwise:focus-chat', focusChat)
+  }, [])
+
+  useEffect(() => {
+    if (!fileId) {
+      setMessages([])
+      return
+    }
 
     let cancelled = false
 
@@ -191,7 +262,7 @@ export const ChatPanel = ({
 
   const handleSend = async () => {
     const question = input.trim()
-    if (!question || isStreaming) return
+    if (!question || isStreaming || !fileId) return
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -203,7 +274,7 @@ export const ChatPanel = ({
       id: crypto.randomUUID(),
       role: 'assistant',
       content: '',
-      reasoning: reasoningActive,
+      reasoning: thinkEnabled,
     }
 
     setMessages((prev) => [...prev, userMsg, assistantMsg])
@@ -221,7 +292,7 @@ export const ChatPanel = ({
         body: JSON.stringify({
           question,
           file_id: fileId,
-          deep_mode: reasoningActive,
+          deep_mode: thinkEnabled,
           model_id: selectedModel?.id,
         }),
       })
@@ -258,6 +329,9 @@ export const ChatPanel = ({
 
           try {
             const parsed = JSON.parse(data)
+            if (parsed.error) {
+              throw new Error(parsed.error)
+            }
             if (parsed.text) {
               accumulated += parsed.text
               if (!rafPending) {
@@ -269,15 +343,16 @@ export const ChatPanel = ({
                     const updated = [...prev]
                     const last = updated[updated.length - 1]
                     if (last.role === 'assistant') {
-                      last.content = snapshot
+                      updated[updated.length - 1] = { ...last, content: snapshot }
                     }
                     return updated
                   })
                 })
               }
             }
-          } catch {
-            // skip malformed SSE lines
+          } catch (error) {
+            if (error instanceof SyntaxError) continue
+            throw error
           }
         }
       }
@@ -286,7 +361,10 @@ export const ChatPanel = ({
         const updated = [...prev]
         const last = updated[updated.length - 1]
         if (last.role === 'assistant') {
-          last.content = `Error: ${(err as Error).message}`
+          updated[updated.length - 1] = {
+            ...last,
+            content: `Error: ${(err as Error).message}`,
+          }
         }
         return updated
       })
@@ -296,7 +374,7 @@ export const ChatPanel = ({
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -309,131 +387,330 @@ export const ChatPanel = ({
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border border-border bg-primary px-4 py-3 text-primary-foreground shadow-lg duration-200 hover:bg-primary/90"
       >
-        <MessageCircle className="w-5 h-5" />
+        <MessageCircle className="h-5 w-5" />
         <span className="text-sm font-medium">Chat</span>
       </Button>
     )
   }
 
   const chatContent = (
-    <>
-      {/* Header */}
-      <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Sparkle className="h-4 w-4 text-muted-foreground" />
-            <span className="mono-label text-foreground">Document Chat</span>
-            <span className="hidden items-center gap-1 rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
-              <CircleGauge className="h-3 w-3" />
-              {credits.remaining}/{credits.limit}
-            </span>
+    <div className="flex h-full w-full flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
+            {title}
           </div>
-          {!embedded && (
+          <div className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="hidden rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground sm:inline-flex">
+            {credits.remaining}/{credits.limit} credits
+          </span>
+          {!embedded ? (
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              aria-label="Close chat"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </button>
-          )}
+          ) : null}
         </div>
-        <ModelDropdown
-          models={models}
-          isOpen={modelMenuOpen}
-          onOpenChange={setModelMenuOpen}
-          selectedModelId={selectedModelId}
-          onModelChange={(model) => setSelectedModelId(model.id)}
-          disabled={isStreaming}
-        />
       </div>
 
-      {/* Messages */}
-      <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto bg-background px-4 py-4">
-        {messages.length === 0 && (
-          <div className="flex-col-center justify-center h-full text-center text-muted-foreground">
-            <MessageCircle className="mb-3 h-10 w-10 opacity-30" />
-            <p className="text-sm font-medium text-foreground">Ask about this document</p>
-            <p className="text-xs mt-1">Type a question below to get started</p>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto h-full w-full max-w-4xl">
+          <div className="custom-scrollbar h-full overflow-y-auto px-4 py-5">
+            {messages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
+                <MessageCircle className={cn('mb-3 opacity-35', compact ? 'h-8 w-8' : 'h-10 w-10')} />
+                <p className="text-sm font-medium text-foreground">{emptyTitle}</p>
+                <p className="mt-1 max-w-xs text-xs leading-relaxed">{fileId ? emptyDescription : 'Upload or open a ready document to start chatting.'}</p>
+              </div>
+            ) : (
+              <div className={cn('space-y-5', compact && 'space-y-4')}>
+                {messages.map((message) => (
+                  <ChatMessageBubble key={message.id} message={message} compact={compact} />
+                ))}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
-                ? 'rounded-br-sm border border-border bg-secondary text-foreground'
-                : 'rounded-bl-sm border border-border bg-secondary/60 text-foreground'
-                }`}
-            >
-              {msg.content ? (
-                msg.role === 'assistant' ? (
-                  <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-code:surface-3 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:text-foreground">
-                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>
-                      {normalizeMathDelimiters(msg.content)}
-                    </ReactMarkdown>
+        </div>
+      </div>
+
+      <div className={cn('shrink-0 p-4', compact && 'p-3')}>
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="grid gap-4">
+            <div className="overflow-visible rounded-[28px] border border-border bg-secondary/45 shadow-xs/5">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder}
+                disabled={isStreaming || !fileId}
+                rows={compact ? 2 : 3}
+                className={cn(
+                  'block w-full resize-none bg-transparent px-5 pt-4 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60 md:text-base',
+                  compact ? 'min-h-[58px]' : 'min-h-[82px]',
+                )}
+              />
+              <div className={cn('flex flex-wrap items-center justify-between gap-2 p-2.5', compact && 'p-2')}>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <ToolButton
+                      ariaLabel="Attach"
+                      disabled={isStreaming}
+                      active={attachMenuOpen}
+                      onClick={() => setAttachMenuOpen((open) => !open)}
+                    >
+                      <PaperclipIcon className="h-4 w-4" />
+                      <span className="sr-only">Attach</span>
+                    </ToolButton>
+                    {attachMenuOpen ? (
+                      <div className="absolute bottom-10 left-0 z-20 w-44 overflow-hidden rounded-lg border border-border bg-popover p-1 text-sm shadow-xl shadow-black/20">
+                        <AttachItem icon={<FileIcon className="h-4 w-4" />} label="Upload file" />
+                        <AttachItem icon={<ImageIcon className="h-4 w-4" />} label="Upload photo" />
+                      </div>
+                    ) : null}
                   </div>
-                ) : (
-                  msg.content
-                )
-              ) : (
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  {msg.reasoning ? (
-                    <ThinkingIndicator className="px-0 py-0" />
-                  ) : (
-                    <>
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Thinking...
-                    </>
-                  )}
-                </span>
-              )}
+
+                  <div className="flex items-center rounded-full border border-border">
+                    <ToolButton
+                      ariaLabel="DeepSearch"
+                      active={deepSearchEnabled}
+                      disabled={isStreaming}
+                      className="rounded-l-full rounded-r-none border-0"
+                      onClick={() => setDeepSearchEnabled((active) => !active)}
+                    >
+                      <SearchIcon className="h-4 w-4" />
+                      <span className={compact ? 'hidden sm:inline' : ''}>DeepSearch</span>
+                    </ToolButton>
+                    <div className="h-7 w-px bg-border" />
+                    <ToolButton
+                      ariaLabel="DeepSearch options"
+                      disabled={isStreaming}
+                      className="rounded-l-none rounded-r-full border-0 px-2"
+                    >
+                      <ChevronDownIcon className="h-4 w-4" />
+                    </ToolButton>
+                  </div>
+
+                  <ToolButton
+                    ariaLabel="Think"
+                    active={thinkEnabled}
+                    disabled={isStreaming}
+                    onClick={() => setThinkEnabled((active) => !active)}
+                  >
+                    <LightbulbIcon className="h-4 w-4" />
+                    <span>Think</span>
+                    <span className="text-[10px] text-muted-foreground">+{THINK_CREDIT_SURCHARGE}</span>
+                  </ToolButton>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <ModelSelect
+                    models={models}
+                    selectedModelId={selectedModelId}
+                    selectedCreditCost={selectedCreditCost}
+                    open={modelMenuOpen}
+                    disabled={isStreaming}
+                    onOpenChange={setModelMenuOpen}
+                    onModelChange={(model) => {
+                      setSelectedModelId(model.id)
+                      setModelMenuOpen(false)
+                    }}
+                  />
+                  <ToolButton
+                    ariaLabel="Voice"
+                    disabled={isStreaming}
+                    className="bg-foreground font-medium text-background hover:bg-foreground/90 hover:text-background"
+                  >
+                    <AudioWaveformIcon className="h-4 w-4" />
+                    <span className="sr-only">Voice</span>
+                  </ToolButton>
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={isStreaming || !input.trim() || !fileId}
+                    aria-label="Send message"
+                    className="grid h-9 w-9 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-1 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+              <span className="truncate">{modelLabel}</span>
+              <span>{selectedCreditCost} credit{selectedCreditCost === 1 ? '' : 's'}</span>
             </div>
           </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="shrink-0 border-t border-border px-3 py-3">
-        <div className="flex items-center gap-2">
-          <Input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask a question..."
-            disabled={isStreaming}
-            className="h-10 flex-1 rounded-lg border-border bg-input text-sm text-foreground placeholder:text-muted-foreground"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={isStreaming || !input.trim()}
-            size="icon"
-            className="h-10 w-10 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
         </div>
       </div>
-    </>
+    </div>
   )
 
   if (embedded) {
     return (
-      <section className="flex h-full flex-col overflow-hidden border-l border-border bg-background">
+      <section className={cn('flex h-full flex-col overflow-hidden bg-background', className)}>
         {chatContent}
       </section>
     )
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex h-150 w-105 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-xl">
+    <div className="fixed bottom-6 right-6 z-50 flex h-[600px] w-[min(520px,calc(100vw-48px))] flex-col overflow-hidden rounded-[28px] border border-border bg-background shadow-xl">
       {chatContent}
+    </div>
+  )
+}
+
+function ChatMessageBubble({ message, compact }: { message: ChatMessage; compact: boolean }) {
+  const isUser = message.role === 'user'
+
+  return (
+    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
+      <div
+        className={cn(
+          'max-w-[88%]',
+          isUser
+            ? 'rounded-[24px] rounded-br-sm border border-border bg-background px-4 py-3 text-foreground'
+            : 'text-foreground',
+          compact && isUser && 'px-3.5 py-2.5',
+        )}
+      >
+        {!message.content ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {message.reasoning ? (
+              <ThinkingIndicator className="px-0 py-0" />
+            ) : (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Thinking...
+              </>
+            )}
+          </div>
+        ) : isUser ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+        ) : (
+          <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border">
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>
+              {normalizeMathDelimiters(message.content)}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ToolButton({
+  children,
+  active,
+  disabled,
+  className,
+  ariaLabel,
+  onClick,
+}: {
+  children: ReactNode
+  active?: boolean
+  disabled?: boolean
+  className?: string
+  ariaLabel: string
+  onClick?: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-9 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50',
+        active && 'bg-foreground text-background hover:bg-foreground/90 hover:text-background',
+        active && '[&_span]:text-background/70',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function AttachItem({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <button
+      type="button"
+      className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+function ModelSelect({
+  models,
+  selectedModelId,
+  selectedCreditCost,
+  open,
+  disabled,
+  onOpenChange,
+  onModelChange,
+}: {
+  models: ModelOption[]
+  selectedModelId: string
+  selectedCreditCost: number
+  open: boolean
+  disabled?: boolean
+  onOpenChange: (open: boolean) => void
+  onModelChange: (model: ModelOption) => void
+}) {
+  const selected = models.find((model) => model.id === selectedModelId) || models[0]
+
+  if (!selected) return null
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onOpenChange(!open)}
+        className="inline-flex h-9 min-w-[132px] items-center justify-between gap-2 rounded-full border border-border bg-background/50 px-3 text-left text-xs text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className="min-w-0 truncate">{selected.name}</span>
+        <ChevronDownIcon className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open ? (
+        <div className="absolute bottom-11 right-0 z-20 w-64 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-xl shadow-black/20">
+          {models.map((model) => {
+            const active = model.id === selected.id
+            return (
+              <button
+                key={model.id}
+                type="button"
+                onClick={() => onModelChange(model)}
+                className={cn(
+                  'flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2.5 text-left transition-colors',
+                  active ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                )}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{model.name}</span>
+                  <span className="mt-0.5 block line-clamp-2 text-xs opacity-75">{model.description}</span>
+                </span>
+                <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px]">
+                  {active ? selectedCreditCost : model.creditCost}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }

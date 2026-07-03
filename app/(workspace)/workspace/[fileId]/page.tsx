@@ -80,7 +80,7 @@ const Workspace = () => {
 
           {sidePanelOpen ? (
             <aside className="h-full w-[min(520px,34vw)] min-w-[420px] shrink-0 border-l border-border">
-              <ChatPanel embedded />
+              <ChatPanel embedded compact />
             </aside>
           ) : null}
         </main>

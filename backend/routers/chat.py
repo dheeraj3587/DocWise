@@ -89,7 +89,7 @@ def _available_chat_models() -> list[dict]:
         {
             "id": "gemma-4-31b",
             "name": "Gemma 4 31B",
-            "description": "Document and multimodal reasoning model.",
+            "description": "Document and multimodal model for richer files.",
             "model": "gemma-4-31b",
             "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
             "creditCost": fast_cost,
@@ -98,13 +98,13 @@ def _available_chat_models() -> list[dict]:
         },
         {
             "id": "zai-glm-4.7",
-            "name": "GLM 4.7 Reasoning",
-            "description": "Deep reasoning for harder questions.",
+            "name": "GLM 4.7",
+            "description": "Higher-capacity model for complex documents.",
             "model": "zai-glm-4.7",
-            "reasoning_effort": settings.CEREBRAS_DEEP_REASONING_EFFORT,
+            "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
             "creditCost": deep_cost,
-            "reasoning": True,
-            "badge": "Deep",
+            "reasoning": False,
+            "badge": "Heavy",
         },
     ]
 
@@ -116,9 +116,11 @@ def _resolve_chat_model(model_id: str | None, deep_mode: bool) -> dict:
     selected = next((model for model in models if model["id"] == selected_id or model["model"] == selected_id), None)
     if selected is None:
         raise HTTPException(status_code=400, detail=f"Unsupported model: {selected_id}")
-    if deep_mode and not selected["reasoning"]:
-        selected = {**selected, "reasoning": True, "reasoning_effort": settings.CEREBRAS_DEEP_REASONING_EFFORT}
-        selected["creditCost"] = max(selected["creditCost"], settings.CHAT_DEEP_CREDIT_COST)
+    selected = {**selected}
+    if deep_mode:
+        selected["reasoning"] = True
+        selected["reasoning_effort"] = settings.CEREBRAS_DEEP_REASONING_EFFORT
+        selected["creditCost"] += max(1, settings.CHAT_DEEP_CREDIT_COST)
     return selected
 
 

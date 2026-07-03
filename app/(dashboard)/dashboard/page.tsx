@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { type MouseEvent, useState } from "react";
 import { useAuth, UserButton, useUser } from "@clerk/nextjs";
 import {
   ArrowRight,
   FileText,
   Loader2,
   Music,
-  Search,
   Trash2,
   Video,
 } from "lucide-react";
@@ -18,6 +17,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { deleteFile, type FileRecord } from "@/lib/api-client";
 import { showRetryToast, showSuccessToast } from "@/lib/app-toasts";
 import { useApiQuery } from "@/lib/hooks";
+import { ChatPanel } from "@/app/(workspace)/components/ChatPanel";
 import { FileUpload } from "../components/file-upload";
 
 
@@ -25,9 +25,7 @@ import { FileUpload } from "../components/file-upload";
 export default function Dashboard() {
   const { user } = useUser();
   const { getToken } = useAuth();
-  const [query, setQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const chatInputRef = useRef<HTMLInputElement>(null);
 
   const email = user?.primaryEmailAddress?.emailAddress;
   const {
@@ -38,13 +36,8 @@ export default function Dashboard() {
 
   const documents = files ?? [];
   const readyCount = documents.filter((doc) => doc.status !== "processing").length;
+  const firstReadyDocument = documents.find((doc) => doc.status !== "processing");
   const firstName = user?.firstName || "there";
-
-  useEffect(() => {
-    const focusChat = () => chatInputRef.current?.focus();
-    window.addEventListener("docwise:focus-chat", focusChat);
-    return () => window.removeEventListener("docwise:focus-chat", focusChat);
-  }, []);
 
   const deleteDocument = async (
     fileId: string,
@@ -119,7 +112,7 @@ export default function Dashboard() {
             <DotSphere />
           </div>
 
-          <div className="relative z-10 max-w-[640px]">
+          <div className="relative z-10 max-w-[860px]">
             <span className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
               Your library
             </span>
@@ -131,28 +124,24 @@ export default function Dashboard() {
               started.
             </p>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-              }}
-              className="flex max-w-[620px] items-center gap-2.5 rounded-lg border border-border bg-background/40 py-1.5 pl-4 pr-2 transition-colors focus-within:border-ring"
-            >
-              <Search className="size-4 shrink-0 text-muted-foreground" />
-              <input
-                ref={chatInputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Ask anything across your documents..."
-                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/72"
-              />
-              <button
-                type="submit"
-                title="Ask"
-                className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                <ArrowRight className="size-4" />
-              </button>
-            </form>
+            <ChatPanel
+              embedded
+              fileId={firstReadyDocument?.fileId}
+              title="Library Chat"
+              subtitle={
+                firstReadyDocument
+                  ? `Using ${firstReadyDocument.fileName}`
+                  : "Upload a document to start chatting"
+              }
+              placeholder="How can DocWise help?"
+              emptyTitle={firstReadyDocument ? "Ask from your library" : "No ready documents yet"}
+              emptyDescription={
+                firstReadyDocument
+                  ? "Start with a question about your latest ready document."
+                  : "Upload a PDF, audio, or video file first."
+              }
+              className="mt-7 h-[460px] rounded-[28px] border border-border bg-background/40"
+            />
           </div>
         </section>
 

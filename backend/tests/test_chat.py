@@ -26,7 +26,8 @@ class TestChat:
             "zai-glm-4.7",
         }
         glm = next(model for model in models if model["id"] == "zai-glm-4.7")
-        assert glm["reasoning"] is True
+        assert glm["name"] == "GLM 4.7"
+        assert glm["reasoning"] is False
         assert glm["creditCost"] > 1
 
     async def test_chat_models_endpoint_is_public(self):
@@ -201,6 +202,47 @@ class TestChat:
             )
             assert second.status_code == 429
             assert "Daily credit limit reached" in second.text
+
+    async def test_think_mode_adds_reasoning_credit_surcharge(
+        self,
+        client,
+        mock_embedding_service,
+        mock_ai_service,
+        create_owned_file,
+        monkeypatch,
+    ):
+        """Test Think mode enables reasoning and adds the 3-credit surcharge."""
+        file_id = await create_owned_file()
+        monkeypatch.setattr("routers.chat.settings.LLM_DAILY_BUDGET_UNITS_PER_USER", 4)
+        monkeypatch.setattr("routers.chat.settings.CHAT_FAST_CREDIT_COST", 1)
+        monkeypatch.setattr("routers.chat.settings.CHAT_DEEP_CREDIT_COST", 3)
+
+        with patch("routers.chat.usage_limiter._get_redis", new_callable=AsyncMock, return_value=None):
+            routers_chat_limiter = __import__("routers.chat", fromlist=["usage_limiter"]).usage_limiter
+            routers_chat_limiter._memory_daily_units.clear()
+
+            first = await client.post(
+                "/api/chat/ask",
+                json={
+                    "question": "Think with the fast model?",
+                    "file_id": file_id,
+                    "model_id": "gpt-oss-120b",
+                    "deep_mode": True,
+                },
+            )
+            assert first.status_code == 200
+
+            second = await client.post(
+                "/api/chat/ask",
+                json={
+                    "question": "No credits left?",
+                    "file_id": file_id,
+                    "model_id": "gpt-oss-120b",
+                    "deep_mode": True,
+                },
+            )
+            assert second.status_code == 429
+            assert "costs 4 credits" in second.text
 
 
 @pytest.mark.asyncio
