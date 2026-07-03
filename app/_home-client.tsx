@@ -1,9 +1,9 @@
 "use client";
 
-import { Heart, StarIcon } from "lucide-react";
-import { GithubIcon } from "lucide-react";
+import { GitFork, StarIcon } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { UserButton, useUser } from "@clerk/clerk-react";
+import { UserButton, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { createUser } from "@/lib/api-client";
 import { useAuth } from "@clerk/nextjs";
@@ -64,7 +64,7 @@ export default function HomeClient() {
             onClick={() => router.push("/")}
             className="flex items-center gap-2 text-xl sm:text-2xl font-semibold text-foreground cursor-pointer"
           >
-            <img src="/logo.png" alt="DocWise Logo" className="h-8 w-auto object-contain" />
+            <Image src="/logo.png" alt="DocWise Logo" width={32} height={32} className="h-8 w-auto object-contain" />
             DocWise
           </div>
           <div className="flex gap-2 sm:gap-3 items-center">
@@ -108,7 +108,7 @@ export default function HomeClient() {
           rel="noopener noreferrer"
           className="group inline-flex items-center gap-2 px-3 py-1.5 mb-6 sm:mb-8 glass rounded-full text-xs font-medium text-muted-foreground hover:text-foreground transition-all"
         >
-          <GithubIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <GitFork className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span className="hidden sm:inline">Star on GitHub</span>
           <span className="sm:hidden">Star us</span>
           <div className="w-px h-4 bg-border"></div>

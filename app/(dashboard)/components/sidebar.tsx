@@ -5,12 +5,13 @@ import {
   X,
   LayoutDashboard,
 } from "lucide-react";
+import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileUpload } from "./file-upload";
 import { usePathname, useRouter } from "next/navigation";
-import { useUser } from "@clerk/clerk-react";
+import { useUser } from "@clerk/nextjs";
 import { useApiQuery } from "@/lib/hooks";
 import { FileRecord } from "@/lib/api-client";
 
@@ -63,7 +64,7 @@ export const Sidebar = () => {
           className="h-16 flex items-center px-6 border-b border-border cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="DocWise Logo" className="h-8 w-auto object-contain" />
+            <Image src="/logo.png" alt="DocWise Logo" width={32} height={32} className="h-8 w-auto object-contain" />
             <span className="text-xl font-semibold text-foreground">DocWise</span>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useReducer, useState, useEffect } from "react";
 import { Editor } from "@tiptap/react";
 import {
   Bold,
@@ -31,7 +31,7 @@ interface EditorExtensionProps {
 }
 
 export const EditorExtension = ({ editor }: EditorExtensionProps) => {
-  const [isActive, setIsActive] = useState(false);
+  const [, forceRerender] = useReducer((value: number) => value + 1, 0);
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [deepMode, setDeepMode] = useState(false);
@@ -43,7 +43,7 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
     if (!editor) return;
 
     const updateActiveState = () => {
-      setIsActive((prev) => !prev);
+      forceRerender();
     };
 
     editor.on("update", updateActiveState);
@@ -125,7 +125,7 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
               const endPos = editor.state.doc.content.size;
               editor.commands.deleteRange({ from: answerStartPos, to: endPos });
               editor.commands.insertContentAt(answerStartPos, htmlAnswer);
-            } catch (e) {
+            } catch {
               // skip malformed lines
             }
           }

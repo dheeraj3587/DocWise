@@ -2,6 +2,7 @@
 
 import { type FormEvent, useRef, useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,45 +70,60 @@ function MagicLinkForm() {
 
 function ClerkMagicLinkForm() {
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   const typingImpulse = useAuthTypingImpulse();
-  const { isLoaded, signIn } = useSignIn();
+  const { signIn } = useSignIn();
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const launchEmailLinkFlow = async (targetEmail: string) => {
-    if (!isLoaded || !signIn) {
+    if (!signIn) {
       throw new Error("Authentication is still loading. Please try again in a moment.");
     }
 
     const normalizedEmail = targetEmail.trim().toLowerCase();
-    const signInAttempt = await signIn.create({
-      identifier: normalizedEmail,
+    const { error: sendLinkError } = await signIn.emailLink.sendLink({
+      emailAddress: normalizedEmail,
+      verificationUrl: `${window.location.origin}/login/verify`,
     });
-    const emailLinkFactor = signInAttempt.supportedFirstFactors?.find(
-      isEmailLinkFactor,
-    ) as EmailLinkFirstFactor | undefined;
 
-    if (!emailLinkFactor) {
-      throw new Error("Email link sign-in is not enabled for this account.");
-    }
-
-    await signIn.prepareFirstFactor({
-      strategy: "email_link",
-      emailAddressId: emailLinkFactor.emailAddressId,
-      redirectUrl: `${window.location.origin}/login/verify`,
-    });
+    if (sendLinkError) throw sendLinkError;
 
     setSentTo(normalizedEmail);
     setPending(false);
+
+    void signIn.emailLink.waitForVerification().then(async ({ error: verificationError }) => {
+      if (verificationError) {
+        setError(getClerkErrorMessage(verificationError));
+        return;
+      }
+
+      if (signIn.status === "complete") {
+        const { error: finalizeError } = await signIn.finalize({
+          navigate: ({ session, decorateUrl }) => {
+            if (session?.currentTask) return;
+            const url = decorateUrl("/dashboard");
+            if (url.startsWith("http")) {
+              window.location.href = url;
+            } else {
+              router.push(url);
+            }
+          },
+        });
+        if (finalizeError) {
+          setError(getClerkErrorMessage(finalizeError));
+        }
+      }
+    });
   };
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!email.trim()) return;
     pulseParticleSubmitImpulse(typingImpulse);
-    if (!isLoaded || !signIn) {
+    if (!signIn) {
       setError("Authentication is still loading. Please try again in a moment.");
       return;
     }
@@ -206,20 +222,21 @@ function OAuthButtons() {
 }
 
 function ClerkOAuthButtons() {
-  const { isLoaded, signIn } = useSignIn();
+  const { signIn, fetchStatus } = useSignIn();
   const [pending, setPending] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const authenticate = async (provider: "google" | "apple") => {
-    if (!isLoaded || !signIn) return;
+    if (!signIn) return;
     setError(null);
     setPending(provider);
     try {
-      await signIn.authenticateWithRedirect({
+      const { error: ssoError } = await signIn.sso({
         strategy: provider === "google" ? "oauth_google" : "oauth_apple",
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+        redirectUrl: "/dashboard",
+        redirectCallbackUrl: "/sso-callback",
       });
+      if (ssoError) throw ssoError;
     } catch (err) {
       setError(getClerkErrorMessage(err));
       setPending(null);
@@ -229,7 +246,7 @@ function ClerkOAuthButtons() {
   return (
     <>
       <OAuthButtonsContent
-        disabled={!isLoaded || pending !== null}
+        disabled={fetchStatus === "fetching" || pending !== null}
         googleLoading={pending === "google"}
         appleLoading={pending === "apple"}
         onGoogle={() => authenticate("google")}
@@ -288,22 +305,6 @@ function OAuthButtonsContent({
 function hasClerkKey() {
   const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   return !!key && key.length > 20 && !key.includes("placeholder");
-}
-
-type EmailLinkFirstFactor = {
-  strategy: "email_link";
-  emailAddressId: string;
-};
-
-function isEmailLinkFactor(factor: unknown): factor is EmailLinkFirstFactor {
-  return (
-    typeof factor === "object" &&
-    factor !== null &&
-    "strategy" in factor &&
-    factor.strategy === "email_link" &&
-    "emailAddressId" in factor &&
-    typeof factor.emailAddressId === "string"
-  );
 }
 
 function getClerkErrorMessage(error: unknown) {

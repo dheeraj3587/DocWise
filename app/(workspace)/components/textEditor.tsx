@@ -27,7 +27,7 @@ export const TextEditor = ({editor}: EditorExtensionProps) => {
 
     useEffect(() => {
         if (Array.isArray(noteData) && noteData.length > 0 && noteData[0].note) {
-            editor && editor.commands.setContent(noteData[0].note);
+            editor?.commands.setContent(noteData[0].note);
         }
     }, [noteData, editor])
 

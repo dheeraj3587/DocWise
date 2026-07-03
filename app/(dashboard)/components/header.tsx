@@ -1,5 +1,5 @@
 "use client";
-import { UserButton, useUser } from "@clerk/clerk-react";
+import { UserButton, useUser } from "@clerk/nextjs";
 import { useAuth } from "@clerk/nextjs";
 import { createUser, getUser as fetchUser } from "@/lib/api-client";
 import { useEffect, useState } from "react";

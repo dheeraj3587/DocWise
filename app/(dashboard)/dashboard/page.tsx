@@ -1,8 +1,8 @@
 'use client'
 
-import { FileText, Upload, Music, Video, Trash2 } from 'lucide-react';
+import { FileText, Music, Video, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useUser } from '@clerk/nextjs';
 import { useApiQuery } from '@/lib/hooks';
 import { deleteFile, FileRecord } from '@/lib/api-client';
 import { Skeleton } from '@/components/ui/skeleton';

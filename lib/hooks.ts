@@ -30,6 +30,7 @@ export function useApiQuery<T>(
   deps: unknown[] = [],
 ): { data: T | undefined; isLoading: boolean; error: Error | null; refetch: () => void } {
   const { getToken } = useAuth();
+  const depsKey = JSON.stringify(deps);
   const [data, setData] = useState<T | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -69,7 +70,7 @@ export function useApiQuery<T>(
         setIsLoading(false);
       }
     }
-  }, [url, getToken, ...deps]);
+  }, [url, getToken]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -77,7 +78,7 @@ export function useApiQuery<T>(
     return () => {
       mountedRef.current = false;
     };
-  }, [fetchData]);
+  }, [fetchData, depsKey]);
 
   return { data, isLoading, error, refetch: fetchData };
 }
