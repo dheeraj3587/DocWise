@@ -194,7 +194,7 @@ async def get_chat_history(
 
 
 @router.get("/models", response_model=list[ChatModelResponse])
-async def get_chat_models(_: None = Depends(rate_limit("chat"))):
+async def get_chat_models():
     """Return chat models exposed in the DocWise model picker."""
     return [
         {

@@ -5,6 +5,7 @@ import uuid
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 from models.file import File as FileModel
 
@@ -27,6 +28,16 @@ class TestChat:
         glm = next(model for model in models if model["id"] == "zai-glm-4.7")
         assert glm["reasoning"] is True
         assert glm["creditCost"] > 1
+
+    async def test_chat_models_endpoint_is_public(self):
+        """Test model picker metadata does not require a logged-in user."""
+        from main import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as public_client:
+            response = await public_client.get("/api/chat/models")
+
+        assert response.status_code == 200
 
     async def test_chat_credits_endpoint_returns_daily_budget(self, client):
         """Test credit usage metadata for the authenticated user."""

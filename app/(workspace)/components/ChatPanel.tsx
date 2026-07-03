@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { ThinkingIndicator } from '@/components/ui/thinking-indicator'
 import { ModelDropdown, type ModelOption } from '@/components/ui/model-dropdown'
 import { getApiBase } from '@/lib/api-base'
+import { normalizeMathDelimiters } from '@/lib/markdown-math'
 
 export interface ChatMessage {
   id: string
@@ -27,6 +28,33 @@ interface ChatPanelProps {
   setMessages?: Dispatch<SetStateAction<ChatMessage[]>>
 }
 
+const FALLBACK_CHAT_MODELS: ModelOption[] = [
+  {
+    id: 'gpt-oss-120b',
+    name: 'GPT OSS 120B',
+    description: 'Fast document Q&A for everyday questions.',
+    creditCost: 1,
+    reasoning: false,
+    badge: 'Fast',
+  },
+  {
+    id: 'gemma-4-31b',
+    name: 'Gemma 4 31B',
+    description: 'Document and multimodal reasoning model.',
+    creditCost: 1,
+    reasoning: false,
+    badge: 'Docs',
+  },
+  {
+    id: 'zai-glm-4.7',
+    name: 'GLM 4.7 Reasoning',
+    description: 'Deep reasoning for harder questions.',
+    creditCost: 3,
+    reasoning: true,
+    badge: 'Deep',
+  },
+]
+
 export const ChatPanel = ({
   embedded = false,
   messages: controlledMessages,
@@ -40,7 +68,7 @@ export const ChatPanel = ({
   const [isStreaming, setIsStreaming] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
-  const [models, setModels] = useState<ModelOption[]>([])
+  const [models, setModels] = useState<ModelOption[]>(FALLBACK_CHAT_MODELS)
   const [selectedModelId, setSelectedModelId] = useState('gpt-oss-120b')
   const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 })
 
@@ -143,34 +171,7 @@ export const ChatPanel = ({
         setModels(data)
         setSelectedModelId((current) => (data.some((model) => model.id === current) ? current : data[0].id))
       } catch {
-        if (!cancelled) {
-          setModels([
-            {
-              id: 'gpt-oss-120b',
-              name: 'GPT OSS 120B',
-              description: 'Fast document Q&A for everyday questions.',
-              creditCost: 1,
-              reasoning: false,
-              badge: 'Fast',
-            },
-            {
-              id: 'gemma-4-31b',
-              name: 'Gemma 4 31B',
-              description: 'Document and multimodal reasoning model.',
-              creditCost: 1,
-              reasoning: false,
-              badge: 'Docs',
-            },
-            {
-              id: 'zai-glm-4.7',
-              name: 'GLM 4.7 Reasoning',
-              description: 'Deep reasoning for harder questions.',
-              creditCost: 3,
-              reasoning: true,
-              badge: 'Deep',
-            },
-          ])
-        }
+        // Keep the bundled fallback list visible if the metadata request fails.
       }
     }
 
@@ -354,7 +355,7 @@ export const ChatPanel = ({
                 msg.role === 'assistant' ? (
                   <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-code:surface-3 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:text-foreground">
                     <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                      {msg.content}
+                      {normalizeMathDelimiters(msg.content)}
                     </ReactMarkdown>
                   </div>
                 ) : (

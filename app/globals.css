@@ -425,6 +425,19 @@ footer,
   --tw-prose-td-borders: rgba(255, 255, 255, 0.06);
 }
 
+.prose .katex-display,
+.chat-stream .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.15rem;
+}
+
+.prose .katex,
+.chat-stream .katex {
+  font-size: 1em;
+}
+
 .shimmer-text {
     color: transparent;
     background: linear-gradient(90deg, #a3a3a3 0%, #a3a3a3 35%, #525252 50%, #a3a3a3 65%, #a3a3a3 100%);
