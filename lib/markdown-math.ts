@@ -23,11 +23,20 @@ export function normalizeMathDelimiters(source: string): string {
       .replace(/\\begin\{(equation|equation\*|align|align\*)\}([\s\S]+?)\\end\{\1\}/g, (_, __, expression: string) => {
         return `\n\n$$\n${expression.trim()}\n$$\n\n`;
       })
+      // Standard LaTeX delimiters: \[ ... \] and \( ... \)
       .replace(/\\\[([\s\S]+?)\\\]/g, (_, expression: string) => {
         return `\n\n$$\n${expression.trim()}\n$$\n\n`;
       })
       .replace(/\\\(([\s\S]+?)\\\)/g, (_, expression: string) => {
         return `$${expression.trim()}$`;
+      })
+      // Fallback: literal brackets [ ... ] containing LaTeX commands often output by some LLMs
+      .replace(/(?:^|\s)\[\s*(\\(?:text|frac|sum|sqrt|begin|int|mathbf|boldsymbol|alpha|beta|mu|sigma|theta|Delta|pi|[A-Za-z]+))([\s\S]+?)\s*\](?=\s|$)/g, (_, cmd, expression: string) => {
+        return `\n\n$$\n${cmd}${expression}\n$$\n\n`;
+      })
+      // Fallback: literal parentheses ( ... ) containing LaTeX commands
+      .replace(/(?:^|\s)\(\s*(\\(?:text|frac|sum|sqrt|begin|int|mathbf|boldsymbol|alpha|beta|mu|sigma|theta|Delta|pi|[A-Za-z]+))([\s\S]+?)\s*\)(?=\s|$)/g, (_, cmd, expression: string) => {
+        return ` $${cmd}${expression}$ `;
       }),
   );
 }
