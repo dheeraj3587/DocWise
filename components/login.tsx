@@ -2,6 +2,7 @@
 
 import { type FormEvent, useRef, useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,8 +69,9 @@ function MagicLinkForm() {
 
 function ClerkMagicLinkForm() {
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   const typingImpulse = useAuthTypingImpulse();
-  const { isLoaded, signIn } = useSignIn();
+  const { isLoaded, signIn, setActive } = useSignIn();
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -82,15 +84,35 @@ function ClerkMagicLinkForm() {
     setError(null);
     setPending(true);
     try {
-      await signIn.create({
-        strategy: "email_link",
-        identifier: email.trim().toLowerCase(),
-        redirectUrl: `${window.location.origin}/sso-callback`,
+      const normalizedEmail = email.trim().toLowerCase();
+      const signInAttempt = await signIn.create({
+        identifier: normalizedEmail,
       });
-      setSentTo(email.trim().toLowerCase());
+      const emailLinkFactor = signInAttempt.supportedFirstFactors?.find(
+        isEmailLinkFactor,
+      ) as EmailLinkFirstFactor | undefined;
+
+      if (!emailLinkFactor) {
+        throw new Error("Email link sign-in is not enabled for this account.");
+      }
+
+      const { startEmailLinkFlow } = signIn.createEmailLinkFlow();
+
+      setSentTo(normalizedEmail);
+      setPending(false);
+
+      const completedSignIn = await startEmailLinkFlow({
+        emailAddressId: emailLinkFactor.emailAddressId,
+        redirectUrl: `${window.location.origin}/login/verify`,
+      });
+
+      if (completedSignIn.status === "complete" && completedSignIn.createdSessionId) {
+        await setActive({ session: completedSignIn.createdSessionId });
+        router.push("/dashboard");
+      }
     } catch (err) {
       setError(getClerkErrorMessage(err));
-    } finally {
+      setSentTo(null);
       setPending(false);
     }
   };
@@ -242,6 +264,22 @@ function OAuthButtonsContent({
 function hasClerkKey() {
   const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   return !!key && key.length > 20 && !key.includes("placeholder");
+}
+
+type EmailLinkFirstFactor = {
+  strategy: "email_link";
+  emailAddressId: string;
+};
+
+function isEmailLinkFactor(factor: unknown): factor is EmailLinkFirstFactor {
+  return (
+    typeof factor === "object" &&
+    factor !== null &&
+    "strategy" in factor &&
+    factor.strategy === "email_link" &&
+    "emailAddressId" in factor &&
+    typeof factor.emailAddressId === "string"
+  );
 }
 
 function getClerkErrorMessage(error: unknown) {
