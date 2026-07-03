@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type MouseEvent, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { useAuth, UserButton, useUser } from "@clerk/nextjs";
 import {
   ArrowRight,
@@ -14,11 +14,6 @@ import {
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  ParticleFieldLazy as ParticleField,
-  bumpParticleTypingImpulse,
-  pulseParticleSubmitImpulse,
-} from "@/components/particle-field-lazy";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { deleteFile, type FileRecord } from "@/lib/api-client";
 import { useApiQuery } from "@/lib/hooks";
@@ -31,7 +26,7 @@ export default function Dashboard() {
   const { getToken } = useAuth();
   const [query, setQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const particleImpulseRef = useRef(0);
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
   const email = user?.primaryEmailAddress?.emailAddress;
   const {
@@ -43,6 +38,12 @@ export default function Dashboard() {
   const documents = files ?? [];
   const readyCount = documents.filter((doc) => doc.status !== "processing").length;
   const firstName = user?.firstName || "there";
+
+  useEffect(() => {
+    const focusChat = () => chatInputRef.current?.focus();
+    window.addEventListener("docwise:focus-chat", focusChat);
+    return () => window.removeEventListener("docwise:focus-chat", focusChat);
+  }, []);
 
   const handleDelete = async (
     e: MouseEvent,
@@ -67,9 +68,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="flex items-center justify-between border-b border-border px-6 py-5 sm:px-10">
-        <span className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
-          Dashboard
+      <div className="flex items-center justify-between border-b border-border py-5 pl-16 pr-6 sm:pr-10 lg:px-10">
+        <span className="font-heading text-lg font-semibold">
+          Welcome, {firstName}
         </span>
         <div className="flex items-center gap-4">
           <ThemeToggle />
@@ -92,23 +93,12 @@ export default function Dashboard() {
 
       <main className="custom-scrollbar h-[calc(100vh-73px)] overflow-auto">
         <section className="relative overflow-hidden px-6 pb-2 pt-12 sm:px-10">
-          <div className="pointer-events-none absolute -top-12 right-0 h-72 w-72 opacity-70 sm:right-8 sm:h-96 sm:w-96">
-            <ParticleField
-              src="/logo.png"
-              sampleStep={3}
-              threshold={34}
-              dotSize={1}
-              renderScale={0.75}
-              align="center"
-              typingImpulseRef={particleImpulseRef}
-            />
-          </div>
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0"
+            className="pointer-events-none absolute right-8 top-10 hidden size-56 rounded-full border border-border bg-background/40 sm:block"
             style={{
-              background:
-                "radial-gradient(420px 320px at 82% 12%, transparent 20%, color-mix(in srgb, var(--background) 82%, transparent) 86%)",
+              boxShadow:
+                "inset 0 0 0 1px color-mix(in srgb, var(--foreground) 4%, transparent)",
             }}
           />
 
@@ -127,13 +117,12 @@ export default function Dashboard() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                pulseParticleSubmitImpulse(particleImpulseRef);
               }}
-              onKeyDown={(e) => bumpParticleTypingImpulse(particleImpulseRef, e)}
               className="flex max-w-[620px] items-center gap-2.5 rounded-lg border border-border bg-background/40 py-1.5 pl-4 pr-2 transition-colors focus-within:border-ring"
             >
               <Search className="size-4 shrink-0 text-muted-foreground" />
               <input
+                ref={chatInputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Ask anything across your documents..."
@@ -175,7 +164,7 @@ export default function Dashboard() {
                   onDelete={handleDelete}
                 />
               ))}
-              <UploadCard impulseRef={particleImpulseRef} />
+              <UploadCard />
             </div>
           )}
         </section>
@@ -194,7 +183,7 @@ function getGreeting() {
 function StatusPill({ status }: { status?: string }) {
   if (status === "processing") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/20 bg-gold/10 px-2.5 py-1 text-[11px] font-semibold text-gold">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
         <Loader2 className="size-3 animate-spin" />
         Processing
       </span>
@@ -220,15 +209,15 @@ function DocumentCard({
   const ready = doc.status !== "processing";
   return (
     <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-background/40 p-[18px] transition-colors hover:border-ring/60">
-      <Link href={`/workspace/${doc.fileId}`} className="contents">
-        <div className="flex items-start justify-between">
-          <StatusPill status={doc.status} />
-          <div className="grid size-[38px] place-items-center rounded-lg border border-border bg-muted text-muted-foreground">
-            <FileGlyph fileType={doc.fileType} />
-          </div>
+      <div className="flex items-start justify-between">
+        <StatusPill status={doc.status} />
+        <div className="grid size-[38px] place-items-center rounded-lg border border-border bg-muted text-muted-foreground">
+          <FileGlyph fileType={doc.fileType} />
         </div>
+      </div>
 
-        <div className="flex-1">
+      <Link href={`/workspace/${doc.fileId}`} className="flex-1">
+        <div>
           <p className="mb-2 line-clamp-2 text-sm font-medium leading-snug text-foreground">
             {doc.fileName}
           </p>
@@ -238,26 +227,34 @@ function DocumentCard({
             </span>
           </div>
         </div>
-
-        <div className="flex items-center justify-between border-t border-border pt-3.5">
-          <span className="text-xs text-muted-foreground">
-            {ready ? "Ready to chat" : "Extracting text..."}
-          </span>
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground opacity-55 transition-all group-hover:gap-2 group-hover:opacity-100">
-            Ask
-            <ArrowRight className="size-3.5" />
-          </span>
-        </div>
       </Link>
 
-      <button
-        onClick={(e) => onDelete(e, doc.fileId, doc.fileName)}
-        disabled={deleting}
-        className="absolute right-3 top-3 grid size-7 place-items-center rounded-lg border border-border bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:text-destructive disabled:opacity-50 group-hover:opacity-100"
-        title="Delete file"
-      >
-        {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
-      </button>
+      <div className="flex items-center justify-between border-t border-border pt-3.5">
+        <span className="text-xs text-muted-foreground">
+          {ready ? "Ready to chat" : "Extracting text..."}
+        </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/workspace/${doc.fileId}`}
+            className="flex items-center gap-1.5 text-xs font-semibold text-foreground opacity-55 transition-all hover:gap-2 hover:opacity-100 group-hover:opacity-100"
+          >
+            Ask
+            <ArrowRight className="size-3.5" />
+          </Link>
+          <button
+            onClick={(e) => onDelete(e, doc.fileId, doc.fileName)}
+            disabled={deleting}
+            className="grid size-8 place-items-center rounded-lg border border-border bg-background/40 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+            title="Delete file"
+          >
+            {deleting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="size-3.5" />
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -268,23 +265,13 @@ function FileGlyph({ fileType }: { fileType?: string }) {
   return <FileText className="size-5" strokeWidth={1.6} />;
 }
 
-function UploadCard({ impulseRef }: { impulseRef: React.RefObject<number> }) {
+function UploadCard() {
   return (
     <FileUpload>
       <button
-        onClick={() => pulseParticleSubmitImpulse(impulseRef)}
         className="group flex min-h-[176px] flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed border-border p-[18px] transition-colors hover:border-ring hover:bg-background/40"
       >
-        <div className="size-[52px] opacity-85">
-          <ParticleField
-            src="/logo.png"
-            sampleStep={5}
-            threshold={34}
-            dotSize={0.7}
-            renderScale={0.55}
-            typingImpulseRef={impulseRef}
-          />
-        </div>
+        <div className="size-[52px] rounded-full border border-border bg-background/40" />
         <p className="text-sm font-semibold text-foreground">Upload a document</p>
         <p className="text-xs text-muted-foreground">
           PDF, audio, or video files

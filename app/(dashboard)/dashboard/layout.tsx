@@ -5,9 +5,9 @@ import {Sidebar} from '../components/sidebar'
 
 const DashboardLayout = ({children}:{children: React.ReactNode}) => {
   return (
-    <div className="flex h-screen bg-mesh">
+    <div className="flex h-screen bg-background text-foreground">
       <Sidebar />
-      <div className='w-full h-screen'>{children}</div>
+      <div className='h-screen min-w-0 flex-1'>{children}</div>
     </div>
   )
 }

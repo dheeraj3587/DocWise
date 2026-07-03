@@ -4,8 +4,10 @@ import {
   Menu,
   X,
   LayoutDashboard,
+  MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
-import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +19,7 @@ import { FileRecord } from "@/lib/api-client";
 
 export const Sidebar = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
   const path = usePathname();
   const router = useRouter();
 
@@ -31,11 +34,29 @@ export const Sidebar = () => {
   const progressValue =
     getAllFiles && getAllFiles.length ? (getAllFiles.length / 5) * 100 : 0;
 
+  const openChat = () => {
+    window.dispatchEvent(new CustomEvent("docwise:focus-chat"));
+    setSidebarOpen(false);
+  };
+
+  if (!sidebarVisible) {
+    return (
+      <button
+        type="button"
+        onClick={() => setSidebarVisible(true)}
+        className="fixed left-4 top-24 z-50 grid size-9 place-items-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+        aria-label="Show side panel"
+      >
+        <PanelLeftOpen className="size-4" />
+      </button>
+    );
+  }
+
   return (
     <>
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-xl glass"
+        className="fixed left-4 top-4 z-50 grid size-9 place-items-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:text-foreground lg:hidden"
       >
         {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -50,41 +71,59 @@ export const Sidebar = () => {
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-40
-          w-72 glass-strong
-          bg-sidebar/90
+          w-72
+          bg-background
           border-r border-border
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
           flex flex-col
         `}
       >
-        {/* Logo */}
         <div
           onClick={() => router.push("/")}
-          className="h-16 flex items-center px-6 border-b border-border cursor-pointer"
+          className="flex h-[73px] cursor-pointer items-center justify-between border-b border-border px-6"
         >
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="DocWise Logo" width={32} height={32} className="h-8 w-auto object-contain" />
-            <span className="text-xl font-semibold text-foreground">DocWise</span>
+          <div className="flex items-center gap-2 font-mono text-sm">
+            <span className="inline-block size-2 rounded-full bg-foreground" />
+            <span className="tracking-[0.2em] uppercase">DocWise</span>
           </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSidebarVisible(false);
+              setSidebarOpen(false);
+            }}
+            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Hide side panel"
+          >
+            <PanelLeftClose className="size-4" />
+          </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-5">
+        <nav className="flex-1 space-y-2 px-4 py-6">
           <button
             onClick={() => router.push("/dashboard")}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl w-full transition-all font-medium text-sm ${path === "/dashboard"
-                ? "surface-3 text-foreground glow-gold-subtle border border-gold/20 dark:border-gold/10"
-                : "text-muted-foreground hover:text-foreground hover:surface-2"
+            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${path === "/dashboard"
+                ? "border-border bg-background/40 text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
           >
             <LayoutDashboard size={18} />
             <span>Dashboard</span>
           </button>
+          <button
+            type="button"
+            onClick={openChat}
+            className="flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <MessageSquare size={18} />
+            <span>Chat</span>
+          </button>
 
           <FileUpload>
             <Button
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl w-full font-medium text-sm"
+              className="mt-3 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium"
             >
               <Upload size={18} />
               <span>Upload File</span>
@@ -92,9 +131,8 @@ export const Sidebar = () => {
           </FileUpload>
         </nav>
 
-        {/* Storage Info */}
-        <div className="p-6 border-t border-border space-y-4">
-          <div className="p-4 rounded-xl surface-2 border border-border">
+        <div className="space-y-4 border-t border-border p-6">
+          <div className="rounded-lg border border-border bg-background/40 p-4">
             <div className="flex-between mb-3">
               <span className="text-sm font-medium text-muted-foreground">
                 Storage
