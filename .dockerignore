@@ -1,6 +1,64 @@
+# Node
 node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js build output
 .next
+out
+build
+
+# Git
 .git
-*.md
+.gitignore
+
+# Env files (secrets — never bake into image)
 .env*
-convex/_generated
+!.env.production.example
+
+# Docs & markdown
+*.md
+architecture.md
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+coverage.xml
+htmlcov
+backend/.pytest_cache
+
+# IDE & OS
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+
+# Test & CI artifacts
+failed.log
+failed.txt
+run_log.txt
+
+# FAISS indices (runtime data, not build-time)
+faiss_indices/
+
+# Docker volumes (local dev only)
+pgdata/
+minio_data/
+
+# TypeScript build info (large, not needed)
+*.tsbuildinfo
+
+# Large media that doesn't belong in the image
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wmv
+*.flv
+logo.png

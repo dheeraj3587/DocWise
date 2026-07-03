@@ -73,8 +73,8 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test_kagaz
           REDIS_URL: redis://localhost:6379/0
-          CELERY_BROKER_URL: redis://localhost:6379/0
-          CELERY_RESULT_BACKEND: redis://localhost:6379/1
+          CELERY_BROKER_URL: redis://redis:6379/0
+          CELERY_RESULT_BACKEND: redis://redis:6379/1
           GOOGLE_API_KEY: test-key
           OPENAI_API_KEY: test-key
           CLERK_ISSUER: https://test.clerk.accounts.dev
@@ -151,22 +151,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx (enables BuildKit cache)
+        uses: docker/setup-buildx-action@v3
+
       - name: Build backend image
-        run: docker build -f backend/Dockerfile -t docwise-backend:test .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          tags: docwise-backend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: false
 
       - name: Build worker image
-        run: docker build -f backend/Dockerfile.worker -t docwise-worker:test .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile.worker
+          tags: docwise-worker:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: false
 
       - name: Build frontend image
-        run: |
-          docker build \
-            --build-arg NEXT_PUBLIC_API_URL=http://localhost:8000 \
-            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_placeholder \
-            -f Dockerfile -t docwise-frontend:test .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:8000
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_placeholder
+          tags: docwise-frontend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: false
 
       - name: Verify images
-        run: |
-          docker images | grep docwise
+        run: docker images | grep docwise
 
   deploy:
     name: Deploy to Production
@@ -181,7 +203,7 @@ jobs:
           host: 147.182.140.59
           username: root
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          # Give the entire SSH session 45 minutes (default is 10m which is too short)
+          # 45m total session budget (default 10m is too short for 3 builds)
           command_timeout: 45m
           script: |
             set -e
@@ -190,41 +212,44 @@ jobs:
               APP_DIR="/root/DocWise"
             fi
             cd "$APP_DIR"
+
             echo "==> Pulling latest code..."
             git fetch origin main
             git reset --hard origin/main
+
             if [ -f .env ]; then
               set -a
               . ./.env
               set +a
             fi
-            echo "==> Building images..."
-            # Enable BuildKit for --mount=type=cache support (speeds up repeated builds)
+
+            echo "==> Building images (BuildKit cache mounts active)..."
             export DOCKER_BUILDKIT=1
 
-            # Backend: pip cache persists between builds via BuildKit cache mount
+            # First run: pip/npm download cache is warm from previous builds.
+            # Subsequent deploys: these finish in seconds thanks to --mount=type=cache.
             timeout 15m docker build --progress=plain \
               -f backend/Dockerfile \
               -t docwise-backend .
 
-            # Worker: shares same pip cache
             timeout 15m docker build --progress=plain \
               -f backend/Dockerfile.worker \
               -t docwise-worker .
 
-            # Frontend: npm ci takes 5-6 min on first run; subsequent runs use layer cache.
-            # Increased timeout to 25m to safely cover cold npm ci + Next.js build.
-            timeout 25m docker build --progress=plain \
+            timeout 20m docker build --progress=plain \
               --build-arg NEXT_PUBLIC_API_URL=https://app.dheerajjoshi.dev \
               --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}" \
               -f Dockerfile -t docwise-frontend .
 
             echo "==> Restarting containers..."
             timeout 5m docker compose up -d --no-build db redis minio backend worker frontend nginx
+
             echo "==> Restarting nginx to resolve new container IPs..."
             docker compose restart nginx
+
             echo "==> Cleaning up old images..."
             docker image prune -f
+
             echo "==> Waiting for services to stabilize..."
             for attempt in $(seq 1 12); do
               if curl -sf https://app.dheerajjoshi.dev/api/health; then
@@ -236,6 +261,7 @@ jobs:
               fi
               sleep 5
             done
+
             for attempt in $(seq 1 12); do
               if curl -sf https://app.dheerajjoshi.dev/ > /dev/null; then
                 break
@@ -246,5 +272,6 @@ jobs:
               fi
               sleep 5
             done
+
             docker compose ps
             echo "==> Deployment complete!"

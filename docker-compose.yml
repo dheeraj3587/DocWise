@@ -143,48 +143,10 @@ services:
       - backend
       - minio
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
-
-  judge0-server:
-    image: judge0/judge0:latest
-    volumes:
-      - ./judge0.conf:/judge0.conf:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
-    ports:
-      - "2358:2358"
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=judge0
-      - POSTGRES_PASSWORD=judge0_secret_password
-      - POSTGRES_DB=judge0
-    privileged: true
-    restart: always
-    depends_on:
-      - db
-      - redis
-
-  judge0-workers:
-    image: judge0/judge0:latest
-    command: ["./scripts/workers", "1"]
-    volumes:
-      - ./judge0.conf:/judge0.conf:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=judge0
-      - POSTGRES_PASSWORD=judge0_secret_password
-      - POSTGRES_DB=judge0
-    privileged: true
-    restart: always
 
 volumes:
   pgdata:
