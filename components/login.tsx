@@ -13,6 +13,7 @@ import {
   pulseParticleSubmitImpulse,
 } from "@/components/particle-field";
 import { AuthShell, useAuthTypingImpulse } from "./auth-shell";
+import { AuthCheckEmailContent } from "./auth-check-email";
 
 export function LoginShowcasePage() {
   return (
@@ -77,6 +78,41 @@ function ClerkMagicLinkForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const launchEmailLinkFlow = async (targetEmail: string) => {
+    if (!isLoaded || !signIn) return;
+
+    const normalizedEmail = targetEmail.trim().toLowerCase();
+    const signInAttempt = await signIn.create({
+      identifier: normalizedEmail,
+    });
+    const emailLinkFactor = signInAttempt.supportedFirstFactors?.find(
+      isEmailLinkFactor,
+    ) as EmailLinkFirstFactor | undefined;
+
+    if (!emailLinkFactor) {
+      throw new Error("Email link sign-in is not enabled for this account.");
+    }
+
+    const { startEmailLinkFlow } = signIn.createEmailLinkFlow();
+
+    setSentTo(normalizedEmail);
+    setPending(false);
+
+    void startEmailLinkFlow({
+      emailAddressId: emailLinkFactor.emailAddressId,
+      redirectUrl: `${window.location.origin}/login/verify`,
+    })
+      .then(async (completedSignIn) => {
+        if (completedSignIn.status === "complete" && completedSignIn.createdSessionId) {
+          await setActive({ session: completedSignIn.createdSessionId });
+          router.push("/dashboard");
+        }
+      })
+      .catch((err) => {
+        setError(getClerkErrorMessage(err));
+      });
+  };
+
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!email.trim() || !isLoaded || !signIn) return;
@@ -84,38 +120,41 @@ function ClerkMagicLinkForm() {
     setError(null);
     setPending(true);
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      const signInAttempt = await signIn.create({
-        identifier: normalizedEmail,
-      });
-      const emailLinkFactor = signInAttempt.supportedFirstFactors?.find(
-        isEmailLinkFactor,
-      ) as EmailLinkFirstFactor | undefined;
-
-      if (!emailLinkFactor) {
-        throw new Error("Email link sign-in is not enabled for this account.");
-      }
-
-      const { startEmailLinkFlow } = signIn.createEmailLinkFlow();
-
-      setSentTo(normalizedEmail);
-      setPending(false);
-
-      const completedSignIn = await startEmailLinkFlow({
-        emailAddressId: emailLinkFactor.emailAddressId,
-        redirectUrl: `${window.location.origin}/login/verify`,
-      });
-
-      if (completedSignIn.status === "complete" && completedSignIn.createdSessionId) {
-        await setActive({ session: completedSignIn.createdSessionId });
-        router.push("/dashboard");
-      }
+      await launchEmailLinkFlow(email);
     } catch (err) {
       setError(getClerkErrorMessage(err));
       setSentTo(null);
       setPending(false);
     }
   };
+
+  if (sentTo) {
+    return (
+      <>
+        <AuthCheckEmailContent
+          email={sentTo}
+          onResendLink={async () => {
+            setError(null);
+            try {
+              await launchEmailLinkFlow(sentTo);
+            } catch (err) {
+              setError(getClerkErrorMessage(err));
+              throw err;
+            }
+          }}
+          onUseDifferentEmail={() => {
+            setSentTo(null);
+            setError(null);
+          }}
+        />
+        {error ? (
+          <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive text-sm">
+            {error}
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <>
@@ -143,19 +182,10 @@ function ClerkMagicLinkForm() {
         <Button type="submit" size="lg" loading={pending} disabled={!isLoaded} className="mt-2">
           Send sign-in link
         </Button>
-        {!sentTo ? (
-          <p className="text-center text-muted-foreground text-xs">
-            <Kbd className="font-mono">⌘↵</Kbd> to submit
-          </p>
-        ) : null}
+        <p className="text-center text-muted-foreground text-xs">
+          <Kbd className="font-mono">⌘↵</Kbd> to submit
+        </p>
       </form>
-
-      {sentTo ? (
-        <div className="mt-4 rounded-lg border border-border/70 bg-background/40 px-3 py-2 text-muted-foreground text-sm">
-          Link sent to <span className="text-foreground">{sentTo}</span>. Open
-          your inbox to continue.
-        </div>
-      ) : null}
       {error ? (
         <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive text-sm">
           {error}
