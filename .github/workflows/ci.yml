@@ -6,10 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
   BACKEND_COVERAGE_THRESHOLD: "90.0"
+  REGISTRY: ghcr.io
 
 jobs:
   backend-test:
@@ -129,7 +134,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps --no-audit --fund=false
 
       - name: Lint
         run: npm run lint
@@ -154,25 +159,55 @@ jobs:
       - name: Set up Docker Buildx (enables BuildKit cache)
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GitHub Container Registry
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare image names
+        id: images
+        run: |
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "backend=${{ env.REGISTRY }}/${OWNER}/docwise-backend" >> "$GITHUB_OUTPUT"
+          echo "worker=${{ env.REGISTRY }}/${OWNER}/docwise-worker" >> "$GITHUB_OUTPUT"
+          echo "frontend=${{ env.REGISTRY }}/${OWNER}/docwise-frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Validate production frontend config
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then
+            echo "::error::Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY as a GitHub secret or variable before publishing production frontend images."
+            exit 1
+          fi
+
       - name: Build backend image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: backend/Dockerfile
-          tags: docwise-backend:test
+          tags: |
+            ${{ steps.images.outputs.backend }}:${{ github.sha }}
+            ${{ steps.images.outputs.backend }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          push: false
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
       - name: Build worker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: backend/Dockerfile.worker
-          tags: docwise-worker:test
+          tags: |
+            ${{ steps.images.outputs.worker }}:${{ github.sha }}
+            ${{ steps.images.outputs.worker }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          push: false
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
       - name: Build frontend image
         uses: docker/build-push-action@v6
@@ -180,14 +215,17 @@ jobs:
           context: .
           file: Dockerfile
           build-args: |
-            NEXT_PUBLIC_API_URL=http://localhost:8000
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_placeholder
-          tags: docwise-frontend:test
+            NEXT_PUBLIC_API_URL=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && 'https://app.dheerajjoshi.dev' || 'http://localhost:8000' }}
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder' }}
+          tags: |
+            ${{ steps.images.outputs.frontend }}:${{ github.sha }}
+            ${{ steps.images.outputs.frontend }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          push: false
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
       - name: Verify images
+        if: github.ref != 'refs/heads/main' || github.event_name != 'push'
         run: docker images | grep docwise
 
   deploy:
@@ -223,23 +261,16 @@ jobs:
               set +a
             fi
 
-            echo "==> Building images (BuildKit cache mounts active)..."
-            export DOCKER_BUILDKIT=1
+            echo "==> Pulling prebuilt images..."
+            IMAGE_OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+            IMAGE_TAG="${{ github.sha }}"
 
-            # First run: pip/npm download cache is warm from previous builds.
-            # Subsequent deploys: these finish in seconds thanks to --mount=type=cache.
-            timeout 15m docker build --progress=plain \
-              -f backend/Dockerfile \
-              -t docwise-backend .
+            export BACKEND_IMAGE="${{ env.REGISTRY }}/${IMAGE_OWNER}/docwise-backend:${IMAGE_TAG}"
+            export WORKER_IMAGE="${{ env.REGISTRY }}/${IMAGE_OWNER}/docwise-worker:${IMAGE_TAG}"
+            export FRONTEND_IMAGE="${{ env.REGISTRY }}/${IMAGE_OWNER}/docwise-frontend:${IMAGE_TAG}"
 
-            timeout 15m docker build --progress=plain \
-              -f backend/Dockerfile.worker \
-              -t docwise-worker .
-
-            timeout 20m docker build --progress=plain \
-              --build-arg NEXT_PUBLIC_API_URL=https://app.dheerajjoshi.dev \
-              --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}" \
-              -f Dockerfile -t docwise-frontend .
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
+            timeout 5m docker compose pull backend worker frontend
 
             echo "==> Restarting containers..."
             timeout 5m docker compose up -d --no-build db redis minio backend worker frontend nginx

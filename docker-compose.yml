@@ -41,6 +41,7 @@ services:
     command: server /data --console-address ":9001"
 
   backend:
+    image: ${BACKEND_IMAGE:-docwise-backend:latest}
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -73,6 +74,7 @@ services:
         condition: service_started
 
   worker:
+    image: ${WORKER_IMAGE:-docwise-worker:latest}
     build:
       context: .
       dockerfile: backend/Dockerfile.worker
@@ -102,6 +104,7 @@ services:
         condition: service_started
 
   frontend:
+    image: ${FRONTEND_IMAGE:-docwise-frontend:latest}
     build:
       context: .
       dockerfile: Dockerfile
