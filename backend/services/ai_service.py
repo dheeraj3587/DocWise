@@ -166,6 +166,59 @@ Summary:"""
         async for text in self._stream_prompt(prompt, deep_mode=deep_mode):
             yield text
 
+    async def categorize_pdf_topics(self, page_summaries: str) -> list[dict[str, object]]:
+        """Return compact document topics with starting page numbers."""
+        prompt = f"""You are creating a document outline for DocWise.
+Read the page-numbered excerpts and identify 6 to 10 high-level topics.
+Return ONLY valid JSON, with no markdown fences and no prose.
+
+JSON schema:
+[
+  {{"title": "Short topic title", "page": 1, "summary": "One concise sentence"}}
+]
+
+Rules:
+- page must be the first page where the topic starts.
+- title must be 2 to 6 words.
+- summary must be under 120 characters.
+- Use the source page numbers only.
+
+Page excerpts:
+{page_summaries}
+"""
+
+        content = await self._complete_prompt(
+            prompt,
+            model=settings.CEREBRAS_CHAT_MODEL,
+            reasoning_effort=settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
+        )
+        cleaned = content.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.strip("`")
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:].strip()
+        parsed = json.loads(cleaned)
+        if not isinstance(parsed, list):
+            return []
+
+        topics: list[dict[str, object]] = []
+        for item in parsed[:10]:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or item.get("topic") or "").strip()
+            summary = str(item.get("summary") or "").strip()
+            try:
+                page = int(item.get("page") or 1)
+            except (TypeError, ValueError):
+                page = 1
+            if title:
+                topics.append({
+                    "title": title[:80],
+                    "summary": summary[:180],
+                    "page": max(1, page),
+                })
+        return topics
+
 
 # Singleton
 ai_service = AIService()

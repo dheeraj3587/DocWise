@@ -95,7 +95,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS }
     const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0
 
     return (
-        <div className="flex flex-col h-full glass rounded-xl overflow-hidden">
+        <div className="flex h-full flex-col overflow-hidden bg-background">
             {/* Media Element */}
             <div className="shrink-0 bg-card/70 flex-center">
                 {fileType === 'video' ? (
@@ -106,8 +106,10 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS }
                         preload="metadata"
                     />
                 ) : (
-                    <div className="w-full py-16 flex-center bg-linear-to-br from-purple-500/5 via-background to-gold/5 dark:from-purple-500/10 dark:to-gold/5">
-                        <div className="text-6xl">🎧</div>
+                    <div className="w-full bg-secondary/40 py-16 flex-center">
+                        <div className="grid h-16 w-16 place-items-center rounded-lg border border-border bg-background text-muted-foreground">
+                            <Volume2 className="h-7 w-7" strokeWidth={1.75} />
+                        </div>
                         <audio
                             ref={mediaRef as React.RefObject<HTMLAudioElement>}
                             src={fileUrl}
@@ -130,7 +132,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS }
                     }}
                 >
                     <div
-                        className="h-full bg-gold rounded-full transition-all duration-100"
+                        className="h-full rounded-full bg-foreground transition-all duration-100"
                         style={{ width: `${progressPercent}%` }}
                     />
                 </button>
@@ -166,13 +168,13 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS }
                                 key={ts.id || index}
                                 type="button"
                                 onClick={() => seekTo(ts.start_time)}
-                                className={`w-full text-left p-3 rounded-xl border transition-all duration-200 ${activeTimestamp === index
-                                    ? 'surface-3 border-gold/30 glow-gold-subtle'
-                                    : 'surface-1 border-border hover:surface-2 hover:border-gold/20'
+                                className={`w-full rounded-lg border p-3 text-left transition-colors ${activeTimestamp === index
+                                    ? 'bg-secondary border-border text-foreground'
+                                    : 'bg-background border-border text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <span className="text-xs font-mono text-gold bg-gold/10 px-2 py-1 rounded-lg whitespace-nowrap">
+                                    <span className="whitespace-nowrap rounded border border-border bg-secondary px-2 py-1 font-mono text-xs text-muted-foreground">
                                         {formatTime(ts.start_time)}
                                     </span>
                                     <div className="flex-1 min-w-0">

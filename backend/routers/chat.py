@@ -62,6 +62,12 @@ class ChatCreditsResponse(BaseModel):
     remaining: int
 
 
+class DocumentTopicResponse(BaseModel):
+    title: str
+    page: int
+    summary: str = ""
+
+
 def _user_identity(user: dict) -> str:
     return user.get("email") or user.get("sub") or ""
 
@@ -224,6 +230,63 @@ async def get_chat_credits(
     limit = max(1, settings.LLM_DAILY_BUDGET_UNITS_PER_USER)
     used = await usage_limiter.get_daily_units(created_by, "chat")
     return {"used": used, "limit": limit, "remaining": max(0, limit - used)}
+
+
+@router.get("/topics/{file_id}", response_model=list[DocumentTopicResponse])
+async def get_document_topics(
+    file_id: str,
+    _: None = Depends(rate_limit("summarize")),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate and cache a compact AI topic outline for PDF navigation."""
+    file_record = await _get_owned_file(file_id, user, db)
+    if file_record.file_type != "pdf":
+        return []
+
+    cache_key = f"chat:topics:{file_id}"
+    cached_topics = await cache_service.get_json(cache_key)
+    if cached_topics:
+        return cached_topics
+
+    file_bytes = storage_service.download_file(file_record.storage_key)
+    pages = pdf_service.extract_pages(file_bytes)
+    if not pages:
+        return []
+
+    excerpts = []
+    for page in pages[:40]:
+        text = str(page["text"]).replace("\n", " ").strip()
+        excerpts.append(f"Page {page['page']}: {text[:1400]}")
+    page_summaries = "\n\n".join(excerpts)
+
+    try:
+        topics = await ai_service.categorize_pdf_topics(page_summaries)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Topic generation failed: %s", exc)
+        topics = []
+
+    max_page = max(int(page["page"]) for page in pages)
+    normalized_topics = [
+        {
+            "title": str(topic.get("title") or "Document").strip(),
+            "page": min(max(int(topic.get("page") or 1), 1), max_page),
+            "summary": str(topic.get("summary") or "").strip(),
+        }
+        for topic in topics
+        if str(topic.get("title") or "").strip()
+    ]
+
+    if not normalized_topics:
+        normalized_topics = [{"title": "Document start", "page": 1, "summary": ""}]
+
+    await cache_service.set_json(
+        cache_key,
+        normalized_topics,
+        ttl_seconds=settings.CACHE_TTL_SUMMARY_SECONDS,
+    )
+    return normalized_topics
 
 
 @router.post("/ask")

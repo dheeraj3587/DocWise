@@ -36,6 +36,16 @@ class PDFService:
             page.extract_text() or "" for page in reader.pages
         )
 
+    def extract_pages(self, pdf_bytes: bytes) -> list[dict[str, object]]:
+        """Extract page-numbered text for outline/topic generation."""
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        pages: list[dict[str, object]] = []
+        for index, page in enumerate(reader.pages):
+            text = (page.extract_text() or "").strip()
+            if text:
+                pages.append({"page": index + 1, "text": text})
+        return pages
+
 
 # Singleton
 pdf_service = PDFService()

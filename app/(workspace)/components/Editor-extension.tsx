@@ -162,73 +162,79 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
     }
   };
 
-  const toolbarBtnClass = (active: boolean, color: "default" | "amber" = "default") => {
+  const toolbarBtnClass = (active: boolean) => {
     if (active) {
-      return color === "amber"
-        ? "p-2 rounded-lg bg-accent text-accent-foreground"
-        : "p-2 rounded-lg bg-accent text-accent-foreground";
+      return "p-2 rounded-lg bg-secondary text-foreground";
     }
     return "p-2 rounded-lg text-muted-foreground hover:text-foreground hover:surface-2 transition-all duration-150";
+  };
+
+  const runEditorCommand = (command: string, value?: unknown) => {
+    const chain = editor.chain().focus() as unknown as Record<string, (value?: unknown) => { run: () => boolean }>;
+    const commandRunner = chain[command];
+    if (commandRunner) {
+      commandRunner(value).run();
+    }
   };
 
   return (
     <div className="glass-subtle border-b border-border px-4 py-2.5 rounded-t-xl">
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-0.5 px-1.5 py-1 surface-2 rounded-xl border border-border">
-          <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          <button type="button" onClick={() => runEditorCommand("toggleHeading", { level: 1 })}
             className={toolbarBtnClass(editor.isActive("heading", { level: 1 }))} title="Heading 1">
             <Heading1 className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          <button type="button" onClick={() => runEditorCommand("toggleHeading", { level: 2 })}
             className={toolbarBtnClass(editor.isActive("heading", { level: 2 }))} title="Heading 2">
             <Heading2 className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          <button type="button" onClick={() => runEditorCommand("toggleHeading", { level: 3 })}
             className={toolbarBtnClass(editor.isActive("heading", { level: 3 }))} title="Heading 3">
             <Heading3 className="w-4 h-4" />
           </button>
 
           <div className="w-px h-5 bg-border mx-0.5" />
 
-          <button type="button" onClick={() => editor.chain().focus().toggleBold().run()}
+          <button type="button" onClick={() => runEditorCommand("toggleBold")}
             className={toolbarBtnClass(editor.isActive("bold"))} title="Bold">
             <Bold className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()}
+          <button type="button" onClick={() => runEditorCommand("toggleItalic")}
             className={toolbarBtnClass(editor.isActive("italic"))} title="Italic">
             <Italic className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()}
+          <button type="button" onClick={() => runEditorCommand("toggleUnderline")}
             className={toolbarBtnClass(editor.isActive("underline"))} title="Underline">
             <Underline className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()}
-            className={toolbarBtnClass(editor.isActive("highlight"), "amber")} title="Highlight">
+          <button type="button" onClick={() => runEditorCommand("toggleHighlight")}
+            className={toolbarBtnClass(editor.isActive("highlight"))} title="Highlight">
             <Highlighter className="w-4 h-4" />
           </button>
 
           <div className="w-px h-5 bg-border mx-0.5" />
 
-          <button type="button" onClick={() => editor.chain().focus().setTextAlign("left").run()}
+          <button type="button" onClick={() => runEditorCommand("setTextAlign", "left")}
             className={toolbarBtnClass(editor.isActive({ textAlign: "left" }))} title="Align Left">
             <AlignLeft className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().setTextAlign("center").run()}
+          <button type="button" onClick={() => runEditorCommand("setTextAlign", "center")}
             className={toolbarBtnClass(editor.isActive({ textAlign: "center" }))} title="Align Center">
             <AlignCenter className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().setTextAlign("right").run()}
+          <button type="button" onClick={() => runEditorCommand("setTextAlign", "right")}
             className={toolbarBtnClass(editor.isActive({ textAlign: "right" }))} title="Align Right">
             <AlignRight className="w-4 h-4" />
           </button>
 
           <div className="w-px h-5 bg-border mx-0.5" />
 
-          <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()}
+          <button type="button" onClick={() => runEditorCommand("toggleBulletList")}
             className={toolbarBtnClass(editor.isActive("bulletList"))} title="Bullet List">
             <List className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          <button type="button" onClick={() => runEditorCommand("toggleOrderedList")}
             className={toolbarBtnClass(editor.isActive("orderedList"))} title="Ordered List">
             <ListOrdered className="w-4 h-4" />
           </button>
@@ -250,7 +256,7 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
             onClick={() => setDeepMode(!deepMode)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-r-lg transition-all duration-150 font-medium text-sm border border-border border-l-0 ${
               deepMode
-                ? "bg-accent text-accent-foreground hover:bg-accent/80"
+                ? "bg-secondary text-foreground hover:bg-secondary/80"
                 : "surface-3 hover:surface-2 text-muted-foreground"
             }`}
             title={deepMode ? "Deep reasoning ON" : "Fast reasoning mode"}

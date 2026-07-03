@@ -307,7 +307,7 @@ export const ChatPanel = ({
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg hover:shadow-xl duration-200 glow-gold-subtle"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border border-border bg-primary px-4 py-3 text-primary-foreground shadow-lg duration-200 hover:bg-primary/90"
       >
         <MessageCircle className="w-5 h-5" />
         <span className="text-sm font-medium">Chat</span>
@@ -318,24 +318,16 @@ export const ChatPanel = ({
   const chatContent = (
     <>
       {/* Header */}
-      <div className="flex-between shrink-0 border-b border-border px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Sparkle className="h-4 w-4 text-muted-foreground" />
-          <span className="mono-label text-foreground">Document Chat</span>
-          <span className="hidden items-center gap-1 rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
-            <CircleGauge className="h-3 w-3" />
-            {credits.remaining}/{credits.limit}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ModelDropdown
-            models={models}
-            isOpen={modelMenuOpen}
-            onOpenChange={setModelMenuOpen}
-            selectedModelId={selectedModelId}
-            onModelChange={(model) => setSelectedModelId(model.id)}
-            disabled={isStreaming}
-          />
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Sparkle className="h-4 w-4 text-muted-foreground" />
+            <span className="mono-label text-foreground">Document Chat</span>
+            <span className="hidden items-center gap-1 rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
+              <CircleGauge className="h-3 w-3" />
+              {credits.remaining}/{credits.limit}
+            </span>
+          </div>
           {!embedded && (
             <button
               type="button"
@@ -346,6 +338,14 @@ export const ChatPanel = ({
             </button>
           )}
         </div>
+        <ModelDropdown
+          models={models}
+          isOpen={modelMenuOpen}
+          onOpenChange={setModelMenuOpen}
+          selectedModelId={selectedModelId}
+          onModelChange={(model) => setSelectedModelId(model.id)}
+          disabled={isStreaming}
+        />
       </div>
 
       {/* Messages */}
