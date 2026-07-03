@@ -39,7 +39,7 @@ export function ClerkThemeProvider({ children }: { children: React.ReactNode }) 
     <ClerkProvider
       dynamic
       signInUrl="/login"
-      signUpUrl="/sign-up"
+      signUpUrl="/signup"
       appearance={isDark ? { theme: dark } : undefined}
     >
       {children}

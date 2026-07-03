@@ -51,7 +51,7 @@ export default function HomeClient() {
     if (user) {
       router.push("/dashboard");
     } else {
-      router.push("/sign-in");
+      router.push("/signup");
     }
   };
 
@@ -73,13 +73,13 @@ export default function HomeClient() {
               <>
                 <Button
                   variant="ghost"
-                  onClick={() => router.push("/sign-in")}
+                  onClick={() => router.push("/login")}
                   className="h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm"
                 >
                   Log in
                 </Button>
                 <Button
-                  onClick={() => router.push("/sign-up")}
+                  onClick={() => router.push("/signup")}
                   className="h-8 sm:h-9 px-3 sm:px-4 text-xs sm:text-sm"
                 >
                   Get started
