@@ -16,7 +16,9 @@ import { getApiBase } from '@/lib/api-base'
 import { normalizeMathDelimiters } from '@/lib/markdown-math'
 
 // Memoize plugin arrays to avoid recreating on every render
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const REMARK_PLUGINS: any = [remarkGfm, remarkMath];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const REHYPE_PLUGINS: any = [rehypeKatex];
 
 export interface ChatMessage {
