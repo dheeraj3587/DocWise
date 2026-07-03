@@ -10,19 +10,17 @@ from services.pdf_service import PDFService
 class TestPDFService:
     """Tests for PDF extraction and chunking."""
 
-    @patch("services.pdf_service.PyPDFLoader")
-    def test_extract_and_chunk(self, mock_loader_cls):
-        # Mock documents returned by the loader
-        doc1 = MagicMock()
-        doc1.page_content = "Page one content " * 20
-        doc1.metadata = {"source": "test.pdf", "page": 0}
-        doc2 = MagicMock()
-        doc2.page_content = "Page two content " * 20
-        doc2.metadata = {"source": "test.pdf", "page": 1}
+    @patch("services.pdf_service.PdfReader")
+    def test_extract_and_chunk(self, mock_reader_cls):
+        # Mock pages returned by the reader
+        page1 = MagicMock()
+        page1.extract_text.return_value = "Page one content " * 20
+        page2 = MagicMock()
+        page2.extract_text.return_value = "Page two content " * 20
 
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = [doc1, doc2]
-        mock_loader_cls.return_value = mock_loader
+        mock_reader = MagicMock()
+        mock_reader.pages = [page1, page2]
+        mock_reader_cls.return_value = mock_reader
 
         svc = PDFService()
         chunks = svc.extract_and_chunk(b"%PDF-1.4 test")
@@ -31,18 +29,16 @@ class TestPDFService:
         assert len(chunks) > 0
         assert all(isinstance(c, str) for c in chunks)
 
-    @patch("services.pdf_service.PyPDFLoader")
-    def test_extract_full_text(self, mock_loader_cls):
-        doc1 = MagicMock()
-        doc1.page_content = "Hello from page one."
-        doc1.metadata = {}
-        doc2 = MagicMock()
-        doc2.page_content = "Hello from page two."
-        doc2.metadata = {}
+    @patch("services.pdf_service.PdfReader")
+    def test_extract_full_text(self, mock_reader_cls):
+        page1 = MagicMock()
+        page1.extract_text.return_value = "Hello from page one."
+        page2 = MagicMock()
+        page2.extract_text.return_value = "Hello from page two."
 
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = [doc1, doc2]
-        mock_loader_cls.return_value = mock_loader
+        mock_reader = MagicMock()
+        mock_reader.pages = [page1, page2]
+        mock_reader_cls.return_value = mock_reader
 
         svc = PDFService()
         text = svc.extract_full_text(b"%PDF-1.4 test")
@@ -50,21 +46,21 @@ class TestPDFService:
         assert "Hello from page one." in text
         assert "Hello from page two." in text
 
-    @patch("services.pdf_service.PyPDFLoader")
-    def test_extract_and_chunk_empty_pdf(self, mock_loader_cls):
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = []
-        mock_loader_cls.return_value = mock_loader
+    @patch("services.pdf_service.PdfReader")
+    def test_extract_and_chunk_empty_pdf(self, mock_reader_cls):
+        mock_reader = MagicMock()
+        mock_reader.pages = []
+        mock_reader_cls.return_value = mock_reader
 
         svc = PDFService()
         chunks = svc.extract_and_chunk(b"%PDF-1.4")
         assert chunks == []
 
-    @patch("services.pdf_service.PyPDFLoader")
-    def test_extract_full_text_empty_pdf(self, mock_loader_cls):
-        mock_loader = MagicMock()
-        mock_loader.load.return_value = []
-        mock_loader_cls.return_value = mock_loader
+    @patch("services.pdf_service.PdfReader")
+    def test_extract_full_text_empty_pdf(self, mock_reader_cls):
+        mock_reader = MagicMock()
+        mock_reader.pages = []
+        mock_reader_cls.return_value = mock_reader
 
         svc = PDFService()
         text = svc.extract_full_text(b"%PDF-1.4")

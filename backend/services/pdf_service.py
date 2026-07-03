@@ -1,11 +1,10 @@
 """PDF parsing service — extract text and split into chunks."""
 
+import io
 from typing import List
 
-from langchain_community.document_loaders import PyPDFLoader
+from pypdf import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-import tempfile
-import os
 
 
 class PDFService:
@@ -22,35 +21,20 @@ class PDFService:
         Extract text from a PDF and split into chunks.
         Returns a list of text chunks ready for embedding.
         """
-        # Write PDF bytes to a temporary file for PyPDFLoader
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            tmp.write(pdf_bytes)
-            tmp_path = tmp.name
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        full_text = "\n".join(
+            page.extract_text() or "" for page in reader.pages
+        )
 
-        try:
-            loader = PyPDFLoader(tmp_path)
-            documents = loader.load()
-
-            split_docs = self.splitter.split_documents(documents)
-            chunks = [doc.page_content for doc in split_docs]
-
-            return chunks
-        finally:
-            os.unlink(tmp_path)
+        chunks = self.splitter.split_text(full_text)
+        return chunks
 
     def extract_full_text(self, pdf_bytes: bytes) -> str:
         """Extract full text from a PDF (used for summarization)."""
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            tmp.write(pdf_bytes)
-            tmp_path = tmp.name
-
-        try:
-            loader = PyPDFLoader(tmp_path)
-            documents = loader.load()
-            full_text = " ".join([doc.page_content for doc in documents])
-            return full_text
-        finally:
-            os.unlink(tmp_path)
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        return " ".join(
+            page.extract_text() or "" for page in reader.pages
+        )
 
 
 # Singleton
