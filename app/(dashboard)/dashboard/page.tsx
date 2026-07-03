@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { deleteFile, type FileRecord } from "@/lib/api-client";
+import { showRetryToast, showSuccessToast } from "@/lib/app-toasts";
 import { useApiQuery } from "@/lib/hooks";
 import { FileUpload } from "../components/file-upload";
 
@@ -45,6 +46,35 @@ export default function Dashboard() {
     return () => window.removeEventListener("docwise:focus-chat", focusChat);
   }, []);
 
+  const deleteDocument = async (
+    fileId: string,
+    fileName: string,
+    confirmFirst = true,
+  ) => {
+    if (confirmFirst && !confirm(`Delete "${fileName}"? This cannot be undone.`)) return;
+    setDeletingId(fileId);
+    try {
+      const token = await getToken();
+      await deleteFile(fileId, token);
+      refetch();
+      showSuccessToast({
+        title: "Deleted",
+        description: `${fileName} was removed from your library.`,
+      });
+    } catch (err) {
+      console.error("Delete failed:", err);
+      showRetryToast({
+        title: "Couldn't delete file",
+        description: "The file is still in your library. Retry the delete action.",
+        onRetry: () => {
+          void deleteDocument(fileId, fileName, false);
+        },
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleDelete = async (
     e: MouseEvent,
     fileId: string,
@@ -52,18 +82,7 @@ export default function Dashboard() {
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Delete "${fileName}"? This cannot be undone.`)) return;
-    setDeletingId(fileId);
-    try {
-      const token = await getToken();
-      await deleteFile(fileId, token);
-      refetch();
-    } catch (err) {
-      console.error("Delete failed:", err);
-      alert("Failed to delete file. Please try again.");
-    } finally {
-      setDeletingId(null);
-    }
+    await deleteDocument(fileId, fileName);
   };
 
   return (

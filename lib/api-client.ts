@@ -73,10 +73,18 @@ export interface MediaTimestamp {
   topic: string;
 }
 
+export interface FileProcessingProgress {
+  fileId: string;
+  status: "processing" | "ready" | "failed" | string;
+  phase: string;
+  progress: number;
+}
+
 export async function uploadFile(
   file: File,
   fileName?: string | null,
   token?: string | null,
+  onProgress?: (progress: number) => void,
 ): Promise<FileRecord> {
   const formData = new FormData();
   formData.append("file", file);
@@ -85,23 +93,36 @@ export async function uploadFile(
     formData.append("file_name", displayName);
   }
 
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  // Do NOT set Content-Type for FormData — browser sets it with boundary
+  return new Promise<FileRecord>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE}/api/files/upload`);
+    if (token) {
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
 
-  const res = await fetch(`${API_BASE}/api/files/upload`, {
-    method: "POST",
-    headers,
-    body: formData,
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+
+    xhr.onload = () => {
+      const text = xhr.responseText || "";
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`uploadFile failed: ${text || xhr.statusText}`));
+        return;
+      }
+      try {
+        onProgress?.(100);
+        resolve(JSON.parse(text) as FileRecord);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("uploadFile failed: network error"));
+    xhr.onabort = () => reject(new Error("uploadFile failed: aborted"));
+    xhr.send(formData);
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`uploadFile failed: ${err}`);
-  }
-  return res.json();
 }
 
 export async function getUserFiles(
@@ -125,6 +146,20 @@ export async function getFileData(
     headers: buildHeaders(token),
   });
   if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getFileProgress(
+  fileId: string,
+  token?: string | null,
+): Promise<FileProcessingProgress> {
+  const res = await fetch(`${API_BASE}/api/files/${fileId}/progress`, {
+    headers: buildHeaders(token),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`getFileProgress failed: ${err}`);
+  }
   return res.json();
 }
 

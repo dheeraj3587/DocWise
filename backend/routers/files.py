@@ -10,6 +10,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.authz import assert_file_owner
+from core.cache import cache_service
 from core.config import settings
 from core.rate_limit import rate_limit
 from core.security import get_current_user
@@ -135,6 +136,17 @@ async def upload_file(
     db.add(file_record)
     await db.flush()
 
+    await cache_service.set_json(
+        f"files:progress:{file_id}",
+        {
+            "fileId": file_id,
+            "status": "processing",
+            "phase": "Queued for processing",
+            "progress": 1,
+        },
+        ttl_seconds=60 * 60 * 24,
+    )
+
     if file_type == "pdf":
         process_pdf.delay(file_id, storage_key)
     else:
@@ -145,6 +157,47 @@ async def upload_file(
         "fileName": original_name,
         "fileType": file_type,
         "status": "processing",
+    }
+
+
+@router.get("/{file_id}/progress")
+async def get_file_progress(
+    file_id: str,
+    _: None = Depends(rate_limit("default")),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return real processing progress for a file."""
+    stmt = select(FileModel).where(FileModel.file_id == uuid.UUID(file_id))
+    result = await db.execute(stmt)
+    file_record = result.scalar_one_or_none()
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    assert_file_owner(file_record, user)
+
+    cached = await cache_service.get_json(f"files:progress:{file_id}")
+    if cached:
+        return cached
+
+    if file_record.status == "ready":
+        return {
+            "fileId": file_id,
+            "status": "ready",
+            "phase": "Ready",
+            "progress": 100,
+        }
+    if file_record.status == "failed":
+        return {
+            "fileId": file_id,
+            "status": "failed",
+            "phase": "Processing failed",
+            "progress": 100,
+        }
+    return {
+        "fileId": file_id,
+        "status": file_record.status,
+        "phase": "Processing",
+        "progress": 1,
     }
 
 

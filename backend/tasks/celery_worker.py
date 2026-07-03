@@ -50,24 +50,53 @@ async def _process_pdf_async(file_id: str, storage_key: str):
     from services.storage_service import storage_service
     from services.pdf_service import pdf_service
     from services.embedding_service import embedding_service
+    from core.cache import cache_service
     from models.database import async_session
     from models.file import File
     from sqlalchemy import select
     import uuid as uuid_mod
 
-    pdf_bytes = storage_service.download_file(storage_key)
+    async def set_progress(progress: int, phase: str, status: str = "processing"):
+        await cache_service.set_json(
+            f"files:progress:{file_id}",
+            {
+                "fileId": file_id,
+                "status": status,
+                "phase": phase,
+                "progress": progress,
+            },
+            ttl_seconds=60 * 60 * 24,
+        )
 
-    chunks = pdf_service.extract_and_chunk(pdf_bytes)
+    try:
+        await set_progress(8, "Downloading file")
+        pdf_bytes = storage_service.download_file(storage_key)
 
-    embedding_service.ingest_document(file_id, chunks)
+        await set_progress(32, "Extracting and chunking PDF")
+        chunks = pdf_service.extract_and_chunk(pdf_bytes)
 
-    async with async_session() as session:
-        stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
-        result = await session.execute(stmt)
-        file_record = result.scalar_one_or_none()
-        if file_record:
-            file_record.status = "ready"
-            await session.commit()
+        await set_progress(72, "Embedding document chunks")
+        embedding_service.ingest_document(file_id, chunks)
+
+        async with async_session() as session:
+            stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
+            result = await session.execute(stmt)
+            file_record = result.scalar_one_or_none()
+            if file_record:
+                file_record.status = "ready"
+                await session.commit()
+
+        await set_progress(100, "Ready", "ready")
+    except Exception:
+        async with async_session() as session:
+            stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
+            result = await session.execute(stmt)
+            file_record = result.scalar_one_or_none()
+            if file_record:
+                file_record.status = "failed"
+                await session.commit()
+        await set_progress(100, "Processing failed", "failed")
+        raise
 
 
 @celery_app.task(name="tasks.process_media", bind=True, max_retries=3)
@@ -89,51 +118,80 @@ async def _process_media_async(file_id: str, storage_key: str, file_name: str):
     from services.transcription_service import transcription_service
     from services.embedding_service import embedding_service
     from services.timestamp_service import timestamp_service
+    from core.cache import cache_service
     from models.database import async_session
     from models.file import File
     from models.timestamp import MediaTimestamp
     from sqlalchemy import select
     import uuid as uuid_mod
 
-    media_bytes = storage_service.download_file(storage_key)
+    async def set_progress(progress: int, phase: str, status: str = "processing"):
+        await cache_service.set_json(
+            f"files:progress:{file_id}",
+            {
+                "fileId": file_id,
+                "status": status,
+                "phase": phase,
+                "progress": progress,
+            },
+            ttl_seconds=60 * 60 * 24,
+        )
 
-    result = transcription_service.transcribe(media_bytes, file_name)
+    try:
+        await set_progress(8, "Downloading media")
+        media_bytes = storage_service.download_file(storage_key)
 
-    transcript = result["text"]
-    segments = result["segments"]
-    duration = result["duration"]
+        await set_progress(30, "Transcribing media")
+        result = transcription_service.transcribe(media_bytes, file_name)
 
-    # Get chunks with timestamps for embedding
-    chunks_with_ts = transcription_service.get_chunks_with_timestamps(segments)
+        transcript = result["text"]
+        segments = result["segments"]
+        duration = result["duration"]
 
-    chunk_texts = [c["text"] for c in chunks_with_ts]
-    timestamp_data = [
-        {"start_time": c["start_time"], "end_time": c["end_time"]}
-        for c in chunks_with_ts
-    ]
+        await set_progress(48, "Chunking transcript")
+        chunks_with_ts = transcription_service.get_chunks_with_timestamps(segments)
 
-    embedding_service.ingest_document(file_id, chunk_texts, timestamp_data)
+        chunk_texts = [c["text"] for c in chunks_with_ts]
+        timestamp_data = [
+            {"start_time": c["start_time"], "end_time": c["end_time"]}
+            for c in chunks_with_ts
+        ]
 
-    # Extract topic-level timestamps using LLM
-    topics = await timestamp_service.extract_topics(segments)
+        await set_progress(70, "Embedding transcript chunks")
+        embedding_service.ingest_document(file_id, chunk_texts, timestamp_data)
 
-    async with async_session() as session:
-        stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
-        res = await session.execute(stmt)
-        file_record = res.scalar_one_or_none()
-        if file_record:
-            file_record.transcript = transcript
-            file_record.duration_seconds = duration
-            file_record.status = "ready"
+        await set_progress(88, "Extracting topics")
+        topics = await timestamp_service.extract_topics(segments)
 
-        for topic in topics:
-            ts = MediaTimestamp(
-                file_id=uuid_mod.UUID(file_id),
-                start_time=topic.get("start_time", 0.0),
-                end_time=topic.get("end_time", 0.0),
-                text=topic.get("text", ""),
-                topic=topic.get("topic", ""),
-            )
-            session.add(ts)
+        async with async_session() as session:
+            stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
+            res = await session.execute(stmt)
+            file_record = res.scalar_one_or_none()
+            if file_record:
+                file_record.transcript = transcript
+                file_record.duration_seconds = duration
+                file_record.status = "ready"
 
-        await session.commit()
+            for topic in topics:
+                ts = MediaTimestamp(
+                    file_id=uuid_mod.UUID(file_id),
+                    start_time=topic.get("start_time", 0.0),
+                    end_time=topic.get("end_time", 0.0),
+                    text=topic.get("text", ""),
+                    topic=topic.get("topic", ""),
+                )
+                session.add(ts)
+
+            await session.commit()
+
+        await set_progress(100, "Ready", "ready")
+    except Exception:
+        async with async_session() as session:
+            stmt = select(File).where(File.file_id == uuid_mod.UUID(file_id))
+            result = await session.execute(stmt)
+            file_record = result.scalar_one_or_none()
+            if file_record:
+                file_record.status = "failed"
+                await session.commit()
+        await set_progress(100, "Processing failed", "failed")
+        raise

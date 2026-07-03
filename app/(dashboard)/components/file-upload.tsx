@@ -18,16 +18,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { getUploadCount, uploadFile } from "@/lib/api-client";
+import { getFileProgress, getUploadCount, uploadFile } from "@/lib/api-client";
+import type { ProgressToastJob } from "@/components/toasts-progress";
+import {
+  dismissToast,
+  showProgressToast,
+  showRetryToast,
+  showSuccessToast,
+} from "@/lib/app-toasts";
 
 interface UploadFile {
   file?: File;
   name: string;
   size: string;
   progress: number;
-  state: "uploading" | "done" | "paused";
+  state: "uploading" | "done" | "paused" | "failed";
   kind: "image" | "doc" | "file";
+  phase?: string;
 }
+
+const UPLOAD_TOAST_ID = "docwise-upload-progress";
 
 export function FileUpload({ children }: { children: React.ReactNode }) {
   const { getToken } = useAuth();
@@ -68,43 +78,134 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
   const onUpload = async () => {
     if (!files.length) return;
     if (remaining !== null && files.length > remaining) {
-      setError(`Daily upload limit reached (${dailyLimit} files/day).`);
+      const message = `Daily upload limit reached (${dailyLimit} files/day).`;
+      setError(message);
+      showRetryToast({
+        title: "Upload limit reached",
+        description: message,
+        retryLabel: "Dismiss",
+      });
       return;
     }
 
     setLoading(true);
     setError(null);
+    showProgress(files.map((file) => ({ ...file, progress: 0, phase: "Waiting" })));
     try {
       const token = await getToken();
       for (const item of files) {
         if (!item.file) continue;
-        setFiles((current) =>
-          current.map((f) =>
-            f.name === item.name
-              ? { ...f, state: "uploading", progress: Math.max(f.progress, 24) }
-              : f,
-          ),
-        );
-        await uploadFile(item.file, "", token);
-        setFiles((current) =>
-          current.map((f) =>
-            f.name === item.name ? { ...f, state: "done", progress: 100 } : f,
-          ),
-        );
+        updateFileProgress(item.name, {
+          state: "uploading",
+          progress: 0,
+          phase: "Uploading",
+        });
+        const uploaded = await uploadFile(item.file, "", token, (uploadProgress) => {
+          updateFileProgress(item.name, {
+            state: "uploading",
+            progress: Math.round(uploadProgress * 0.45),
+            phase: "Uploading",
+          });
+        });
+        await pollProcessingProgress(uploaded.fileId, item.name, token);
       }
       setLoading(false);
       setOpen(false);
+      dismissToast(UPLOAD_TOAST_ID);
+      showSuccessToast({
+        title: "Upload complete",
+        description: `${files.length} file${files.length === 1 ? "" : "s"} processed and ready.`,
+      });
       const { revalidateQueries } = await import("@/lib/hooks");
       revalidateQueries("/api/files");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
+      dismissToast(UPLOAD_TOAST_ID);
       if (msg.includes("429") || msg.toLowerCase().includes("daily upload limit")) {
-        setError(`Daily upload limit reached (${dailyLimit} files/day). Try again tomorrow.`);
+        const message = `Daily upload limit reached (${dailyLimit} files/day). Try again tomorrow.`;
+        setError(message);
+        showRetryToast({
+          title: "Upload limit reached",
+          description: message,
+          retryLabel: "Dismiss",
+        });
       } else {
-        setError("Upload failed. Please try again.");
+        const message = "Upload failed. Please try again.";
+        setError(message);
+        showRetryToast({
+          title: "Upload failed",
+          description: "The upload or processing job did not finish. Try again with the same files.",
+          onRetry: () => {
+            void onUpload();
+          },
+        });
       }
       setLoading(false);
     }
+  };
+
+  const updateFileProgress = (
+    fileName: string,
+    update: Partial<Pick<UploadFile, "progress" | "state" | "phase">>,
+  ) => {
+    setFiles((current) => {
+      const next = current.map((file) =>
+        file.name === fileName
+          ? {
+              ...file,
+              ...update,
+              progress: Math.max(0, Math.min(100, update.progress ?? file.progress)),
+            }
+          : file,
+      );
+      showProgress(next);
+      return next;
+    });
+  };
+
+  const pollProcessingProgress = async (
+    fileId: string,
+    fileName: string,
+    token?: string | null,
+  ) => {
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      const progress = await getFileProgress(fileId, token);
+      const backendProgress = Math.max(0, Math.min(100, Number(progress.progress) || 0));
+      const combinedProgress = progress.status === "ready"
+        ? 100
+        : Math.min(99, 45 + Math.round(backendProgress * 0.55));
+
+      updateFileProgress(fileName, {
+        state: progress.status === "failed" ? "failed" : "uploading",
+        progress: combinedProgress,
+        phase: progress.phase || "Processing",
+      });
+
+      if (progress.status === "ready") {
+        updateFileProgress(fileName, {
+          state: "done",
+          progress: 100,
+          phase: "Ready",
+        });
+        return;
+      }
+
+      if (progress.status === "failed") {
+        throw new Error("Processing failed");
+      }
+
+      await sleep(1500);
+    }
+
+    throw new Error("Processing timed out");
+  };
+
+  const showProgress = (items: UploadFile[]) => {
+    showProgressToast({
+      id: UPLOAD_TOAST_ID,
+      title: `Uploading ${items.filter((item) => item.state === "done").length} of ${items.length}`,
+      jobs: items.map(toProgressToastJob),
+    });
   };
 
   const reset = () => {
@@ -198,6 +299,8 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                           "h-full " +
                           (f.state === "done"
                             ? "bg-emerald-500"
+                            : f.state === "failed"
+                              ? "bg-destructive"
                             : f.state === "paused"
                               ? "bg-amber-500"
                               : "bg-foreground")
@@ -214,6 +317,8 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                   >
                     {f.state === "done" ? (
                       <CheckIcon className="size-3.5 text-emerald-600" />
+                    ) : f.state === "failed" ? (
+                      <XIcon className="size-3.5 text-destructive" />
                     ) : f.state === "paused" ? (
                       <PauseIcon className="size-3.5" />
                     ) : (
@@ -266,6 +371,16 @@ function toUploadFile(file: File): UploadFile {
   };
 }
 
+function toProgressToastJob(file: UploadFile): ProgressToastJob {
+  return {
+    id: file.name,
+    name: file.name,
+    size: file.phase ? `${file.size} · ${file.phase}` : file.size,
+    progress: file.progress,
+    kind: file.kind,
+  };
+}
+
 function getFileKind(file: File): UploadFile["kind"] {
   if (file.type.startsWith("image/")) return "image";
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
@@ -280,6 +395,10 @@ function formatBytes(bytes: number) {
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / 1024 ** index;
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function FileGlyph({ kind }: { kind: "image" | "doc" | "file" }) {
