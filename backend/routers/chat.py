@@ -325,7 +325,9 @@ async def chat_ask(
         raise
 
     cache_key = f"chat:ask:{body.file_id}:{model_profile['id']}:{model_profile['reasoning']}:{body.question.strip().lower()}"
-    cached_response = await cache_service.get_json(cache_key)
+    cached_response = None
+    if not model_profile["reasoning"]:
+        cached_response = await cache_service.get_json(cache_key)
 
     if cached_response:
         await _save_chat_pair(body.file_id, created_by, body.question, cached_response, db)
@@ -376,11 +378,12 @@ async def chat_ask(
             if response_parts:
                 full_response = "".join(response_parts)
                 await _save_chat_pair(body.file_id, created_by, body.question, full_response, db)
-                await cache_service.set_json(
-                    cache_key,
-                    full_response,
-                    ttl_seconds=settings.CACHE_TTL_CHAT_SECONDS,
-                )
+                if not model_profile["reasoning"]:
+                    await cache_service.set_json(
+                        cache_key,
+                        full_response,
+                        ttl_seconds=settings.CACHE_TTL_CHAT_SECONDS,
+                    )
 
             yield "data: [DONE]\n\n"
         except Exception as e:

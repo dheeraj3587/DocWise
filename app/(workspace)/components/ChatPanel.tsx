@@ -71,6 +71,7 @@ interface ChatPanelProps {
   emptyTitle?: string
   emptyDescription?: string
   className?: string
+  hideHeader?: boolean
   messages?: ChatMessage[]
   setMessages?: Dispatch<SetStateAction<ChatMessage[]>>
 }
@@ -118,6 +119,7 @@ export const ChatPanel = ({
   emptyTitle = 'Ask about this document',
   emptyDescription = 'Type a question below to get started',
   className,
+  hideHeader = false,
   messages: controlledMessages,
   setMessages: controlledSetMessages,
 }: ChatPanelProps) => {
@@ -136,7 +138,8 @@ export const ChatPanel = ({
   const [selectedModelId, setSelectedModelId] = useState('gpt-oss-120b')
   const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 })
 
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
+  const shouldAutoScrollRef = useRef(true)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const API_BASE = getApiBase()
@@ -149,13 +152,30 @@ export const ChatPanel = ({
 
   const modelLabel = useMemo(() => selectedModel?.name || 'Model', [selectedModel])
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' })
-  }, [isStreaming])
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const scrollEl = messagesScrollRef.current
+    if (!scrollEl) return
+
+    requestAnimationFrame(() => {
+      scrollEl.scrollTo({
+        top: scrollEl.scrollHeight,
+        behavior,
+      })
+    })
+  }, [])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
+    if (!shouldAutoScrollRef.current) return
+    scrollToBottom(isStreaming ? 'auto' : 'smooth')
+  }, [isStreaming, messages, scrollToBottom])
+
+  const handleMessagesScroll = useCallback(() => {
+    const scrollEl = messagesScrollRef.current
+    if (!scrollEl) return
+
+    const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight
+    shouldAutoScrollRef.current = distanceFromBottom < 180
+  }, [])
 
   useEffect(() => {
     if (isOpen) {
@@ -277,6 +297,7 @@ export const ChatPanel = ({
       reasoning: thinkEnabled,
     }
 
+    shouldAutoScrollRef.current = true
     setMessages((prev) => [...prev, userMsg, assistantMsg])
     setInput('')
     setIsStreaming(true)
@@ -395,55 +416,60 @@ export const ChatPanel = ({
 
   const chatContent = (
     <div className="flex h-full w-full flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-        <div className="min-w-0">
-          <div className="font-mono text-[10px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
-            {title}
+      {!hideHeader ? (
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
+              {title}
+            </div>
+            <div className="mt-1 truncate text-[11px] text-muted-foreground">{subtitle}</div>
           </div>
-          <div className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="hidden rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex">
+              {credits.remaining}/{credits.limit} credits
+            </span>
+            {!embedded ? (
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                aria-label="Close chat"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="hidden rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground sm:inline-flex">
-            {credits.remaining}/{credits.limit} credits
-          </span>
-          {!embedded ? (
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label="Close chat"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
-      </div>
+      ) : null}
 
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="mx-auto h-full w-full max-w-4xl">
-          <div className="custom-scrollbar h-full overflow-y-auto px-4 py-5">
+          <div
+            ref={messagesScrollRef}
+            onScroll={handleMessagesScroll}
+            className="custom-scrollbar h-full overflow-y-auto px-4 py-5"
+          >
             {messages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
                 <MessageCircle className={cn('mb-3 opacity-35', compact ? 'h-8 w-8' : 'h-10 w-10')} />
-                <p className="text-sm font-medium text-foreground">{emptyTitle}</p>
+                <p className="text-[13px] font-medium text-foreground">{emptyTitle}</p>
                 <p className="mt-1 max-w-xs text-xs leading-relaxed">{fileId ? emptyDescription : 'Upload or open a ready document to start chatting.'}</p>
               </div>
             ) : (
-              <div className={cn('space-y-5', compact && 'space-y-4')}>
+              <div className={cn('space-y-4', compact && 'space-y-3')}>
                 {messages.map((message) => (
                   <ChatMessageBubble key={message.id} message={message} compact={compact} />
                 ))}
               </div>
             )}
-            <div ref={messagesEndRef} />
           </div>
         </div>
       </div>
 
       <div className={cn('shrink-0 p-4', compact && 'p-3')}>
         <div className="mx-auto w-full max-w-4xl">
-          <div className="grid gap-4">
-            <div className="overflow-visible rounded-[28px] border border-border bg-secondary/45 shadow-xs/5">
+          <div className="grid gap-3">
+            <div className="overflow-visible rounded-[24px] border border-border bg-secondary/45 shadow-xs/5">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -453,12 +479,12 @@ export const ChatPanel = ({
                 disabled={isStreaming || !fileId}
                 rows={compact ? 2 : 3}
                 className={cn(
-                  'block w-full resize-none bg-transparent px-5 pt-4 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60 md:text-base',
-                  compact ? 'min-h-[58px]' : 'min-h-[82px]',
+                  'block w-full resize-none bg-transparent px-4 pt-3 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60',
+                  compact ? 'min-h-[52px]' : 'min-h-[72px]',
                 )}
               />
-              <div className={cn('flex flex-wrap items-center justify-between gap-2 p-2.5', compact && 'p-2')}>
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className={cn('flex flex-wrap items-center justify-between gap-2 p-2', compact && 'p-1.5')}>
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                   <div className="relative">
                     <ToolButton
                       ariaLabel="Attach"
@@ -466,13 +492,13 @@ export const ChatPanel = ({
                       active={attachMenuOpen}
                       onClick={() => setAttachMenuOpen((open) => !open)}
                     >
-                      <PaperclipIcon className="h-4 w-4" />
+                      <PaperclipIcon className="h-3.5 w-3.5" />
                       <span className="sr-only">Attach</span>
                     </ToolButton>
                     {attachMenuOpen ? (
-                      <div className="absolute bottom-10 left-0 z-20 w-44 overflow-hidden rounded-lg border border-border bg-popover p-1 text-sm shadow-xl shadow-black/20">
-                        <AttachItem icon={<FileIcon className="h-4 w-4" />} label="Upload file" />
-                        <AttachItem icon={<ImageIcon className="h-4 w-4" />} label="Upload photo" />
+                      <div className="absolute bottom-10 left-0 z-50 w-40 overflow-hidden rounded-lg border border-border bg-popover p-1 text-xs shadow-xl shadow-black/20">
+                        <AttachItem icon={<FileIcon className="h-3.5 w-3.5" />} label="Upload file" />
+                        <AttachItem icon={<ImageIcon className="h-3.5 w-3.5" />} label="Upload photo" />
                       </div>
                     ) : null}
                   </div>
@@ -485,16 +511,16 @@ export const ChatPanel = ({
                       className="rounded-l-full rounded-r-none border-0"
                       onClick={() => setDeepSearchEnabled((active) => !active)}
                     >
-                      <SearchIcon className="h-4 w-4" />
+                      <SearchIcon className="h-3.5 w-3.5" />
                       <span className={compact ? 'hidden sm:inline' : ''}>DeepSearch</span>
                     </ToolButton>
-                    <div className="h-7 w-px bg-border" />
+                    <div className="h-6 w-px bg-border" />
                     <ToolButton
                       ariaLabel="DeepSearch options"
                       disabled={isStreaming}
                       className="rounded-l-none rounded-r-full border-0 px-2"
                     >
-                      <ChevronDownIcon className="h-4 w-4" />
+                      <ChevronDownIcon className="h-3.5 w-3.5" />
                     </ToolButton>
                   </div>
 
@@ -504,17 +530,18 @@ export const ChatPanel = ({
                     disabled={isStreaming}
                     onClick={() => setThinkEnabled((active) => !active)}
                   >
-                    <LightbulbIcon className="h-4 w-4" />
+                    <LightbulbIcon className="h-3.5 w-3.5" />
                     <span>Think</span>
                     <span className="text-[10px] text-muted-foreground">+{THINK_CREDIT_SURCHARGE}</span>
                   </ToolButton>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <ModelSelect
                     models={models}
                     selectedModelId={selectedModelId}
                     selectedCreditCost={selectedCreditCost}
+                    thinkEnabled={thinkEnabled}
                     open={modelMenuOpen}
                     disabled={isStreaming}
                     onOpenChange={setModelMenuOpen}
@@ -528,7 +555,7 @@ export const ChatPanel = ({
                     disabled={isStreaming}
                     className="bg-foreground font-medium text-background hover:bg-foreground/90 hover:text-background"
                   >
-                    <AudioWaveformIcon className="h-4 w-4" />
+                    <AudioWaveformIcon className="h-3.5 w-3.5" />
                     <span className="sr-only">Voice</span>
                   </ToolButton>
                   <button
@@ -536,9 +563,9 @@ export const ChatPanel = ({
                     onClick={handleSend}
                     disabled={isStreaming || !input.trim() || !fileId}
                     aria-label="Send message"
-                    className="grid h-9 w-9 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="grid h-8 w-8 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {isStreaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   </button>
                 </div>
               </div>
@@ -577,13 +604,13 @@ function ChatMessageBubble({ message, compact }: { message: ChatMessage; compact
         className={cn(
           'max-w-[88%]',
           isUser
-            ? 'rounded-[24px] rounded-br-sm border border-border bg-background px-4 py-3 text-foreground'
+            ? 'rounded-[22px] rounded-br-sm border border-border bg-background px-3.5 py-2.5 text-foreground'
             : 'text-foreground',
           compact && isUser && 'px-3.5 py-2.5',
         )}
       >
         {!message.content ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
             {message.reasoning ? (
               <ThinkingIndicator className="px-0 py-0" />
             ) : (
@@ -594,9 +621,9 @@ function ChatMessageBubble({ message, compact }: { message: ChatMessage; compact
             )}
           </div>
         ) : isUser ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+          <p className="whitespace-pre-wrap text-[13px] leading-6">{message.content}</p>
         ) : (
-          <div className="prose prose-sm max-w-none text-foreground dark:prose-invert prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border">
+          <div className="prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border">
             <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>
               {normalizeMathDelimiters(message.content)}
             </ReactMarkdown>
@@ -629,7 +656,7 @@ function ToolButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'inline-flex h-9 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50',
         active && 'bg-foreground text-background hover:bg-foreground/90 hover:text-background',
         active && '[&_span]:text-background/70',
         className,
@@ -656,6 +683,7 @@ function ModelSelect({
   models,
   selectedModelId,
   selectedCreditCost,
+  thinkEnabled,
   open,
   disabled,
   onOpenChange,
@@ -664,6 +692,7 @@ function ModelSelect({
   models: ModelOption[]
   selectedModelId: string
   selectedCreditCost: number
+  thinkEnabled: boolean
   open: boolean
   disabled?: boolean
   onOpenChange: (open: boolean) => void
@@ -679,32 +708,33 @@ function ModelSelect({
         type="button"
         disabled={disabled}
         onClick={() => onOpenChange(!open)}
-        className="inline-flex h-9 min-w-[132px] items-center justify-between gap-2 rounded-full border border-border bg-background/50 px-3 text-left text-xs text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-8 min-w-[120px] max-w-[170px] items-center justify-between gap-2 rounded-full border border-border bg-background/70 px-2.5 text-left text-[11px] text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="min-w-0 truncate">{selected.name}</span>
-        <ChevronDownIcon className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        <ChevronDownIcon className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
 
       {open ? (
-        <div className="absolute bottom-11 right-0 z-20 w-64 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-xl shadow-black/20">
+        <div className="absolute bottom-10 right-0 z-[100] max-h-56 w-[230px] overflow-y-auto rounded-xl border border-border bg-background p-1 shadow-2xl shadow-black/40">
           {models.map((model) => {
             const active = model.id === selected.id
+            const creditCost = model.creditCost + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
             return (
               <button
                 key={model.id}
                 type="button"
                 onClick={() => onModelChange(model)}
                 className={cn(
-                  'flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2.5 text-left transition-colors',
+                  'flex w-full items-start justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors',
                   active ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                 )}
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">{model.name}</span>
-                  <span className="mt-0.5 block line-clamp-2 text-xs opacity-75">{model.description}</span>
+                  <span className="block truncate text-[12px] font-medium">{model.name}</span>
+                  <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 opacity-75">{model.description}</span>
                 </span>
-                <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px]">
-                  {active ? selectedCreditCost : model.creditCost}
+                <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[9px]">
+                  {active ? selectedCreditCost : creditCost}
                 </span>
               </button>
             )
