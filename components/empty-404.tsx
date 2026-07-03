@@ -1,7 +1,12 @@
+"use client";
+
 import { ArrowLeftIcon, HomeIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export function Empty404ShowcasePage() {
+  const router = useRouter();
+
   return (
     <div className="relative min-h-svh overflow-hidden bg-background">
       <Grid />
@@ -21,11 +26,11 @@ export function Empty404ShowcasePage() {
         </p>
 
         <div className="mt-8 flex items-center gap-2">
-          <Button variant="outline" size="default">
+          <Button variant="outline" size="default" onClick={() => router.back()}>
             <ArrowLeftIcon />
             Go back
           </Button>
-          <Button size="default">
+          <Button size="default" onClick={() => router.push("/")}>
             <HomeIcon />
             Take me home
           </Button>

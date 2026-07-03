@@ -2,7 +2,6 @@
 
 import { type FormEvent, useRef, useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,16 +69,17 @@ function MagicLinkForm() {
 
 function ClerkMagicLinkForm() {
   const formRef = useRef<HTMLFormElement>(null);
-  const router = useRouter();
   const typingImpulse = useAuthTypingImpulse();
-  const { isLoaded, signIn, setActive } = useSignIn();
+  const { isLoaded, signIn } = useSignIn();
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const launchEmailLinkFlow = async (targetEmail: string) => {
-    if (!isLoaded || !signIn) return;
+    if (!isLoaded || !signIn) {
+      throw new Error("Authentication is still loading. Please try again in a moment.");
+    }
 
     const normalizedEmail = targetEmail.trim().toLowerCase();
     const signInAttempt = await signIn.create({
@@ -93,30 +93,24 @@ function ClerkMagicLinkForm() {
       throw new Error("Email link sign-in is not enabled for this account.");
     }
 
-    const { startEmailLinkFlow } = signIn.createEmailLinkFlow();
+    await signInAttempt.prepareFirstFactor({
+      strategy: "email_link",
+      emailAddressId: emailLinkFactor.emailAddressId,
+      redirectUrl: `${window.location.origin}/login/verify`,
+    });
 
     setSentTo(normalizedEmail);
     setPending(false);
-
-    void startEmailLinkFlow({
-      emailAddressId: emailLinkFactor.emailAddressId,
-      redirectUrl: `${window.location.origin}/login/verify`,
-    })
-      .then(async (completedSignIn) => {
-        if (completedSignIn.status === "complete" && completedSignIn.createdSessionId) {
-          await setActive({ session: completedSignIn.createdSessionId });
-          router.push("/dashboard");
-        }
-      })
-      .catch((err) => {
-        setError(getClerkErrorMessage(err));
-      });
   };
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!email.trim() || !isLoaded || !signIn) return;
+    if (!email.trim()) return;
     pulseParticleSubmitImpulse(typingImpulse);
+    if (!isLoaded || !signIn) {
+      setError("Authentication is still loading. Please try again in a moment.");
+      return;
+    }
     setError(null);
     setPending(true);
     try {
@@ -174,12 +168,12 @@ function ClerkMagicLinkForm() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            disabled={pending || !isLoaded}
+            disabled={pending}
             nativeInput
           />
         </div>
 
-        <Button type="submit" size="lg" loading={pending} disabled={!isLoaded} className="mt-2">
+        <Button type="submit" size="lg" loading={pending} disabled={pending} className="mt-2">
           Send sign-in link
         </Button>
         <p className="text-center text-muted-foreground text-xs">
