@@ -10,10 +10,9 @@ import {
   Music,
   Search,
   Trash2,
-  Upload,
   Video,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   bumpParticleTypingImpulse,
@@ -25,7 +24,7 @@ import { deleteFile, type FileRecord } from "@/lib/api-client";
 import { useApiQuery } from "@/lib/hooks";
 import { FileUpload } from "../components/file-upload";
 
-const QUOTA = 50;
+
 
 export default function Dashboard() {
   const { user } = useUser();

@@ -432,7 +432,7 @@ function ReadyStep({
   return (
     <>
       <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
-        You're set
+        You&apos;re set
       </div>
       <h1 className="mt-2 font-heading text-3xl leading-tight">
         Welcome, {name}.
