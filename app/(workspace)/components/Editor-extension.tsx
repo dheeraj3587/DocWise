@@ -24,6 +24,7 @@ import { saveNote } from "@/lib/api-client";
 import { useAuth } from "@clerk/nextjs";
 import { useParams } from "next/navigation";
 import { renderMarkdownWithMath } from "@/lib/markdown-math";
+import { getApiBase } from "@/lib/api-base";
 
 interface EditorExtensionProps {
   editor: Editor | null;
@@ -36,7 +37,7 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
   const [deepMode, setDeepMode] = useState(false);
 
   const { fileId } = useParams();
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_BASE = getApiBase();
 
   useEffect(() => {
     if (!editor) return;

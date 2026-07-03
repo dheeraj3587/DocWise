@@ -9,6 +9,7 @@ import { ArrowLeft, Download, FileText, MessageCircle, Save, Sparkles } from "lu
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { escapeHtml, renderMarkdownWithMath } from "@/lib/markdown-math";
+import { getApiBase } from "@/lib/api-base";
 import type { ChatMessage } from "./ChatPanel";
 import type { LeftPanelView } from "../workspace/[fileId]/page";
 
@@ -31,7 +32,7 @@ export const WorkspaceHeader = ({
   const [summarizing, setSummarizing] = useState(false);
 
   const { getToken } = useAuth();
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_BASE = getApiBase();
 
   const handleSave = async () => {
     setLoading(true);

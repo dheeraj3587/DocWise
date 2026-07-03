@@ -200,7 +200,7 @@ jobs:
             timeout 8m docker build --progress=plain -f backend/Dockerfile -t docwise-backend .
             timeout 8m docker build --progress=plain -f backend/Dockerfile.worker -t docwise-worker .
             timeout 8m docker build --progress=plain \
-              --build-arg NEXT_PUBLIC_API_URL=https://app.dheerajjoshi.dev/api \
+              --build-arg NEXT_PUBLIC_API_URL=https://app.dheerajjoshi.dev \
               --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}" \
               -f Dockerfile -t docwise-frontend .
             echo "==> Restarting containers..."

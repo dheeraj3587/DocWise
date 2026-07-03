@@ -63,9 +63,11 @@ class Settings(BaseSettings):
     RATE_LIMIT_NOTES_PER_MINUTE: int = 120
 
     # LLM usage guardrails
-    LLM_DAILY_BUDGET_UNITS_PER_USER: int = 500
+    LLM_DAILY_BUDGET_UNITS_PER_USER: int = 30
     LLM_MAX_CONCURRENT_STREAMS_PER_USER: int = 3
     CHAT_DAILY_LIMIT_PER_USER: int = 30
+    CHAT_FAST_CREDIT_COST: int = 1
+    CHAT_DEEP_CREDIT_COST: int = 3
 
     # Upload limits
     MAX_UPLOAD_SIZE_MB: int = 50
@@ -99,7 +101,10 @@ class Settings(BaseSettings):
             if not stripped:
                 return []
             if stripped.startswith("["):
-                return json.loads(stripped)
+                try:
+                    return json.loads(stripped)
+                except json.JSONDecodeError:
+                    stripped = stripped.strip("[]")
             return [part.strip() for part in stripped.split(",") if part.strip()]
         return ["http://localhost:3000"]
 

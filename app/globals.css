@@ -51,6 +51,16 @@
   --color-gold-dark: #b8952e;
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: 0% 0;
+  }
+
+  100% {
+    background-position: 100% 0;
+  }
+}
+
 :root {
   --radius: 0.625rem;
   --background: #f7f4ee;
@@ -413,4 +423,13 @@ footer,
   --tw-prose-hr: rgba(255, 255, 255, 0.08);
   --tw-prose-th-borders: rgba(255, 255, 255, 0.1);
   --tw-prose-td-borders: rgba(255, 255, 255, 0.06);
+}
+
+.shimmer-text {
+    color: transparent;
+    background: linear-gradient(90deg, #a3a3a3 0%, #a3a3a3 35%, #525252 50%, #a3a3a3 65%, #a3a3a3 100%);
+    background-size: 300% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    animation: shimmer 1.5s ease-in-out infinite;
 }

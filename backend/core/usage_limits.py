@@ -53,6 +53,7 @@ class UsageLimiter:
                 if current == units:
                     await redis.expire(key, 86400)
                 if int(current) > limit:
+                    await redis.decrby(key, units)
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                         detail="Daily usage budget exceeded",
@@ -91,12 +92,38 @@ class UsageLimiter:
                 expires_at = now + 86400
                 created_at = now
             current += units
-            self._memory_daily_units[key] = (current, expires_at, created_at)
             if current > limit:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail="Daily usage budget exceeded",
                 )
+            self._memory_daily_units[key] = (current, expires_at, created_at)
+
+    async def get_daily_units(self, user_scope: str, endpoint: str) -> int:
+        day = self._day_key()
+        key = f"usage:{endpoint}:{user_scope}:{day}"
+
+        try:
+            redis = await self._get_redis()
+        except Exception:
+            redis = None
+        if redis is not None:
+            try:
+                value = await redis.get(key)
+                return int(value or 0)
+            except Exception:
+                pass
+
+        now = time.time()
+        async with self._lock:
+            value = self._memory_daily_units.get(key)
+            if value is None:
+                return 0
+            current, expires_at, _ = value
+            if now >= expires_at:
+                self._memory_daily_units.pop(key, None)
+                return 0
+            return current
 
     async def acquire_stream_slot(self, user_scope: str) -> None:
         limit = max(1, settings.LLM_MAX_CONCURRENT_STREAMS_PER_USER)

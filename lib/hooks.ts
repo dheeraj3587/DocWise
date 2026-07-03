@@ -7,8 +7,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { getApiBase } from "@/lib/api-base";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = getApiBase();
 
 function buildHeaders(token?: string | null): Record<string, string> {
   const headers: Record<string, string> = {

@@ -4,7 +4,9 @@
  * with standard fetch calls authenticated via Clerk JWT.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { getApiBase } from "@/lib/api-base";
+
+const API_BASE = getApiBase();
 
 function buildHeaders(token?: string | null): HeadersInit {
   const headers: Record<string, string> = {

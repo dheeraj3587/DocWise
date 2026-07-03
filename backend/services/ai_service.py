@@ -17,21 +17,31 @@ class AIService:
             base_url=settings.CEREBRAS_BASE_URL,
         )
 
-    def _get_model(self, deep_mode: bool = False) -> str:
+    def _get_model(self, deep_mode: bool = False, model: Optional[str] = None) -> str:
         """Return the appropriate Cerebras model based on mode."""
+        if model:
+            return model
         return settings.CEREBRAS_DEEP_MODEL if deep_mode else settings.CEREBRAS_CHAT_MODEL
 
-    def _get_reasoning_effort(self, deep_mode: bool = False) -> str:
+    def _get_reasoning_effort(self, deep_mode: bool = False, reasoning_effort: Optional[str] = None) -> str:
         """Return reasoning effort for the selected mode."""
+        if reasoning_effort:
+            return reasoning_effort
         if deep_mode:
             return settings.CEREBRAS_DEEP_REASONING_EFFORT
         return settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT
 
-    async def _stream_prompt(self, prompt: str, deep_mode: bool = False) -> AsyncGenerator[str, None]:
+    async def _stream_prompt(
+        self,
+        prompt: str,
+        deep_mode: bool = False,
+        model: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+    ) -> AsyncGenerator[str, None]:
         stream = await self.client.chat.completions.create(
-            model=self._get_model(deep_mode),
+            model=self._get_model(deep_mode, model=model),
             messages=[{"role": "user", "content": prompt}],
-            reasoning_effort=self._get_reasoning_effort(deep_mode),
+            reasoning_effort=self._get_reasoning_effort(deep_mode, reasoning_effort=reasoning_effort),
             stream=True,
         )
         async for chunk in stream:
@@ -39,18 +49,29 @@ class AIService:
             if text:
                 yield text
 
-    async def _complete_prompt(self, prompt: str, deep_mode: bool = False) -> str:
+    async def _complete_prompt(
+        self,
+        prompt: str,
+        deep_mode: bool = False,
+        model: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+    ) -> str:
         response = await self.client.chat.completions.create(
-            model=self._get_model(deep_mode),
+            model=self._get_model(deep_mode, model=model),
             messages=[{"role": "user", "content": prompt}],
-            reasoning_effort=self._get_reasoning_effort(deep_mode),
+            reasoning_effort=self._get_reasoning_effort(deep_mode, reasoning_effort=reasoning_effort),
         )
         if not response.choices:
             return ""
         return response.choices[0].message.content or ""
 
     async def chat_stream(
-        self, question: str, context_chunks: List[Dict[str, Any]], deep_mode: bool = False
+        self,
+        question: str,
+        context_chunks: List[Dict[str, Any]],
+        deep_mode: bool = False,
+        model: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Stream a RAG-based answer. Yields chunks of text for SSE.
@@ -97,7 +118,12 @@ Question: {question}
 
 Answer:"""
 
-        async for text in self._stream_prompt(prompt, deep_mode=deep_mode):
+        async for text in self._stream_prompt(
+            prompt,
+            deep_mode=deep_mode,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        ):
             yield text
 
     async def chat_no_context(self, question: str, deep_mode: bool = False) -> AsyncGenerator[str, None]:

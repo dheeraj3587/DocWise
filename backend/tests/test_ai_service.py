@@ -71,6 +71,19 @@ class TestAIServiceModelSelection:
         assert svc._get_reasoning_effort(deep_mode=False) == "low"
         assert svc._get_reasoning_effort(deep_mode=True) == "high"
 
+    @patch("services.ai_service.settings")
+    @patch("services.ai_service.AsyncOpenAI")
+    def test_explicit_model_and_reasoning_override(self, mock_client, mock_settings):
+        mock_settings.CEREBRAS_REASONING_EFFORT = "low"
+        mock_settings.CEREBRAS_CHAT_REASONING_EFFORT = "low"
+        mock_settings.CEREBRAS_DEEP_REASONING_EFFORT = "high"
+        svc = AIService()
+        assert svc._get_model(deep_mode=False, model="zai-glm-4.7") == "zai-glm-4.7"
+        assert svc._get_reasoning_effort(
+            deep_mode=False,
+            reasoning_effort="high",
+        ) == "high"
+
 
 @pytest.mark.asyncio
 class TestAIServiceChat:

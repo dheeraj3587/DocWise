@@ -13,6 +13,30 @@ from models.file import File as FileModel
 class TestChat:
     """Tests for /api/chat endpoints."""
 
+    async def test_chat_models_endpoint_lists_available_models(self, client):
+        """Test model picker metadata is available to the frontend."""
+        response = await client.get("/api/chat/models")
+
+        assert response.status_code == 200
+        models = response.json()
+        assert {model["id"] for model in models} == {
+            "gpt-oss-120b",
+            "gemma-4-31b",
+            "zai-glm-4.7",
+        }
+        glm = next(model for model in models if model["id"] == "zai-glm-4.7")
+        assert glm["reasoning"] is True
+        assert glm["creditCost"] > 1
+
+    async def test_chat_credits_endpoint_returns_daily_budget(self, client):
+        """Test credit usage metadata for the authenticated user."""
+        with patch("routers.chat.usage_limiter.get_daily_units", new_callable=AsyncMock) as mock_used:
+            mock_used.return_value = 7
+            response = await client.get("/api/chat/credits")
+
+        assert response.status_code == 200
+        assert response.json() == {"used": 7, "limit": 30, "remaining": 23}
+
     async def test_chat_ask_stream(self, client, mock_embedding_service, create_owned_file):
         """Test chat ask endpoint returns streaming response."""
         file_id = await create_owned_file()
@@ -127,6 +151,45 @@ class TestChat:
         )
         assert second.status_code == 429
         assert "Daily chat limit reached" in second.text
+
+    async def test_reasoning_model_consumes_more_credits(
+        self,
+        client,
+        mock_embedding_service,
+        mock_ai_service,
+        create_owned_file,
+        monkeypatch,
+    ):
+        """Test deep reasoning is blocked sooner by the credit budget."""
+        file_id = await create_owned_file()
+        monkeypatch.setattr("routers.chat.settings.LLM_DAILY_BUDGET_UNITS_PER_USER", 4)
+        monkeypatch.setattr("routers.chat.settings.CHAT_FAST_CREDIT_COST", 1)
+        monkeypatch.setattr("routers.chat.settings.CHAT_DEEP_CREDIT_COST", 3)
+
+        with patch("routers.chat.usage_limiter._get_redis", new_callable=AsyncMock, return_value=None):
+            routers_chat_limiter = __import__("routers.chat", fromlist=["usage_limiter"]).usage_limiter
+            routers_chat_limiter._memory_daily_units.clear()
+
+            first = await client.post(
+                "/api/chat/ask",
+                json={
+                    "question": "Deep one?",
+                    "file_id": file_id,
+                    "model_id": "zai-glm-4.7",
+                },
+            )
+            assert first.status_code == 200
+
+            second = await client.post(
+                "/api/chat/ask",
+                json={
+                    "question": "Deep two?",
+                    "file_id": file_id,
+                    "model_id": "zai-glm-4.7",
+                },
+            )
+            assert second.status_code == 429
+            assert "Daily credit limit reached" in second.text
 
 
 @pytest.mark.asyncio

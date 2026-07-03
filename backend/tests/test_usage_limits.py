@@ -39,6 +39,13 @@ class TestUsageLimiterDailyUnits:
                 with pytest.raises(HTTPException) as exc:
                     await ul.consume_daily_units("user:test3", "chat", 6)
                 assert exc.value.status_code == 429
+                assert await ul.get_daily_units("user:test3", "chat") == 6
+
+    async def test_get_daily_units_returns_current_memory_count(self):
+        ul = UsageLimiter()
+        with patch.object(ul, "_get_redis", new_callable=AsyncMock, return_value=None):
+            await ul.consume_daily_units("user:test4", "chat", 3)
+            assert await ul.get_daily_units("user:test4", "chat") == 3
 
 
 @pytest.mark.asyncio
@@ -118,6 +125,10 @@ class TestUsageLimiterRedis:
                 with pytest.raises(HTTPException) as exc:
                     await ul.consume_daily_units("user", "chat", 1)
                 assert exc.value.status_code == 429
+                mock_redis.decrby.assert_awaited_with(
+                    f"usage:chat:user:{UsageLimiter._day_key()}",
+                    1,
+                )
 
     @pytest.mark.asyncio
     async def test_acquire_stream_slot_redis(self):

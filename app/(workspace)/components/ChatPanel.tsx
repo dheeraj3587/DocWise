@@ -3,18 +3,22 @@
 import { Dispatch, SetStateAction, useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { useParams } from 'next/navigation'
-import { Send, Brain, Sparkle, MessageCircle, X, Loader2 } from 'lucide-react'
+import { Send, Sparkle, MessageCircle, X, Loader2, CircleGauge } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ThinkingIndicator } from '@/components/ui/thinking-indicator'
+import { ModelDropdown, type ModelOption } from '@/components/ui/model-dropdown'
+import { getApiBase } from '@/lib/api-base'
 
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  reasoning?: boolean
 }
 
 interface ChatPanelProps {
@@ -34,15 +38,20 @@ export const ChatPanel = ({
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [deepMode, setDeepMode] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [models, setModels] = useState<ModelOption[]>([])
+  const [selectedModelId, setSelectedModelId] = useState('gpt-oss-120b')
+  const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 })
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const API_BASE = getApiBase()
   const messages = controlledMessages ?? localMessages
   const setMessages = controlledSetMessages ?? setLocalMessages
+  const selectedModel = models.find((model) => model.id === selectedModelId) || models[0]
+  const reasoningActive = Boolean(selectedModel?.reasoning)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' })
@@ -102,6 +111,77 @@ export const ChatPanel = ({
     }
   }, [API_BASE, fileId, getToken, setMessages])
 
+  const refreshCredits = useCallback(async () => {
+    try {
+      const token = await getToken()
+      const response = await fetch(`${API_BASE}/api/chat/credits`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+      if (!response.ok) return
+      const data = await response.json()
+      setCredits({
+        used: Number(data.used || 0),
+        limit: Number(data.limit || 30),
+        remaining: Number(data.remaining || 0),
+      })
+    } catch {
+      // Credits are advisory in the UI; the backend still enforces them.
+    }
+  }, [API_BASE, getToken])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadModels = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/chat/models`)
+        if (!response.ok) return
+        const data: ModelOption[] = await response.json()
+        if (cancelled || data.length === 0) return
+        setModels(data)
+        setSelectedModelId((current) => (data.some((model) => model.id === current) ? current : data[0].id))
+      } catch {
+        if (!cancelled) {
+          setModels([
+            {
+              id: 'gpt-oss-120b',
+              name: 'GPT OSS 120B',
+              description: 'Fast document Q&A for everyday questions.',
+              creditCost: 1,
+              reasoning: false,
+              badge: 'Fast',
+            },
+            {
+              id: 'gemma-4-31b',
+              name: 'Gemma 4 31B',
+              description: 'Document and multimodal reasoning model.',
+              creditCost: 1,
+              reasoning: false,
+              badge: 'Docs',
+            },
+            {
+              id: 'zai-glm-4.7',
+              name: 'GLM 4.7 Reasoning',
+              description: 'Deep reasoning for harder questions.',
+              creditCost: 3,
+              reasoning: true,
+              badge: 'Deep',
+            },
+          ])
+        }
+      }
+    }
+
+    loadModels()
+    refreshCredits()
+
+    return () => {
+      cancelled = true
+    }
+  }, [API_BASE, refreshCredits])
+
   const handleSend = async () => {
     const question = input.trim()
     if (!question || isStreaming) return
@@ -116,6 +196,7 @@ export const ChatPanel = ({
       id: crypto.randomUUID(),
       role: 'assistant',
       content: '',
+      reasoning: reasoningActive,
     }
 
     setMessages((prev) => [...prev, userMsg, assistantMsg])
@@ -133,7 +214,8 @@ export const ChatPanel = ({
         body: JSON.stringify({
           question,
           file_id: fileId,
-          deep_mode: deepMode,
+          deep_mode: reasoningActive,
+          model_id: selectedModel?.id,
         }),
       })
 
@@ -195,6 +277,7 @@ export const ChatPanel = ({
       })
     } finally {
       setIsStreaming(false)
+      refreshCredits()
     }
   }
 
@@ -221,26 +304,23 @@ export const ChatPanel = ({
     <>
       {/* Header */}
       <div className="flex-between px-4 py-3 border-b border-border shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <Sparkle className="w-4 h-4 text-gold" />
           <span className="font-semibold text-sm text-foreground">AI Chat</span>
-          <span className="text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 surface-3 rounded">
-            {deepMode ? 'GPT-OSS Deep' : 'GPT-OSS'}
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-muted-foreground font-medium px-1.5 py-0.5 surface-3 rounded">
+            <CircleGauge className="h-3 w-3" />
+            {credits.remaining}/{credits.limit}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setDeepMode(!deepMode)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${deepMode
-              ? 'bg-accent text-accent-foreground hover:bg-accent/80'
-              : 'surface-3 text-muted-foreground hover:text-foreground'
-              }`}
-            title={deepMode ? 'Deep Mode ON' : 'Deep Mode OFF'}
-          >
-            <Brain className="w-3.5 h-3.5" />
-            {deepMode ? 'Deep' : 'Fast'}
-          </button>
+        <div className="flex items-center gap-2">
+          <ModelDropdown
+            models={models}
+            isOpen={modelMenuOpen}
+            onOpenChange={setModelMenuOpen}
+            selectedModelId={selectedModelId}
+            onModelChange={(model) => setSelectedModelId(model.id)}
+            disabled={isStreaming}
+          />
           {!embedded && (
             <button
               type="button"
@@ -282,8 +362,14 @@ export const ChatPanel = ({
                 )
               ) : (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Thinking...
+                  {msg.reasoning ? (
+                    <ThinkingIndicator className="px-0 py-0" />
+                  ) : (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Thinking...
+                    </>
+                  )}
                 </span>
               )}
             </div>

@@ -37,6 +37,10 @@ class TestParseCorOrigins:
         monkeypatch.setenv("CORS_ORIGINS", '["https://app.dheerajjoshi.dev"]')
         assert Settings().cors_origins == ["https://app.dheerajjoshi.dev"]
 
+    def test_settings_accepts_compose_bracketed_env(self, monkeypatch):
+        monkeypatch.setenv("CORS_ORIGINS", "[https://app.dheerajjoshi.dev]")
+        assert Settings().cors_origins == ["https://app.dheerajjoshi.dev"]
+
 
 class TestParseApiKeys:
     """Tests for Settings.parse_api_keys validator."""

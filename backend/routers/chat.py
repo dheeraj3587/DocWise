@@ -15,6 +15,7 @@ from core.cache import cache_service
 from core.security import get_current_user
 from core.rate_limit import rate_limit
 from core.config import settings
+from core.usage_limits import usage_limiter
 from models.database import get_db
 from models.chat_message import ChatMessage
 from models.file import File as FileModel
@@ -30,6 +31,7 @@ class ChatRequest(BaseModel):
     question: str
     file_id: str
     deep_mode: bool = False
+    model_id: str | None = None
 
 
 class SummarizeRequest(BaseModel):
@@ -44,8 +46,73 @@ class ChatMessageResponse(BaseModel):
     createdAt: str
 
 
+class ChatModelResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    creditCost: int
+    reasoning: bool
+    badge: str | None = None
+
+
+class ChatCreditsResponse(BaseModel):
+    used: int
+    limit: int
+    remaining: int
+
+
 def _user_identity(user: dict) -> str:
     return user.get("email") or user.get("sub") or ""
+
+
+def _available_chat_models() -> list[dict]:
+    fast_cost = max(1, settings.CHAT_FAST_CREDIT_COST)
+    deep_cost = max(fast_cost + 1, settings.CHAT_DEEP_CREDIT_COST)
+    return [
+        {
+            "id": "gpt-oss-120b",
+            "name": "GPT OSS 120B",
+            "description": "Fast document Q&A for everyday questions.",
+            "model": "gpt-oss-120b",
+            "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
+            "creditCost": fast_cost,
+            "reasoning": False,
+            "badge": "Fast",
+        },
+        {
+            "id": "gemma-4-31b",
+            "name": "Gemma 4 31B",
+            "description": "Document and multimodal reasoning model.",
+            "model": "gemma-4-31b",
+            "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
+            "creditCost": fast_cost,
+            "reasoning": False,
+            "badge": "Docs",
+        },
+        {
+            "id": "zai-glm-4.7",
+            "name": "GLM 4.7 Reasoning",
+            "description": "Deep reasoning for harder questions.",
+            "model": "zai-glm-4.7",
+            "reasoning_effort": settings.CEREBRAS_DEEP_REASONING_EFFORT,
+            "creditCost": deep_cost,
+            "reasoning": True,
+            "badge": "Deep",
+        },
+    ]
+
+
+def _resolve_chat_model(model_id: str | None, deep_mode: bool) -> dict:
+    models = _available_chat_models()
+    fallback_id = settings.CEREBRAS_DEEP_MODEL if deep_mode else settings.CEREBRAS_CHAT_MODEL
+    selected_id = model_id or fallback_id
+    selected = next((model for model in models if model["id"] == selected_id or model["model"] == selected_id), None)
+    if selected is None:
+        raise HTTPException(status_code=400, detail=f"Unsupported model: {selected_id}")
+    if deep_mode and not selected["reasoning"]:
+        selected = {**selected, "reasoning": True, "reasoning_effort": settings.CEREBRAS_DEEP_REASONING_EFFORT}
+        selected["creditCost"] = max(selected["creditCost"], settings.CHAT_DEEP_CREDIT_COST)
+    return selected
 
 
 async def _get_owned_file(file_id: str, user: dict, db: AsyncSession) -> FileModel:
@@ -126,6 +193,34 @@ async def get_chat_history(
     ]
 
 
+@router.get("/models", response_model=list[ChatModelResponse])
+async def get_chat_models(_: None = Depends(rate_limit("chat"))):
+    """Return chat models exposed in the DocWise model picker."""
+    return [
+        {
+            "id": model["id"],
+            "name": model["name"],
+            "description": model["description"],
+            "creditCost": model["creditCost"],
+            "reasoning": model["reasoning"],
+            "badge": model["badge"],
+        }
+        for model in _available_chat_models()
+    ]
+
+
+@router.get("/credits", response_model=ChatCreditsResponse)
+async def get_chat_credits(
+    _: None = Depends(rate_limit("chat")),
+    user: dict = Depends(get_current_user),
+):
+    """Return today's LLM credit usage for the authenticated user."""
+    created_by = _user_identity(user)
+    limit = max(1, settings.LLM_DAILY_BUDGET_UNITS_PER_USER)
+    used = await usage_limiter.get_daily_units(created_by, "chat")
+    return {"used": used, "limit": limit, "remaining": max(0, limit - used)}
+
+
 @router.post("/ask")
 async def chat_ask(
     body: ChatRequest,
@@ -145,8 +240,21 @@ async def chat_ask(
             status_code=429,
             detail=f"Daily chat limit reached. You can ask up to {settings.CHAT_DAILY_LIMIT_PER_USER} questions per day.",
         )
+    model_profile = _resolve_chat_model(body.model_id, body.deep_mode)
+    try:
+        await usage_limiter.consume_daily_units(created_by, "chat", model_profile["creditCost"])
+    except HTTPException as exc:
+        if exc.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Daily credit limit reached. "
+                    f"{model_profile['name']} costs {model_profile['creditCost']} credits."
+                ),
+            ) from exc
+        raise
 
-    cache_key = f"chat:ask:{body.file_id}:{body.question.strip().lower()}"
+    cache_key = f"chat:ask:{body.file_id}:{model_profile['id']}:{model_profile['reasoning']}:{body.question.strip().lower()}"
     cached_response = await cache_service.get_json(cache_key)
 
     if cached_response:
@@ -178,7 +286,9 @@ async def chat_ask(
             async for text_chunk in ai_service.chat_stream(
                 question=body.question,
                 context_chunks=context_chunks,
-                deep_mode=body.deep_mode,
+                deep_mode=model_profile["reasoning"],
+                model=model_profile["model"],
+                reasoning_effort=model_profile["reasoning_effort"],
             ):
                 response_parts.append(text_chunk)
                 data = json.dumps({"text": text_chunk})
