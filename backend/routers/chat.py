@@ -2,6 +2,7 @@
 
 import uuid
 import json
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -277,8 +278,8 @@ async def chat_ask(
             },
         )
 
-    # Search for relevant context
-    context_chunks = await embedding_service.search_similar_async(
+    context_chunks = await asyncio.to_thread(
+        embedding_service.search_similar,
         file_id=body.file_id,
         query=body.question,
         top_k=10,
