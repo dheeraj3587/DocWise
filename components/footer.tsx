@@ -1,24 +1,30 @@
-import { Heart } from "lucide-react";
+import Link from "next/link";
 
 const Footer = () => {
   return (
-    <footer className="border-t border-border mt-12 sm:mt-20 surface-1">
-      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 text-center text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
-        <p className="text-xs sm:text-sm flex justify-center items-center gap-2">
-          Made with
-          <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-destructive fill-destructive" />
-          by Dheeraj Joshi
-        </p>
-        <p className="text-xs sm:text-sm flex justify-center items-center gap-2">
-          <a
+    <footer className="mt-16 border-t border-border bg-background">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 font-mono text-sm text-foreground">
+          <span className="inline-block size-2 rounded-full bg-foreground" />
+          <span className="tracking-[0.2em] uppercase">DocWise</span>
+        </div>
+
+        <nav className="flex flex-wrap gap-x-6 gap-y-2 font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+          <Link href="#" className="transition-colors hover:text-foreground">
+            Privacy
+          </Link>
+          <Link href="#" className="transition-colors hover:text-foreground">
+            Terms
+          </Link>
+          <Link
             href="https://github.com/dheeraj3587"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
+            className="transition-colors hover:text-foreground"
           >
             GitHub
-          </a>
-        </p>
+          </Link>
+        </nav>
       </div>
     </footer>
   );

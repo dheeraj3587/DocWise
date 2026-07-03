@@ -95,12 +95,10 @@ export default function Dashboard() {
         <section className="relative overflow-hidden px-6 pb-2 pt-12 sm:px-10">
           <div
             aria-hidden
-            className="pointer-events-none absolute right-8 top-10 hidden size-56 rounded-full border border-border bg-background/40 sm:block"
-            style={{
-              boxShadow:
-                "inset 0 0 0 1px color-mix(in srgb, var(--foreground) 4%, transparent)",
-            }}
-          />
+            className="pointer-events-none absolute right-8 top-10 hidden size-56 opacity-70 sm:block"
+          >
+            <DotSphere />
+          </div>
 
           <div className="relative z-10 max-w-[640px]">
             <span className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
@@ -178,6 +176,58 @@ function getGreeting() {
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
+}
+
+function DotSphere() {
+  const points = fibonacciSpherePoints(420);
+  const size = 224;
+  const radius = size / 2;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="block overflow-visible text-foreground"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {points.map((point, index) => {
+        const x = radius + point.x * radius * 0.94;
+        const y = radius + point.y * radius * 0.94;
+        const light = (point.z + 1) / 2;
+        const dotRadius = 0.55 + light * 1.45;
+        const opacity = 0.12 + light * 0.64;
+
+        return (
+          <circle
+            key={index}
+            cx={x}
+            cy={y}
+            r={dotRadius}
+            fill="currentColor"
+            opacity={opacity}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+function fibonacciSpherePoints(count: number) {
+  const points: Array<{ x: number; y: number; z: number }> = [];
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+  for (let i = 0; i < count; i++) {
+    const y = 1 - (i / (count - 1)) * 2;
+    const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = goldenAngle * i;
+    const x = Math.cos(theta) * radiusAtY;
+    const z = Math.sin(theta) * radiusAtY;
+    points.push({ x, y, z });
+  }
+
+  return points;
 }
 
 function StatusPill({ status }: { status?: string }) {
