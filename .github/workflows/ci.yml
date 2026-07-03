@@ -81,6 +81,8 @@ jobs:
           CELERY_BROKER_URL: redis://redis:6379/0
           CELERY_RESULT_BACKEND: redis://redis:6379/1
           GOOGLE_API_KEY: test-key
+          CEREBRAS_API_KEY: test-key
+          CEREBRAS_BASE_URL: https://api.cerebras.ai/v1
           OPENAI_API_KEY: test-key
           CLERK_ISSUER: https://test.clerk.accounts.dev
           CLERK_JWKS_URL: https://test.clerk.accounts.dev/.well-known/jwks.json
