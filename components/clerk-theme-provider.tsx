@@ -2,7 +2,7 @@
 
 import { ClerkProvider } from "@clerk/nextjs"
 import { dark } from "@clerk/themes"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { useSyncExternalStore } from "react"
 
 const clerkPubKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -25,10 +25,10 @@ function hasValidClerkKey(): boolean {
 }
 
 export function ClerkThemeProvider({ children }: { children: React.ReactNode }) {
-  const { resolvedTheme } = useTheme()
+  const { resolved } = useTheme()
   const mounted = useSyncExternalStore(emptySubscribe, returnTrue, returnFalse)
 
-  const isDark = mounted ? resolvedTheme === "dark" : true
+  const isDark = mounted ? resolved === "dark" : true
 
   // Skip ClerkProvider when key is missing/invalid (CI builds, previews)
   if (!hasValidClerkKey()) {
@@ -38,6 +38,8 @@ export function ClerkThemeProvider({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider
       dynamic
+      signInUrl="/login"
+      signUpUrl="/sign-up"
       appearance={isDark ? { baseTheme: dark } : undefined}
     >
       {children}

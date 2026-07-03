@@ -1,5 +1,5 @@
-import { DocWiseLogin } from "../../components/docwise-login"
+import { redirect } from "next/navigation";
 
 export default function SignInPage() {
-  return <DocWiseLogin />
+  redirect("/login");
 }
