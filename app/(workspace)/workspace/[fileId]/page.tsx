@@ -20,12 +20,6 @@ import { ChatMessage, ChatPanel } from '../../components/ChatPanel'
 import { WorkspaceOutline } from '../../components/workspace-outline'
 import { WorkspaceSkeleton } from '@/app/skeleton/workspace-skeleton'
 
-import {
-  Group as PanelGroup,
-  Panel,
-  Separator as PanelResizeHandle,
-} from 'react-resizable-panels'
-
 export type LeftPanelView = 'document' | 'chat'
 
 const Workspace = () => {
@@ -87,11 +81,6 @@ const Workspace = () => {
       <WorkspaceHeader
         editor={editor}
         fileName={fileData.fileName}
-        leftPanel={leftPanel}
-        onLeftPanelChange={(view) => {
-          setLeftPanel(view)
-          setSidePanelOpen(true)
-        }}
         chatMessages={chatMessages}
         outlineOpen={outlineOpen}
         onToggleOutline={() => setOutlineOpen((open) => !open)}
@@ -112,8 +101,8 @@ const Workspace = () => {
           />
         ) : null}
 
-        <PanelGroup orientation="horizontal" className="h-full">
-          <Panel defaultSize={sidePanelOpen ? 68 : 100} minSize={35} className="h-full">
+        <main className="flex min-w-0 flex-1">
+          <div className="min-w-0 flex-1">
             {isMedia ? (
               <MediaPlayer
                 fileUrl={fileData.fileUrl}
@@ -123,23 +112,19 @@ const Workspace = () => {
             ) : (
               <PdfViewer fileUrl={fileData.fileUrl} />
             )}
-          </Panel>
+          </div>
 
           {sidePanelOpen ? (
-            <>
-              <PanelResizeHandle className="w-px cursor-col-resize bg-border transition-colors hover:bg-ring" />
-
-              <Panel defaultSize={32} minSize={24} maxSize={44} className="h-full">
-                <div className={leftPanel === 'document' ? 'h-full animate-panel-in' : 'hidden h-full'}>
-                  <TextEditor editor={editor} />
-                </div>
-                <div className={leftPanel === 'chat' ? 'h-full animate-panel-in' : 'hidden h-full'}>
-                  <ChatPanel embedded messages={chatMessages} setMessages={setChatMessages} />
-                </div>
-              </Panel>
-            </>
+            <aside className="h-full w-[min(520px,34vw)] min-w-[420px] shrink-0 border-l border-border">
+              <div className={leftPanel === 'document' ? 'h-full animate-panel-in' : 'hidden h-full'}>
+                <TextEditor editor={editor} />
+              </div>
+              <div className={leftPanel === 'chat' ? 'h-full animate-panel-in' : 'hidden h-full'}>
+                <ChatPanel embedded messages={chatMessages} setMessages={setChatMessages} />
+              </div>
+            </aside>
           ) : null}
-        </PanelGroup>
+        </main>
       </div>
     </div>
   )

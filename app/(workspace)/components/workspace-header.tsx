@@ -8,8 +8,6 @@ import { Editor } from "@tiptap/react";
 import {
   ArrowLeft,
   Download,
-  FileText,
-  MessageCircle,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -23,13 +21,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { escapeHtml, renderMarkdownWithMath } from "@/lib/markdown-math";
 import { getApiBase } from "@/lib/api-base";
 import type { ChatMessage } from "./ChatPanel";
-import type { LeftPanelView } from "../workspace/[fileId]/page";
 
 export const WorkspaceHeader = ({
   fileName,
   editor,
-  leftPanel,
-  onLeftPanelChange,
   chatMessages,
   outlineOpen,
   onToggleOutline,
@@ -38,8 +33,6 @@ export const WorkspaceHeader = ({
 }: {
   fileName: string;
   editor: Editor | null;
-  leftPanel: LeftPanelView;
-  onLeftPanelChange: (view: LeftPanelView) => void;
   chatMessages: ChatMessage[];
   outlineOpen: boolean;
   onToggleOutline: () => void;
@@ -265,10 +258,6 @@ export const WorkspaceHeader = ({
     printWindow.document.close();
   };
 
-  const switchPanel = (view: LeftPanelView) => {
-    onLeftPanelChange(view);
-  };
-
   const iconButtonClass =
     "grid h-9 w-9 place-items-center rounded-lg border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground";
   const activeIconButtonClass =
@@ -312,35 +301,6 @@ export const WorkspaceHeader = ({
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <div className="hidden items-center gap-1 rounded-lg border border-border bg-secondary/50 p-1 md:flex">
-          <button
-            type="button"
-            onClick={() => switchPanel("document")}
-            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors ${
-              leftPanel === "document"
-                ? "bg-secondary text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <FileText className="h-4 w-4" strokeWidth={1.75} />
-            Notes
-          </button>
-          <button
-            type="button"
-            onClick={() => switchPanel("chat")}
-            className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors ${
-              leftPanel === "chat"
-                ? "bg-secondary text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <MessageCircle className="h-4 w-4" strokeWidth={1.75} />
-            Chat
-          </button>
-        </div>
-
-        <div className="mx-1 hidden h-6 w-px bg-border md:block" />
-
         <Button
           variant="ghost"
           size="sm"
