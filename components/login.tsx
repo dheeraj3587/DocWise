@@ -93,7 +93,7 @@ function ClerkMagicLinkForm() {
       throw new Error("Email link sign-in is not enabled for this account.");
     }
 
-    await signInAttempt.prepareFirstFactor({
+    await signIn.prepareFirstFactor({
       strategy: "email_link",
       emailAddressId: emailLinkFactor.emailAddressId,
       redirectUrl: `${window.location.origin}/login/verify`,

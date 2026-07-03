@@ -2,9 +2,6 @@ import type { ReactNode, RefObject } from "react";
 import { createContext, useContext, useRef } from "react";
 import { ParticleField } from "@/components/particle-field";
 import { AuthSplitLayout } from "@/components/auth-split-layout";
-import welcomeSrc from "@/assets/figures/welcome.png";
-import teamSrc from "@/assets/figures/team.png";
-import clustersSrc from "@/assets/figures/clusters.png";
 
 type ImpulseRef = RefObject<number>;
 const TypingImpulseContext = createContext<ImpulseRef | null>(null);
@@ -18,9 +15,9 @@ export function useAuthTypingImpulse(): ImpulseRef {
 type Variant = "welcome" | "request-access" | "onboarding";
 
 const FIGURES: Record<Variant, string> = {
-  welcome: welcomeSrc.src,
-  "request-access": teamSrc.src,
-  onboarding: clustersSrc.src,
+  welcome: "/logo.png",
+  "request-access": "/logo.png",
+  onboarding: "/logo.png",
 };
 
 export function AuthShell({
