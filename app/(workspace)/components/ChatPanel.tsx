@@ -16,8 +16,8 @@ import { getApiBase } from '@/lib/api-base'
 import { normalizeMathDelimiters } from '@/lib/markdown-math'
 
 // Memoize plugin arrays to avoid recreating on every render
-const REMARK_PLUGINS = [remarkGfm, remarkMath] as const;
-const REHYPE_PLUGINS = [rehypeKatex] as const;
+const REMARK_PLUGINS: any = [remarkGfm, remarkMath];
+const REHYPE_PLUGINS: any = [rehypeKatex];
 
 export interface ChatMessage {
   id: string
