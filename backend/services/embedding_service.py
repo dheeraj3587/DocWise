@@ -61,6 +61,14 @@ class EmbeddingService:
         query_embedding = self.embed_query(query)
         return faiss_index.search(file_id, query_embedding, top_k)
 
+    async def search_similar_async(
+        self, file_id: str, query: str, top_k: int = 5
+    ) -> List[dict]:
+        """Async wrapper that runs embedding + search in a thread pool."""
+        import asyncio
+        return await asyncio.to_thread(self.search_similar, file_id, query, top_k)
+
+
 
 # Singleton
 embedding_service = EmbeddingService()

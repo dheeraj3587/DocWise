@@ -1,4 +1,4 @@
-import { useReducer, useState, useEffect } from "react";
+import { useReducer, useRef, useState, useEffect } from "react";
 import { Editor } from "@tiptap/react";
 import {
   Bold,
@@ -38,20 +38,40 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
 
   const { fileId } = useParams();
   const API_BASE = getApiBase();
+  const prevActiveRef = useRef('');
 
   useEffect(() => {
     if (!editor) return;
 
-    const updateActiveState = () => {
-      forceRerender();
+    const updateIfChanged = () => {
+      // Build a fingerprint of active toolbar states
+      const active = [
+        editor.isActive('heading', { level: 1 }),
+        editor.isActive('heading', { level: 2 }),
+        editor.isActive('heading', { level: 3 }),
+        editor.isActive('bold'),
+        editor.isActive('italic'),
+        editor.isActive('underline'),
+        editor.isActive('highlight'),
+        editor.isActive({ textAlign: 'left' }),
+        editor.isActive({ textAlign: 'center' }),
+        editor.isActive({ textAlign: 'right' }),
+        editor.isActive('bulletList'),
+        editor.isActive('orderedList'),
+      ].join(',');
+
+      if (active !== prevActiveRef.current) {
+        prevActiveRef.current = active;
+        forceRerender();
+      }
     };
 
-    editor.on("update", updateActiveState);
-    editor.on("selectionUpdate", updateActiveState);
+    editor.on('update', updateIfChanged);
+    editor.on('selectionUpdate', updateIfChanged);
 
     return () => {
-      editor.off("update", updateActiveState);
-      editor.off("selectionUpdate", updateActiveState);
+      editor.off('update', updateIfChanged);
+      editor.off('selectionUpdate', updateIfChanged);
     };
   }, [editor]);
 

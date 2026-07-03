@@ -15,10 +15,10 @@ import {
 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ParticleFieldLazy as ParticleField,
   bumpParticleTypingImpulse,
-  ParticleField,
   pulseParticleSubmitImpulse,
-} from "@/components/particle-field";
+} from "@/components/particle-field-lazy";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { deleteFile, type FileRecord } from "@/lib/api-client";
 import { useApiQuery } from "@/lib/hooks";

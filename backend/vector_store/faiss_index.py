@@ -2,12 +2,47 @@
 
 import json
 import os
-from typing import List, Dict, Any, Optional
+import threading
+import time
+from typing import List, Dict, Any, Optional, Tuple
 
 import faiss
 import numpy as np
 
 from core.config import settings
+
+
+class _IndexCache:
+    """Thread-safe LRU cache for loaded FAISS indexes and metadata."""
+
+    def __init__(self, maxsize: int = 100, ttl: int = 600):
+        self._maxsize = maxsize
+        self._ttl = ttl  # seconds
+        self._cache: Dict[str, Tuple[Any, List[Dict[str, Any]], float]] = {}
+        self._lock = threading.Lock()
+
+    def get(self, file_id: str) -> Optional[Tuple[Any, List[Dict[str, Any]]]]:
+        with self._lock:
+            entry = self._cache.get(file_id)
+            if entry is None:
+                return None
+            index, metadata, ts = entry
+            if time.monotonic() - ts > self._ttl:
+                del self._cache[file_id]
+                return None
+            return index, metadata
+
+    def put(self, file_id: str, index: Any, metadata: List[Dict[str, Any]]) -> None:
+        with self._lock:
+            # Evict oldest if at capacity
+            if len(self._cache) >= self._maxsize and file_id not in self._cache:
+                oldest_key = min(self._cache, key=lambda k: self._cache[k][2])
+                del self._cache[oldest_key]
+            self._cache[file_id] = (index, metadata, time.monotonic())
+
+    def invalidate(self, file_id: str) -> None:
+        with self._lock:
+            self._cache.pop(file_id, None)
 
 
 class FAISSIndex:
@@ -20,6 +55,7 @@ class FAISSIndex:
         self.index_dir = index_dir or settings.FAISS_INDEX_PATH
         self.dimension = dimension
         os.makedirs(self.index_dir, exist_ok=True)
+        self._cache = _IndexCache(maxsize=100, ttl=600)
 
     def _index_path(self, file_id: str) -> str:
         return os.path.join(self.index_dir, f"{file_id}.index")
@@ -80,6 +116,9 @@ class FAISSIndex:
         with open(self._meta_path(file_id), "w") as f:
             json.dump(metadata, f)
 
+        # Invalidate cache so next search picks up new data
+        self._cache.invalidate(file_id)
+
     def search(
         self,
         file_id: str,
@@ -91,16 +130,21 @@ class FAISSIndex:
 
         Returns list of metadata dicts with an added 'score' field.
         """
-        index_path = self._index_path(file_id)
+        # Try cache first
+        cached = self._cache.get(file_id)
+        if cached is not None:
+            index, metadata = cached
+        else:
+            index_path = self._index_path(file_id)
+            if not os.path.exists(index_path):
+                return []
 
-        if not os.path.exists(index_path):
-            return []
+            metadata = self._load_metadata(file_id)
+            if metadata is None:
+                return []
 
-        metadata = self._load_metadata(file_id)
-        if metadata is None:
-            return []
-
-        index = faiss.read_index(index_path)
+            index = faiss.read_index(index_path)
+            self._cache.put(file_id, index, metadata)
 
         query_vector = np.array([query_embedding], dtype=np.float32)
         distances, indices = index.search(query_vector, min(top_k, index.ntotal))
@@ -116,6 +160,7 @@ class FAISSIndex:
 
     def delete_index(self, file_id: str) -> None:
         """Delete a file's FAISS index and metadata."""
+        self._cache.invalidate(file_id)
         for path in [self._index_path(file_id), self._meta_path(file_id), self._legacy_meta_path(file_id)]:
             if os.path.exists(path):
                 os.remove(path)

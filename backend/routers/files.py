@@ -226,9 +226,6 @@ async def list_files(
         identifiers.append(FileModel.created_by == email)
     if sub:
         identifiers.append(FileModel.created_by == sub)
-    # Also match files with empty created_by (legacy records)
-    identifiers.append(FileModel.created_by == "")
-    identifiers.append(FileModel.created_by.is_(None))
 
     stmt = (
         select(FileModel)
@@ -238,25 +235,27 @@ async def list_files(
     result = await db.execute(stmt)
     files = result.scalars().all()
 
-    file_list = []
+    import asyncio
+
     public_base_url = _external_base_url(request)
-    for f in files:
-        file_url = storage_service.get_presigned_url(
+
+    async def _build_file_entry(f):
+        file_url = await asyncio.to_thread(
+            storage_service.get_presigned_url,
             f.storage_key,
             public_base_url=public_base_url,
         )
-        file_list.append(
-            {
-                "fileId": str(f.file_id),
-                "fileName": f.file_name,
-                "fileType": f.file_type,
-                "fileUrl": file_url,
-                "status": f.status,
-                "createdAt": f.created_at.isoformat() if f.created_at else None,
-            }
-        )
+        return {
+            "fileId": str(f.file_id),
+            "fileName": f.file_name,
+            "fileType": f.file_type,
+            "fileUrl": file_url,
+            "status": f.status,
+            "createdAt": f.created_at.isoformat() if f.created_at else None,
+        }
 
-    return file_list
+    file_list = await asyncio.gather(*[_build_file_entry(f) for f in files])
+    return list(file_list)
 
 
 @router.delete("/{file_id}")
@@ -282,10 +281,15 @@ async def delete_file(
     from vector_store.faiss_index import faiss_index
     faiss_index.delete_index(file_id)
 
-    ts_stmt = select(MediaTimestamp).where(MediaTimestamp.file_id == uuid.UUID(file_id))
-    ts_result = await db.execute(ts_stmt)
-    for ts in ts_result.scalars().all():
-        await db.delete(ts)
+    from sqlalchemy import delete as sa_delete
+    from models.chat_message import ChatMessage
+
+    await db.execute(
+        sa_delete(MediaTimestamp).where(MediaTimestamp.file_id == uuid.UUID(file_id))
+    )
+    await db.execute(
+        sa_delete(ChatMessage).where(ChatMessage.file_id == file_id)
+    )
 
     await db.delete(file_record)
 

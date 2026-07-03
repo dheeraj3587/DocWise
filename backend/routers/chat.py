@@ -4,8 +4,8 @@ import uuid
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -193,10 +193,10 @@ async def get_chat_history(
     ]
 
 
-@router.get("/models", response_model=list[ChatModelResponse])
+@router.get("/models")
 async def get_chat_models():
     """Return chat models exposed in the DocWise model picker."""
-    return [
+    models = [
         {
             "id": model["id"],
             "name": model["name"],
@@ -207,6 +207,10 @@ async def get_chat_models():
         }
         for model in _available_chat_models()
     ]
+    return JSONResponse(
+        content=models,
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 @router.get("/credits", response_model=ChatCreditsResponse)
@@ -274,7 +278,7 @@ async def chat_ask(
         )
 
     # Search for relevant context
-    context_chunks = embedding_service.search_similar(
+    context_chunks = await embedding_service.search_similar_async(
         file_id=body.file_id,
         query=body.question,
         top_k=10,

@@ -94,7 +94,8 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
       }
       setLoading(false);
       setOpen(false);
-      window.location.reload();
+      const { revalidateQueries } = await import("@/lib/hooks");
+      revalidateQueries("/api/files");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("429") || msg.toLowerCase().includes("daily upload limit")) {

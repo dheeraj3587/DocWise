@@ -5,9 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { createUser } from "@/lib/api-client";
-import { useAuth } from "@clerk/nextjs";
-import { useCallback, useEffect } from "react";
+import { useUserSync } from "@/lib/use-user-sync";
 import { Playfair_Display } from "next/font/google";
 import Footer from "@/components/footer";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -23,29 +21,7 @@ const elegantFont = Playfair_Display({
 export default function HomeClient() {
   const { user } = useUser();
   const router = useRouter();
-  const { getToken } = useAuth();
-
-  const checkUser = useCallback(async () => {
-    try {
-      const token = await getToken();
-      await createUser(
-        {
-          email: user?.primaryEmailAddress?.emailAddress as string,
-          name: user?.firstName as string,
-          image_url: user?.imageUrl as string,
-        },
-        token,
-      );
-    } catch (error) {
-      console.error("Error creating user:", error);
-    }
-  }, [getToken, user]);
-
-  useEffect(() => {
-    if (user) {
-      checkUser();
-    }
-  }, [user, checkUser]);
+  useUserSync();
 
   const handleGetStarted = async () => {
     if (user) {

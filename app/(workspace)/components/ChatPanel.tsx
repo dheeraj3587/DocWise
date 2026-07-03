@@ -15,6 +15,10 @@ import { ModelDropdown, type ModelOption } from '@/components/ui/model-dropdown'
 import { getApiBase } from '@/lib/api-base'
 import { normalizeMathDelimiters } from '@/lib/markdown-math'
 
+// Memoize plugin arrays to avoid recreating on every render
+const REMARK_PLUGINS = [remarkGfm, remarkMath] as const;
+const REHYPE_PLUGINS = [rehypeKatex] as const;
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -236,6 +240,7 @@ export const ChatPanel = ({
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let accumulated = ''
+      let rafPending = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -253,14 +258,21 @@ export const ChatPanel = ({
             const parsed = JSON.parse(data)
             if (parsed.text) {
               accumulated += parsed.text
-              setMessages((prev) => {
-                const updated = [...prev]
-                const last = updated[updated.length - 1]
-                if (last.role === 'assistant') {
-                  last.content = accumulated
-                }
-                return updated
-              })
+              if (!rafPending) {
+                rafPending = true
+                requestAnimationFrame(() => {
+                  rafPending = false
+                  const snapshot = accumulated
+                  setMessages((prev) => {
+                    const updated = [...prev]
+                    const last = updated[updated.length - 1]
+                    if (last.role === 'assistant') {
+                      last.content = snapshot
+                    }
+                    return updated
+                  })
+                })
+              }
             }
           } catch {
             // skip malformed SSE lines
@@ -354,7 +366,7 @@ export const ChatPanel = ({
               {msg.content ? (
                 msg.role === 'assistant' ? (
                   <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-code:surface-3 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:text-foreground">
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>
                       {normalizeMathDelimiters(msg.content)}
                     </ReactMarkdown>
                   </div>

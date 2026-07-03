@@ -3,12 +3,10 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/chat/completions";
 
-function getClient() {
-  return new OpenAI({
-    apiKey: process.env.CEREBRAS_API_KEY!,
-    baseURL: process.env.CEREBRAS_BASE_URL || "https://api.cerebras.ai/v1",
-  });
-}
+const client = new OpenAI({
+  apiKey: process.env.CEREBRAS_API_KEY!,
+  baseURL: process.env.CEREBRAS_BASE_URL || "https://api.cerebras.ai/v1",
+});
 
 const MAX_PROMPT_LENGTH = 50000;
 type ReasoningEffort = "low" | "medium" | "high";
@@ -36,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const sanitizedPrompt = prompt.slice(0, MAX_PROMPT_LENGTH);
 
-    const client = getClient();
+    // Client is cached globally as a singleton
     const model = deep_mode
       ? (process.env.CEREBRAS_DEEP_MODEL || "zai-glm-4.7")
       : (process.env.CEREBRAS_CHAT_MODEL || "gpt-oss-120b");

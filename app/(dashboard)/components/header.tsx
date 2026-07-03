@@ -1,9 +1,8 @@
 "use client";
 import { UserButton, useUser } from "@clerk/nextjs";
-import { useAuth } from "@clerk/nextjs";
-import { createUser, getUser as fetchUser } from "@/lib/api-client";
-import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useUserSync } from "@/lib/use-user-sync";
+import { useApiQuery } from "@/lib/hooks";
 
 interface UserData {
   upgrade: boolean;
@@ -13,35 +12,13 @@ interface UserData {
 
 const Header = ({ name }: { name: string }) => {
   const { user } = useUser();
-  const { getToken } = useAuth();
-  const [userData, setUserData] = useState<UserData | null>(null);
+  useUserSync();
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const syncUser = async () => {
-      try {
-        const token = await getToken();
-        await createUser(
-          {
-            email: user?.primaryEmailAddress?.emailAddress as string,
-            name: user?.firstName as string,
-            image_url: user?.imageUrl as string,
-          },
-          token,
-        );
-        const data = await fetchUser(
-          user?.primaryEmailAddress?.emailAddress as string,
-          token,
-        );
-        if (!cancelled) setUserData(data);
-      } catch (error) {
-        console.error("Error syncing user:", error);
-      }
-    };
-    syncUser();
-    return () => { cancelled = true; };
-  }, [getToken, user]);
+  const email = user?.primaryEmailAddress?.emailAddress;
+  const { data: userData } = useApiQuery<UserData>(
+    email ? `/api/users/me?email=${encodeURIComponent(email)}` : null,
+    [email],
+  );
 
   return (
     <header className="h-16 glass-subtle border-b border-border px-4 lg:px-8 flex-between">
@@ -64,7 +41,7 @@ const Header = ({ name }: { name: string }) => {
             {user?.firstName}
           </p>
           <p className="text-xs text-muted-foreground">
-            {userData && userData?.upgrade == true ? "Pro plan" : "Free plan"}
+            {userData?.upgrade === true ? "Pro plan" : "Free plan"}
           </p>
         </div>
         <UserButton

@@ -5,82 +5,63 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
+import useSWR, { mutate as globalMutate } from "swr";
 import { useAuth } from "@clerk/nextjs";
 import { getApiBase } from "@/lib/api-base";
 
 const API_BASE = getApiBase();
 
-function buildHeaders(token?: string | null): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  return headers;
+/**
+ * SWR fetcher that injects Clerk JWT token.
+ */
+function useAuthFetcher() {
+  const { getToken } = useAuth();
+  return useCallback(
+    async (url: string) => {
+      const token = await getToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(url, { headers });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      return res.json();
+    },
+    [getToken],
+  );
 }
 
 /**
- * A hook that fetches data from the API and re-fetches on dependency changes.
- * Similar to Convex's useQuery but backed by REST.
+ * Drop-in replacement for the old useApiQuery, now backed by SWR.
+ * SWR automatically deduplicates in-flight requests and caches across components.
  */
 export function useApiQuery<T>(
   url: string | null,
-  deps: unknown[] = [],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _deps: unknown[] = [],
 ): { data: T | undefined; isLoading: boolean; error: Error | null; refetch: () => void } {
-  const { getToken } = useAuth();
-  const depsKey = JSON.stringify(deps);
-  const [data, setData] = useState<T | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const mountedRef = useRef(true);
+  const fetcher = useAuthFetcher();
+  const key = url ? `${API_BASE}${url}` : null;
 
-  const fetchData = useCallback(async () => {
-    if (!url) {
-      setIsLoading(false);
-      return;
-    }
+  const { data, error, isLoading, mutate } = useSWR<T>(key, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 2000,
+  });
 
-    setIsLoading(true);
-    setError(null);
+  return {
+    data,
+    isLoading,
+    error: error ?? null,
+    refetch: () => { mutate(); },
+  };
+}
 
-    try {
-      const token = await getToken();
-      const res = await fetch(`${API_BASE}${url}`, {
-        headers: buildHeaders(token),
-      });
-
-      if (!mountedRef.current) return;
-
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
-      }
-
-      const result = await res.json();
-      if (mountedRef.current) {
-        setData(result);
-      }
-    } catch (err) {
-      if (mountedRef.current) {
-        setError(err as Error);
-      }
-    } finally {
-      if (mountedRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [url, getToken]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    fetchData();
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [fetchData, depsKey]);
-
-  return { data, isLoading, error, refetch: fetchData };
+/** Revalidate all queries matching a URL prefix (e.g. '/api/files'). */
+export function revalidateQueries(urlPrefix: string) {
+  globalMutate(
+    (key: unknown) => typeof key === "string" && key.includes(urlPrefix),
+    undefined,
+    { revalidate: true },
+  );
 }
 
 /**
