@@ -1,9 +1,5 @@
-import { SignIn } from '@clerk/nextjs'
+import { DocWiseLogin } from "../../components/docwise-login"
 
 export default function SignInPage() {
-  return (
-    <div className="flex h-screen items-center justify-center bg-mesh">
-      <SignIn />
-    </div>
-  )
+  return <DocWiseLogin />
 }
