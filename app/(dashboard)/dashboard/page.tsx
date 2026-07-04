@@ -119,8 +119,8 @@ export default function Dashboard() {
               {getGreeting()}, {firstName}
             </h1>
             <p className="mb-6 mt-2.5 max-w-[560px] text-sm leading-relaxed text-muted-foreground">
-              Ask anything across your library, or upload something new to get
-              started.
+              Ask in general, choose a document when you want context, or upload
+              something new to get started.
             </p>
 
             <Link
@@ -129,7 +129,7 @@ export default function Dashboard() {
             >
               <Search className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground/72">
-                Ask anything across your documents...
+                Open DocWise chat...
               </span>
               <span
                 title="Open chat"

@@ -1,13 +1,16 @@
 """Tests for FAISS vector store."""
 
+import json
 import os
+import pickle
 import shutil
+import time
 import uuid
 
 import numpy as np
 import pytest
 
-from vector_store.faiss_index import FAISSIndex
+from vector_store.faiss_index import FAISSIndex, _IndexCache
 
 
 class TestFAISSIndex:
@@ -122,3 +125,50 @@ class TestFAISSIndex:
         )
         results = self.index.search(self.file_id, [1.0, 0.0, 0.0, 0.0], top_k=1)
         assert isinstance(results[0]["score"], float)
+
+    def test_index_cache_expiration_and_eviction(self):
+        """Test cache expiry and LRU eviction paths."""
+        expiring_cache = _IndexCache(maxsize=1, ttl=0)
+        expiring_cache.put("old", "index", [])
+        time.sleep(0.001)
+        assert expiring_cache.get("old") is None
+
+        cache = _IndexCache(maxsize=1, ttl=60)
+        cache.put("first", "index-1", [])
+        cache.put("second", "index-2", [{"text": "second"}])
+
+        assert cache.get("first") is None
+        assert cache.get("second") == ("index-2", [{"text": "second"}])
+
+    def test_load_legacy_metadata_migrates_to_json(self):
+        """Test legacy pickle metadata is migrated to JSON."""
+        metadata = [{"text": "legacy"}]
+        legacy_path = self.index._legacy_meta_path(self.file_id)
+        with open(legacy_path, "wb") as f:
+            pickle.dump(metadata, f)
+
+        loaded = self.index._load_metadata(self.file_id)
+
+        assert loaded == metadata
+        assert not os.path.exists(legacy_path)
+        with open(self.index._meta_path(self.file_id), "r") as f:
+            assert json.load(f) == metadata
+
+    def test_search_returns_empty_when_metadata_missing(self):
+        """Test search handles an index file without metadata."""
+        with open(self.index._index_path(self.file_id), "wb") as f:
+            f.write(b"not read because metadata is missing")
+
+        assert self.index.search(self.file_id, [1.0, 0.0, 0.0, 0.0]) == []
+
+    def test_search_ignores_invalid_cached_indices(self):
+        """Test out-of-range FAISS results are ignored."""
+        class FakeIndex:
+            ntotal = 1
+
+            def search(self, query_vector, top_k):
+                return np.array([[0.1]], dtype=np.float32), np.array([[4]], dtype=np.int64)
+
+        self.index._cache.put(self.file_id, FakeIndex(), [{"text": "valid"}])
+
+        assert self.index.search(self.file_id, [1.0, 0.0, 0.0, 0.0]) == []

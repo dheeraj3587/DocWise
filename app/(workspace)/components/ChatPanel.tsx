@@ -72,6 +72,7 @@ interface ChatPanelProps {
   emptyDescription?: string
   className?: string
   hideHeader?: boolean
+  allowGeneralChat?: boolean
   messages?: ChatMessage[]
   setMessages?: Dispatch<SetStateAction<ChatMessage[]>>
 }
@@ -80,7 +81,7 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
   {
     id: 'gpt-oss-120b',
     name: 'GPT OSS 120B',
-    description: 'Fast document Q&A for everyday questions.',
+    description: 'Fast Q&A for everyday questions.',
     creditCost: 1,
     reasoning: false,
     badge: 'Fast',
@@ -88,7 +89,7 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
   {
     id: 'gemma-4-31b',
     name: 'Gemma 4 31B',
-    description: 'Document and multimodal model for richer files.',
+    description: 'Balanced model for richer prompts and files.',
     creditCost: 1,
     reasoning: false,
     badge: 'Docs',
@@ -96,7 +97,7 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
   {
     id: 'zai-glm-4.7',
     name: 'GLM 4.7',
-    description: 'Higher-capacity model for complex documents.',
+    description: 'Higher-capacity model for complex reasoning.',
     creditCost: 3,
     reasoning: false,
     badge: 'Heavy',
@@ -120,6 +121,7 @@ export const ChatPanel = ({
   emptyDescription = 'Type a question below to get started',
   className,
   hideHeader = false,
+  allowGeneralChat = false,
   messages: controlledMessages,
   setMessages: controlledSetMessages,
 }: ChatPanelProps) => {
@@ -149,6 +151,7 @@ export const ChatPanel = ({
   const setMessages = controlledSetMessages ?? setLocalMessages
   const selectedModel = models.find((model) => model.id === selectedModelId) || models[0]
   const selectedCreditCost = (selectedModel?.creditCost || 1) + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
+  const canSend = allowGeneralChat || Boolean(fileId)
 
   const modelLabel = useMemo(() => selectedModel?.name || 'Model', [selectedModel])
 
@@ -191,7 +194,9 @@ export const ChatPanel = ({
 
   useEffect(() => {
     if (!fileId) {
-      setMessages([])
+      if (!allowGeneralChat) {
+        setMessages([])
+      }
       return
     }
 
@@ -234,7 +239,7 @@ export const ChatPanel = ({
     return () => {
       cancelled = true
     }
-  }, [API_BASE, fileId, getToken, setMessages])
+  }, [API_BASE, allowGeneralChat, fileId, getToken, setMessages])
 
   const refreshCredits = useCallback(async () => {
     try {
@@ -282,7 +287,7 @@ export const ChatPanel = ({
 
   const handleSend = async () => {
     const question = input.trim()
-    if (!question || isStreaming || !fileId) return
+    if (!question || isStreaming || !canSend) return
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -312,7 +317,7 @@ export const ChatPanel = ({
         },
         body: JSON.stringify({
           question,
-          file_id: fileId,
+          ...(fileId ? { file_id: fileId } : {}),
           deep_mode: thinkEnabled,
           model_id: selectedModel?.id,
         }),
@@ -453,7 +458,9 @@ export const ChatPanel = ({
               <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
                 <MessageCircle className={cn('mb-3 opacity-35', compact ? 'h-8 w-8' : 'h-10 w-10')} />
                 <p className="text-[13px] font-medium text-foreground">{emptyTitle}</p>
-                <p className="mt-1 max-w-xs text-xs leading-relaxed">{fileId ? emptyDescription : 'Upload or open a ready document to start chatting.'}</p>
+                <p className="mt-1 max-w-xs text-xs leading-relaxed">
+                  {canSend ? emptyDescription : 'Choose a ready document or switch to general chat.'}
+                </p>
               </div>
             ) : (
               <div className={cn('space-y-4', compact && 'space-y-3')}>
@@ -476,7 +483,7 @@ export const ChatPanel = ({
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
-                disabled={isStreaming || !fileId}
+                disabled={isStreaming || !canSend}
                 rows={compact ? 2 : 3}
                 className={cn(
                   'block w-full resize-none bg-transparent px-4 pt-3 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60',
@@ -561,7 +568,7 @@ export const ChatPanel = ({
                   <button
                     type="button"
                     onClick={handleSend}
-                    disabled={isStreaming || !input.trim() || !fileId}
+                    disabled={isStreaming || !input.trim() || !canSend}
                     aria-label="Send message"
                     className="grid h-8 w-8 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >

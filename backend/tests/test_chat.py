@@ -74,6 +74,23 @@ class TestChat:
         assert "data:" in content
         assert "[DONE]" in content
 
+    async def test_chat_ask_without_file_uses_general_chat(
+        self,
+        client,
+        mock_embedding_service,
+        mock_ai_service,
+    ):
+        """Test /chat can ask a general question without document context."""
+        response = await client.post(
+            "/api/chat/ask",
+            json={"question": "What is retrieval augmented generation?"},
+        )
+
+        assert response.status_code == 200
+        assert "data:" in response.text
+        assert "[DONE]" in response.text
+        mock_embedding_service.search_similar.assert_not_called()
+
     async def test_chat_ask_with_timestamps(self, client, create_owned_file):
         """Test chat returns timestamp info for media files."""
         file_id = await create_owned_file(file_type="audio", file_name="test.mp3")
@@ -243,6 +260,86 @@ class TestChat:
             )
             assert second.status_code == 429
             assert "costs 4 credits" in second.text
+
+
+@pytest.mark.asyncio
+class TestDocumentTopics:
+    """Tests for PDF topic navigation metadata."""
+
+    async def test_get_document_topics_returns_empty_for_non_pdf(self, client, create_owned_file):
+        """Test non-PDF files skip topic generation."""
+        file_id = await create_owned_file(file_type="audio", file_name="call.mp3")
+
+        response = await client.get(f"/api/chat/topics/{file_id}")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    async def test_get_document_topics_returns_cached_outline(self, client, create_owned_file):
+        """Test cached topic outlines return without parsing the PDF again."""
+        file_id = await create_owned_file()
+        cached = [{"title": "Cached Topic", "page": 1, "summary": "Already generated"}]
+
+        with patch("routers.chat.cache_service.get_json", new_callable=AsyncMock, return_value=cached), \
+             patch("routers.chat.storage_service.download_file") as mock_download:
+            response = await client.get(f"/api/chat/topics/{file_id}")
+
+        assert response.status_code == 200
+        assert response.json() == cached
+        mock_download.assert_not_called()
+
+    async def test_get_document_topics_generates_and_normalizes_outline(self, client, create_owned_file):
+        """Test PDF topics are generated, clamped to valid pages, and cached."""
+        file_id = await create_owned_file()
+        pages = [
+            {"page": 1, "text": "Introduction\n" + ("attention " * 20)},
+            {"page": 2, "text": "Methods " + ("training " * 20)},
+        ]
+        generated = [
+            {"title": "Overview", "page": 1, "summary": "Opening context"},
+            {"title": "Training Details", "page": 99, "summary": "Clamped to final page"},
+            {"title": "", "page": 1, "summary": "Ignored"},
+        ]
+
+        with patch("routers.chat.cache_service.get_json", new_callable=AsyncMock, return_value=None), \
+             patch("routers.chat.cache_service.set_json", new_callable=AsyncMock) as mock_set, \
+             patch("routers.chat.storage_service.download_file", return_value=b"%PDF"), \
+             patch("routers.chat.pdf_service.extract_pages", return_value=pages), \
+             patch("routers.chat.ai_service.categorize_pdf_topics", new_callable=AsyncMock, return_value=generated):
+            response = await client.get(f"/api/chat/topics/{file_id}")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {"title": "Overview", "page": 1, "summary": "Opening context"},
+            {"title": "Training Details", "page": 2, "summary": "Clamped to final page"},
+        ]
+        mock_set.assert_awaited_once()
+
+    async def test_get_document_topics_falls_back_when_generation_fails(self, client, create_owned_file):
+        """Test topic generation errors still produce a usable document-start topic."""
+        file_id = await create_owned_file()
+
+        with patch("routers.chat.cache_service.get_json", new_callable=AsyncMock, return_value=None), \
+             patch("routers.chat.cache_service.set_json", new_callable=AsyncMock), \
+             patch("routers.chat.storage_service.download_file", return_value=b"%PDF"), \
+             patch("routers.chat.pdf_service.extract_pages", return_value=[{"page": 1, "text": "Content"}]), \
+             patch("routers.chat.ai_service.categorize_pdf_topics", new_callable=AsyncMock, side_effect=Exception("offline")):
+            response = await client.get(f"/api/chat/topics/{file_id}")
+
+        assert response.status_code == 200
+        assert response.json() == [{"title": "Document start", "page": 1, "summary": ""}]
+
+    async def test_get_document_topics_returns_empty_for_pdf_without_pages(self, client, create_owned_file):
+        """Test empty PDF extraction returns no topics."""
+        file_id = await create_owned_file()
+
+        with patch("routers.chat.cache_service.get_json", new_callable=AsyncMock, return_value=None), \
+             patch("routers.chat.storage_service.download_file", return_value=b"%PDF"), \
+             patch("routers.chat.pdf_service.extract_pages", return_value=[]):
+            response = await client.get(f"/api/chat/topics/{file_id}")
+
+        assert response.status_code == 200
+        assert response.json() == []
 
 
 @pytest.mark.asyncio

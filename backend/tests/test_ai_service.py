@@ -109,7 +109,7 @@ class TestAIServiceChat:
         svc = AIService()
 
         async def create(**kwargs):
-            prompt = kwargs["messages"][0]["content"]
+            prompt = "\n".join(message["content"] for message in kwargs["messages"])
             assert "timestamp" in prompt.lower() or "MM:SS" in prompt
             return _AsyncChunks([_stream_chunk("Answer")])
 
@@ -134,6 +134,9 @@ class TestAIServiceChat:
             chunks.append(chunk)
 
         assert chunks == ["response"]
+        messages = svc.client.chat.completions.create.await_args.kwargs["messages"]
+        assert messages[0]["role"] == "system"
+        assert "general chat mode" in messages[1]["content"]
 
     @patch("services.ai_service.AsyncOpenAI")
     async def test_chat_stream_skips_empty_content(self, mock_client_cls):
@@ -170,3 +173,45 @@ class TestAIServiceChat:
             chunks.append(chunk)
 
         assert chunks == ["Summary"]
+
+
+@pytest.mark.asyncio
+class TestAIServiceTopicCategorization:
+    """Tests for PDF topic outline parsing."""
+
+    @patch("services.ai_service.AsyncOpenAI")
+    async def test_categorize_pdf_topics_parses_markdown_json(self, mock_client_cls):
+        svc = AIService()
+        svc._complete_prompt = AsyncMock(
+            return_value='```json\n[{"topic":"Attention Blocks","page":"2","summary":"Transformer core"}, {"title":"Training","page":"bad","summary":"x"}]\n```'
+        )
+
+        topics = await svc.categorize_pdf_topics("Page 2: attention")
+
+        assert topics == [
+            {"title": "Attention Blocks", "summary": "Transformer core", "page": 2},
+            {"title": "Training", "summary": "x", "page": 1},
+        ]
+
+    @patch("services.ai_service.AsyncOpenAI")
+    async def test_categorize_pdf_topics_ignores_invalid_items_and_limits_output(self, mock_client_cls):
+        svc = AIService()
+        payload = [{"title": f"Topic {i}", "page": i, "summary": "s" * 250} for i in range(12)]
+        payload.insert(1, "not a topic")
+        svc._complete_prompt = AsyncMock(return_value=str(payload).replace("'", '"'))
+
+        topics = await svc.categorize_pdf_topics("Page 1: overview")
+
+        assert len(topics) == 9
+        assert topics[0]["title"] == "Topic 0"
+        assert topics[0]["page"] == 1
+        assert len(topics[0]["summary"]) == 180
+
+    @patch("services.ai_service.AsyncOpenAI")
+    async def test_categorize_pdf_topics_returns_empty_for_non_list_json(self, mock_client_cls):
+        svc = AIService()
+        svc._complete_prompt = AsyncMock(return_value='{"title":"Not a list"}')
+
+        topics = await svc.categorize_pdf_topics("Page 1: overview")
+
+        assert topics == []

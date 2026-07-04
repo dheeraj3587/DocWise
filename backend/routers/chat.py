@@ -30,7 +30,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     question: str
-    file_id: str
+    file_id: str | None = None
     deep_mode: bool = False
     model_id: str | None = None
 
@@ -79,7 +79,7 @@ def _available_chat_models() -> list[dict]:
         {
             "id": "gpt-oss-120b",
             "name": "GPT OSS 120B",
-            "description": "Fast document Q&A for everyday questions.",
+            "description": "Fast Q&A for everyday questions.",
             "model": "gpt-oss-120b",
             "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
             "creditCost": fast_cost,
@@ -89,7 +89,7 @@ def _available_chat_models() -> list[dict]:
         {
             "id": "gemma-4-31b",
             "name": "Gemma 4 31B",
-            "description": "Document and multimodal model for richer files.",
+            "description": "Balanced model for richer prompts and files.",
             "model": "gemma-4-31b",
             "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
             "creditCost": fast_cost,
@@ -99,7 +99,7 @@ def _available_chat_models() -> list[dict]:
         {
             "id": "zai-glm-4.7",
             "name": "GLM 4.7",
-            "description": "Higher-capacity model for complex documents.",
+            "description": "Higher-capacity model for complex reasoning.",
             "model": "zai-glm-4.7",
             "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
             "creditCost": deep_cost,
@@ -299,10 +299,11 @@ async def chat_ask(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Ask a question about a file. Uses RAG: search similar chunks → LLM answer.
+    Ask a question. Uses RAG when file_id is present; otherwise answers in general chat mode.
     Returns Server-Sent Events (SSE) stream.
     """
-    await _get_owned_file(body.file_id, user, db)
+    if body.file_id:
+        await _get_owned_file(body.file_id, user, db)
     created_by = _user_identity(user)
     chats_today = await _count_chats_today(created_by, db)
     if chats_today >= settings.CHAT_DAILY_LIMIT_PER_USER:
@@ -324,13 +325,16 @@ async def chat_ask(
             ) from exc
         raise
 
-    cache_key = f"chat:ask:{body.file_id}:{model_profile['id']}:{model_profile['reasoning']}:{body.question.strip().lower()}"
+    normalized_question = body.question.strip().lower()
+    cache_scope = body.file_id or f"general:{created_by}"
+    cache_key = f"chat:ask:{cache_scope}:{model_profile['id']}:{model_profile['reasoning']}:{normalized_question}"
     cached_response = None
     if not model_profile["reasoning"]:
         cached_response = await cache_service.get_json(cache_key)
 
     if cached_response:
-        await _save_chat_pair(body.file_id, created_by, body.question, cached_response, db)
+        if body.file_id:
+            await _save_chat_pair(body.file_id, created_by, body.question, cached_response, db)
 
         async def cached_event_generator():
             yield f"data: {json.dumps({'text': cached_response})}\n\n"
@@ -345,39 +349,52 @@ async def chat_ask(
             },
         )
 
-    context_chunks = await asyncio.to_thread(
-        embedding_service.search_similar,
-        file_id=body.file_id,
-        query=body.question,
-        top_k=10,
-    )
+    context_chunks = []
+    if body.file_id:
+        context_chunks = await asyncio.to_thread(
+            embedding_service.search_similar,
+            file_id=body.file_id,
+            query=body.question,
+            top_k=10,
+        )
 
     async def event_generator():
         response_parts = []
         try:
-            async for text_chunk in ai_service.chat_stream(
-                question=body.question,
-                context_chunks=context_chunks,
-                deep_mode=model_profile["reasoning"],
-                model=model_profile["model"],
-                reasoning_effort=model_profile["reasoning_effort"],
-            ):
+            if body.file_id:
+                stream = ai_service.chat_stream(
+                    question=body.question,
+                    context_chunks=context_chunks,
+                    deep_mode=model_profile["reasoning"],
+                    model=model_profile["model"],
+                    reasoning_effort=model_profile["reasoning_effort"],
+                )
+            else:
+                stream = ai_service.chat_no_context(
+                    question=body.question,
+                    deep_mode=model_profile["reasoning"],
+                    model=model_profile["model"],
+                    reasoning_effort=model_profile["reasoning_effort"],
+                )
+
+            async for text_chunk in stream:
                 response_parts.append(text_chunk)
                 data = json.dumps({"text": text_chunk})
                 yield f"data: {data}\n\n"
 
-            # Send timestamps from context if available
-            timestamps = [
-                {"start": c.get("start_time"), "end": c.get("end_time")}
-                for c in context_chunks
-                if c.get("start_time") is not None
-            ]
-            if timestamps:
-                yield f"data: {json.dumps({'timestamps': timestamps})}\n\n"
+            if body.file_id:
+                timestamps = [
+                    {"start": c.get("start_time"), "end": c.get("end_time")}
+                    for c in context_chunks
+                    if c.get("start_time") is not None
+                ]
+                if timestamps:
+                    yield f"data: {json.dumps({'timestamps': timestamps})}\n\n"
 
             if response_parts:
                 full_response = "".join(response_parts)
-                await _save_chat_pair(body.file_id, created_by, body.question, full_response, db)
+                if body.file_id:
+                    await _save_chat_pair(body.file_id, created_by, body.question, full_response, db)
                 if not model_profile["reasoning"]:
                     await cache_service.set_json(
                         cache_key,
