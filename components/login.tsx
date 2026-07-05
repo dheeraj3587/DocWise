@@ -2,6 +2,7 @@
 
 import { type FormEvent, useRef, useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,11 +39,22 @@ function LoginForm() {
         <h1 className="mt-2 font-heading text-3xl leading-tight">
           Open DocWise
         </h1>
-        <p className="mt-2 text-muted-foreground text-sm">Sign in to continue.</p>
+        <p className="mt-2 text-muted-foreground text-sm">
+          Sign in to continue.
+        </p>
 
         <MagicLinkForm />
         <OrSeparator />
         <OAuthButtons />
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          New to DocWise?{" "}
+          <Link
+            href="/signup"
+            className="font-medium text-foreground underline-offset-4 transition-colors hover:text-accent-foreground hover:underline"
+          >
+            Create an account
+          </Link>
+        </p>
       </div>
     </>
   );
@@ -80,7 +92,9 @@ function ClerkMagicLinkForm() {
 
   const launchEmailLinkFlow = async (targetEmail: string) => {
     if (!signIn) {
-      throw new Error("Authentication is still loading. Please try again in a moment.");
+      throw new Error(
+        "Authentication is still loading. Please try again in a moment.",
+      );
     }
 
     const normalizedEmail = targetEmail.trim().toLowerCase();
@@ -94,29 +108,31 @@ function ClerkMagicLinkForm() {
     setSentTo(normalizedEmail);
     setPending(false);
 
-    void signIn.emailLink.waitForVerification().then(async ({ error: verificationError }) => {
-      if (verificationError) {
-        setError(getClerkErrorMessage(verificationError));
-        return;
-      }
-
-      if (signIn.status === "complete") {
-        const { error: finalizeError } = await signIn.finalize({
-          navigate: ({ session, decorateUrl }) => {
-            if (session?.currentTask) return;
-            const url = decorateUrl("/dashboard");
-            if (url.startsWith("http")) {
-              window.location.href = url;
-            } else {
-              router.push(url);
-            }
-          },
-        });
-        if (finalizeError) {
-          setError(getClerkErrorMessage(finalizeError));
+    void signIn.emailLink
+      .waitForVerification()
+      .then(async ({ error: verificationError }) => {
+        if (verificationError) {
+          setError(getClerkErrorMessage(verificationError));
+          return;
         }
-      }
-    });
+
+        if (signIn.status === "complete") {
+          const { error: finalizeError } = await signIn.finalize({
+            navigate: ({ session, decorateUrl }) => {
+              if (session?.currentTask) return;
+              const url = decorateUrl("/dashboard");
+              if (url.startsWith("http")) {
+                window.location.href = url;
+              } else {
+                router.push(url);
+              }
+            },
+          });
+          if (finalizeError) {
+            setError(getClerkErrorMessage(finalizeError));
+          }
+        }
+      });
   };
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -124,7 +140,9 @@ function ClerkMagicLinkForm() {
     if (!email.trim()) return;
     pulseParticleSubmitImpulse(typingImpulse);
     if (!signIn) {
-      setError("Authentication is still loading. Please try again in a moment.");
+      setError(
+        "Authentication is still loading. Please try again in a moment.",
+      );
       return;
     }
     setError(null);
@@ -189,7 +207,13 @@ function ClerkMagicLinkForm() {
           />
         </div>
 
-        <Button type="submit" size="lg" loading={pending} disabled={pending} className="mt-2">
+        <Button
+          type="submit"
+          size="lg"
+          loading={pending}
+          disabled={pending}
+          className="mt-2"
+        >
           Send sign-in link
         </Button>
         <p className="text-center text-muted-foreground text-xs">
@@ -314,8 +338,14 @@ function getClerkErrorMessage(error: unknown) {
     "errors" in error &&
     Array.isArray((error as { errors?: unknown }).errors)
   ) {
-    const firstError = (error as { errors: Array<{ longMessage?: string; message?: string }> }).errors[0];
-    return firstError?.longMessage || firstError?.message || "Unable to continue. Please try again.";
+    const firstError = (
+      error as { errors: Array<{ longMessage?: string; message?: string }> }
+    ).errors[0];
+    return (
+      firstError?.longMessage ||
+      firstError?.message ||
+      "Unable to continue. Please try again."
+    );
   }
 
   if (error instanceof Error) return error.message;

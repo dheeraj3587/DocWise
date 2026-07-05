@@ -1,0 +1,123 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[left=0.48in,right=0.48in,top=0.38in,bottom=0.38in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+
+\definecolor{heading}{HTML}{111111}
+\definecolor{subtext}{HTML}{444444}
+\definecolor{linkcolor}{HTML}{0B5394}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\pagestyle{empty}
+\raggedbottom
+\sloppy
+\renewcommand{\familydefault}{\sfdefault}
+\linespread{0.94}
+
+\titleformat{\section}
+  {\normalsize\bfseries\color{heading}\uppercase}
+  {}{0pt}{}[\vspace{1pt}\titlerule\vspace{2pt}]
+\titlespacing*{\section}{0pt}{5pt}{2pt}
+
+\setlist[itemize]{
+  leftmargin=1.05em,
+  itemsep=0.25pt,
+  topsep=1pt,
+  parsep=0pt,
+  partopsep=0pt,
+  label=\textbullet
+}
+
+\newcommand{\entryspace}{\vspace{4pt}}
+\newcommand{\projectmarker}{{\footnotesize\textcolor{subtext}{Project}}\enspace}
+\newcommand{\linkline}[1]{{\footnotesize #1}}
+\newcommand{\techline}[1]{{\footnotesize\textbf{Tech:} #1}}
+
+\begin{document}
+
+\begin{center}
+  {\fontsize{19}{22}\selectfont\textbf{Dheeraj Joshi}\par}
+  \vspace{3pt}
+  {\small
+    \href{mailto:dheerajjoshicontact@gmail.com}{\color{linkcolor}dheerajjoshicontact@gmail.com}
+    \,|\, +91 70609 29418
+    \,|\, \href{https://linkedin.com/in/dheeraj-joshi}{\color{linkcolor}linkedin.com/in/dheeraj-joshi}
+    \,|\, \href{https://github.com/dheeraj3587}{\color{linkcolor}github.com/dheeraj3587}
+    \,|\, \href{https://dheerajjoshi.dev}{\color{linkcolor}dheerajjoshi.dev}
+    \,|\, Dehradun, India
+  }
+\end{center}
+
+\section{Technical Skills}
+{\small
+\textbf{Languages:} Python, TypeScript, JavaScript, SQL \\
+\textbf{Backend and Web:} FastAPI, Node.js, Next.js, React, REST APIs, JWT Authentication, Celery, API design \\
+\textbf{AI:} LangChain, LangGraph, LangSmith, CrewAI, OpenAI SDK, Hugging Face, RAG, vector databases, FAISS, LLM Evaluation (Ragas) \\
+\textbf{Databases and Tools:} PostgreSQL, Redis, Git, GitHub, Docker, Docker Compose, Linux, Nginx, GitHub Actions, CI/CD, Pytest \\
+\textbf{Core CS:} Data Structures, Algorithms, OOP, DBMS, Operating Systems, Computer Networks, System Design
+}
+
+\section{Experience}
+{\small
+\textbf{Backend Engineer, AI Tooling} \hfill \textcolor{subtext}{Remote | Nov 2024 -- Jun 2025}\\
+\textit{Outlier AI, Contract}
+\begin{itemize}
+  \item Developed \textbf{FastAPI} REST APIs and backend services powering internal LLM and AI-agent applications.
+  \item Built \textbf{RAG} pipelines with \textbf{FAISS} and the \textbf{OpenAI SDK}, including retrieval, prompt assembly, and response generation flows.
+  \item Designed agentic workflows with \textbf{LangGraph} and \textbf{CrewAI}, including custom tools and function-calling integrations for AI agents.
+  \item Debugged and optimized AI service workflows, improving reliability, latency, and handoff quality for annotator-facing tooling.
+\end{itemize}
+}
+
+\section{Projects}
+{\small
+\projectmarker\textbf{DocWise: AI Document Q\&A Platform}\\
+\linkline{\href{https://app.dheerajjoshi.dev}{\color{linkcolor}Live} | \href{https://github.com/dheeraj3587/DocWise}{\color{linkcolor}Repo}}\\
+\techline{\textbf{FastAPI}, \textbf{Next.js}, \textbf{PostgreSQL}, \textbf{Redis}, \textbf{Celery}, \textbf{FAISS}, \textbf{Docker}, \textbf{GitHub Actions}}
+\begin{itemize}
+  \item Built a document Q\&A app where users upload PDFs, audio, and video, then ask questions, generate summaries, and take notes with citations or timestamps.
+  \item Designed \textbf{REST APIs} for authentication, document ingestion, search, chat, notes, and rate limiting, using \textbf{PostgreSQL} for data and \textbf{Redis} for caching.
+  \item Designed asynchronous \textbf{Celery} pipelines for PDF parsing, transcription, embedding generation, and \textbf{FAISS} indexing; deployed with \textbf{Docker Compose} and \textbf{Nginx}.
+\end{itemize}
+
+\entryspace
+
+\projectmarker\textbf{Payway: Payments Ledger API}\\
+\linkline{\href{https://github.com/dheeraj3587/Payway}{\color{linkcolor}Repo}}\\
+\techline{\textbf{Python 3.12}, \textbf{FastAPI}, \textbf{SQLAlchemy}, \textbf{PostgreSQL}, \textbf{Alembic}, \textbf{Pytest}, \textbf{JWT}, \textbf{React}, \textbf{TypeScript}}
+\begin{itemize}
+  \item Designed and implemented a double-entry ledger service supporting atomic transfers, idempotency, and \textbf{ACID} transactions.
+  \item Added \textbf{JWT} authentication, async \textbf{SQLAlchemy} models, Alembic migrations, overdraft rejection, consistent JSON errors, and \textbf{Pytest} coverage.
+\end{itemize}
+
+\entryspace
+
+\projectmarker\textbf{Agentic RAG System with Evaluation Dashboard}\\
+\linkline{\href{https://github.com/dheeraj3587/agentic-rag}{\color{linkcolor}Repo}}\\
+\techline{\textbf{Python}, \textbf{LangGraph}, \textbf{FastAPI}, \textbf{Streamlit}, \textbf{Ragas}}
+\begin{itemize}
+  \item Built a \textbf{RAG} pipeline with graph-based orchestration, retrieval, answer validation, and low-confidence rerouting for more grounded responses.
+  \item Evaluated faithfulness, answer relevance, and context recall with \textbf{Ragas} over 50+ cases; built a \textbf{FastAPI} and \textbf{Streamlit} dashboard for tracing results.
+\end{itemize}
+}
+
+\section{Education}
+{\small
+\textbf{Graphic Era Hill University}, Dehradun \hfill \textcolor{subtext}{B.Tech in Computer Science and Engineering | 2022 -- 2026}\\
+\textit{Coursework:} Data Structures and Algorithms, OOP, DBMS, Operating Systems, Computer Networks, Software Engineering
+}
+
+\section{Achievements}
+{\small
+\begin{itemize}
+  \item Solved 500+ programming problems across arrays, trees, graphs, dynamic programming, binary search, recursion, and core data structures.
+  \item Built and deployed DocWise with Docker Compose, Nginx, PostgreSQL, Redis, Celery workers, and a public live URL.
+\end{itemize}
+}
+
+\end{document}

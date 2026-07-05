@@ -9,8 +9,7 @@ type ThemeToggleProps = {
 };
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const { resolved, toggleLightDark } = useTheme();
-  const isDark = resolved === "dark";
+  const { toggleLightDark } = useTheme();
 
   return (
     <Button
@@ -18,10 +17,11 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       variant="ghost"
       size="icon"
       className={className}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label="Toggle color theme"
       onClick={toggleLightDark}
     >
-      {isDark ? <Sun /> : <Moon />}
+      <Sun className="hidden dark:block" />
+      <Moon className="dark:hidden" />
     </Button>
   );
 }

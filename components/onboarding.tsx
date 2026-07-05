@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import { useSignUp } from "@clerk/nextjs";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,9 +79,12 @@ function OnboardingFlow() {
       }
 
       if (signUp.unverifiedFields.includes("email_address")) {
-        const { error: verifyError } = await signUp.verifications.sendEmailCode();
+        const { error: verifyError } =
+          await signUp.verifications.sendEmailCode();
         if (verifyError) throw verifyError;
-        setMessage("Verification code sent. Check your email to finish signup.");
+        setMessage(
+          "Verification code sent. Check your email to finish signup.",
+        );
         return;
       }
 
@@ -327,6 +331,16 @@ function ProfileStep({
         </Button>
       </div>
 
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link
+          href="/login"
+          className="font-medium text-foreground underline-offset-4 transition-colors hover:text-accent-foreground hover:underline"
+        >
+          Log in
+        </Link>
+      </p>
+
       {message ? (
         <div className="mt-4 rounded-lg border border-border/70 bg-background/40 px-3 py-2 text-muted-foreground text-sm">
           {message}
@@ -422,13 +436,7 @@ function InviteStep({
   );
 }
 
-function ReadyStep({
-  name,
-  count,
-}: {
-  name: string;
-  count: number;
-}) {
+function ReadyStep({ name, count }: { name: string; count: number }) {
   return (
     <>
       <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
