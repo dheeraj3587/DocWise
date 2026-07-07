@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     CEREBRAS_CHAT_REASONING_EFFORT: str = "low"
     CEREBRAS_DEEP_REASONING_EFFORT: str = "high"
 
+    # OpenRouter - Chat model provider
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_HTTP_REFERER: str = ""
+    OPENROUTER_APP_TITLE: str = "DocWise"
+
     # Local embeddings - free document indexing/search
     LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
 

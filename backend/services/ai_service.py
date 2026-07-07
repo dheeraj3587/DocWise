@@ -1,4 +1,4 @@
-"""AI service - LLM calls for chat, summarization, and RAG responses via Cerebras."""
+"""AI service - LLM calls for chat, summarization, and RAG responses."""
 
 import json
 from typing import AsyncGenerator, List, Dict, Any, Optional
@@ -31,13 +31,43 @@ class AIService:
     """Handles all LLM interactions — chat, summarization, RAG."""
 
     def __init__(self):
+        self.openrouter_client = None
         self.client = AsyncOpenAI(
             api_key=settings.CEREBRAS_API_KEY,
             base_url=settings.CEREBRAS_BASE_URL,
         )
 
+    @staticmethod
+    def _setting_str(name: str, default: str = "") -> str:
+        value = getattr(settings, name, default)
+        return value if isinstance(value, str) else default
+
+    def _openrouter_headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        referer = self._setting_str("OPENROUTER_HTTP_REFERER")
+        app_title = self._setting_str("OPENROUTER_APP_TITLE", "DocWise")
+        if referer:
+            headers["HTTP-Referer"] = referer
+        if app_title:
+            headers["X-Title"] = app_title
+        return headers
+
+    def _get_client(self, provider: str = "cerebras") -> AsyncOpenAI:
+        if provider == "openrouter":
+            api_key = self._setting_str("OPENROUTER_API_KEY")
+            if not api_key:
+                raise RuntimeError("OPENROUTER_API_KEY is not configured for OpenRouter models.")
+            if self.openrouter_client is None:
+                self.openrouter_client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url=self._setting_str("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+                    default_headers=self._openrouter_headers(),
+                )
+            return self.openrouter_client
+        return self.client
+
     def _get_model(self, deep_mode: bool = False, model: Optional[str] = None) -> str:
-        """Return the appropriate Cerebras model based on mode."""
+        """Return the selected model id, falling back to the Cerebras defaults."""
         if model:
             return model
         return settings.CEREBRAS_DEEP_MODEL if deep_mode else settings.CEREBRAS_CHAT_MODEL
@@ -55,18 +85,33 @@ class AIService:
         prompt: str,
         deep_mode: bool = False,
         model: Optional[str] = None,
+        provider: str = "cerebras",
         reasoning_effort: Optional[str] = None,
         system_prompt: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
-        stream = await self.client.chat.completions.create(
-            model=self._get_model(deep_mode, model=model),
-            messages=[
+        request: dict[str, Any] = {
+            "model": self._get_model(deep_mode, model=model),
+            "messages": [
                 {"role": "system", "content": system_prompt or BASE_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            reasoning_effort=self._get_reasoning_effort(deep_mode, reasoning_effort=reasoning_effort),
-            stream=True,
-        )
+            "stream": True,
+        }
+        if provider == "openrouter":
+            if deep_mode:
+                request["extra_body"] = {
+                    "reasoning": {
+                        "enabled": True,
+                        "effort": reasoning_effort or "medium",
+                    }
+                }
+        else:
+            request["reasoning_effort"] = self._get_reasoning_effort(
+                deep_mode,
+                reasoning_effort=reasoning_effort,
+            )
+
+        stream = await self._get_client(provider).chat.completions.create(**request)
         async for chunk in stream:
             text = chunk.choices[0].delta.content if chunk.choices else None
             if text:
@@ -77,17 +122,32 @@ class AIService:
         prompt: str,
         deep_mode: bool = False,
         model: Optional[str] = None,
+        provider: str = "cerebras",
         reasoning_effort: Optional[str] = None,
         system_prompt: Optional[str] = None,
     ) -> str:
-        response = await self.client.chat.completions.create(
-            model=self._get_model(deep_mode, model=model),
-            messages=[
+        request: dict[str, Any] = {
+            "model": self._get_model(deep_mode, model=model),
+            "messages": [
                 {"role": "system", "content": system_prompt or BASE_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            reasoning_effort=self._get_reasoning_effort(deep_mode, reasoning_effort=reasoning_effort),
-        )
+        }
+        if provider == "openrouter":
+            if deep_mode:
+                request["extra_body"] = {
+                    "reasoning": {
+                        "enabled": True,
+                        "effort": reasoning_effort or "medium",
+                    }
+                }
+        else:
+            request["reasoning_effort"] = self._get_reasoning_effort(
+                deep_mode,
+                reasoning_effort=reasoning_effort,
+            )
+
+        response = await self._get_client(provider).chat.completions.create(**request)
         if not response.choices:
             return ""
         return response.choices[0].message.content or ""
@@ -98,6 +158,7 @@ class AIService:
         context_chunks: List[Dict[str, Any]],
         deep_mode: bool = False,
         model: Optional[str] = None,
+        provider: str = "cerebras",
         reasoning_effort: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
@@ -142,6 +203,7 @@ Answer:"""
             prompt,
             deep_mode=deep_mode,
             model=model,
+            provider=provider,
             reasoning_effort=reasoning_effort,
             system_prompt=DOCUMENT_SYSTEM_PROMPT,
         ):
@@ -152,6 +214,7 @@ Answer:"""
         question: str,
         deep_mode: bool = False,
         model: Optional[str] = None,
+        provider: str = "cerebras",
         reasoning_effort: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """Stream answer without RAG context (general question)."""
@@ -166,6 +229,7 @@ Answer:"""
             prompt,
             deep_mode=deep_mode,
             model=model,
+            provider=provider,
             reasoning_effort=reasoning_effort,
             system_prompt=GENERAL_SYSTEM_PROMPT,
         ):

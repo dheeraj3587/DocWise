@@ -5,7 +5,7 @@ import json
 import asyncio
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -22,6 +22,7 @@ from models.chat_message import ChatMessage
 from models.file import File as FileModel
 from services.ai_service import ai_service
 from services.embedding_service import embedding_service
+from services.model_registry import available_chat_models, public_chat_model, resolve_chat_model
 from services.storage_service import storage_service
 from services.pdf_service import pdf_service
 
@@ -53,6 +54,8 @@ class ChatModelResponse(BaseModel):
     description: str
     creditCost: int
     reasoning: bool
+    provider: str
+    providerLabel: str
     badge: str | None = None
 
 
@@ -72,56 +75,18 @@ def _user_identity(user: dict) -> str:
     return user.get("email") or user.get("sub") or ""
 
 
-def _available_chat_models() -> list[dict]:
-    fast_cost = max(1, settings.CHAT_FAST_CREDIT_COST)
-    deep_cost = max(fast_cost + 1, settings.CHAT_DEEP_CREDIT_COST)
-    return [
-        {
-            "id": "gpt-oss-120b",
-            "name": "GPT OSS 120B",
-            "description": "Fast Q&A for everyday questions.",
-            "model": "gpt-oss-120b",
-            "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
-            "creditCost": fast_cost,
-            "reasoning": False,
-            "badge": "Fast",
-        },
-        {
-            "id": "gemma-4-31b",
-            "name": "Gemma 4 31B",
-            "description": "Balanced model for richer prompts and files.",
-            "model": "gemma-4-31b",
-            "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
-            "creditCost": fast_cost,
-            "reasoning": False,
-            "badge": "Docs",
-        },
-        {
-            "id": "zai-glm-4.7",
-            "name": "GLM 4.7",
-            "description": "Higher-capacity model for complex reasoning.",
-            "model": "zai-glm-4.7",
-            "reasoning_effort": settings.CEREBRAS_CHAT_REASONING_EFFORT or settings.CEREBRAS_REASONING_EFFORT,
-            "creditCost": deep_cost,
-            "reasoning": False,
-            "badge": "Heavy",
-        },
-    ]
-
-
 def _resolve_chat_model(model_id: str | None, deep_mode: bool) -> dict:
-    models = _available_chat_models()
     fallback_id = settings.CEREBRAS_DEEP_MODEL if deep_mode else settings.CEREBRAS_CHAT_MODEL
     selected_id = model_id or fallback_id
-    selected = next((model for model in models if model["id"] == selected_id or model["model"] == selected_id), None)
+    selected = resolve_chat_model(model_id, deep_mode)
     if selected is None:
         raise HTTPException(status_code=400, detail=f"Unsupported model: {selected_id}")
-    selected = {**selected}
-    if deep_mode:
-        selected["reasoning"] = True
-        selected["reasoning_effort"] = settings.CEREBRAS_DEEP_REASONING_EFFORT
-        selected["creditCost"] += max(1, settings.CHAT_DEEP_CREDIT_COST)
-    return selected
+    if selected["provider"] == "openrouter" and not settings.OPENROUTER_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="OPENROUTER_API_KEY is not configured for OpenRouter models.",
+        )
+    return dict(selected)
 
 
 async def _get_owned_file(file_id: str, user: dict, db: AsyncSession) -> FileModel:
@@ -205,17 +170,7 @@ async def get_chat_history(
 @router.get("/models")
 async def get_chat_models():
     """Return chat models exposed in the DocWise model picker."""
-    models = [
-        {
-            "id": model["id"],
-            "name": model["name"],
-            "description": model["description"],
-            "creditCost": model["creditCost"],
-            "reasoning": model["reasoning"],
-            "badge": model["badge"],
-        }
-        for model in _available_chat_models()
-    ]
+    models = [public_chat_model(model) for model in available_chat_models()]
     return JSONResponse(
         content=models,
         headers={"Cache-Control": "public, max-age=300"},
@@ -367,6 +322,7 @@ async def chat_ask(
                     context_chunks=context_chunks,
                     deep_mode=model_profile["reasoning"],
                     model=model_profile["model"],
+                    provider=model_profile["provider"],
                     reasoning_effort=model_profile["reasoning_effort"],
                 )
             else:
@@ -374,6 +330,7 @@ async def chat_ask(
                     question=body.question,
                     deep_mode=model_profile["reasoning"],
                     model=model_profile["model"],
+                    provider=model_profile["provider"],
                     reasoning_effort=model_profile["reasoning_effort"],
                 )
 

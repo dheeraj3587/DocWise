@@ -2,6 +2,7 @@
 
 import {
   AudioWaveformIcon,
+  CheckIcon,
   ChevronDownIcon,
   FileIcon,
   ImageIcon,
@@ -26,6 +27,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
@@ -58,6 +60,8 @@ export interface ModelOption {
   description: string
   creditCost: number
   reasoning: boolean
+  provider?: string
+  providerLabel?: string
   badge?: string | null
 }
 
@@ -84,6 +88,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     description: 'Fast Q&A for everyday questions.',
     creditCost: 1,
     reasoning: false,
+    provider: 'cerebras',
+    providerLabel: 'Cerebras',
     badge: 'Fast',
   },
   {
@@ -92,6 +98,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     description: 'Balanced model for richer prompts and files.',
     creditCost: 1,
     reasoning: false,
+    provider: 'cerebras',
+    providerLabel: 'Cerebras',
     badge: 'Docs',
   },
   {
@@ -100,7 +108,19 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     description: 'Higher-capacity model for complex reasoning.',
     creditCost: 3,
     reasoning: false,
+    provider: 'cerebras',
+    providerLabel: 'Cerebras',
     badge: 'Heavy',
+  },
+  {
+    id: 'tencent/hy3:free',
+    name: 'Tencent HY3',
+    description: 'OpenRouter free model for general and document chat.',
+    creditCost: 1,
+    reasoning: false,
+    provider: 'openrouter',
+    providerLabel: 'OpenRouter',
+    badge: 'Free',
   },
 ]
 
@@ -706,48 +726,187 @@ function ModelSelect({
   onModelChange: (model: ModelOption) => void
 }) {
   const selected = models.find((model) => model.id === selectedModelId) || models[0]
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{
+    left: number
+    top: number
+    width: number
+    maxHeight: number
+  } | null>(null)
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+
+    const rect = trigger.getBoundingClientRect()
+    const viewportPadding = 12
+    const gap = 8
+    const preferredWidth = 320
+    const width = Math.min(preferredWidth, window.innerWidth - viewportPadding * 2)
+    const estimatedHeight = Math.min(360, 74 + models.length * 66)
+    const spaceAbove = rect.top - viewportPadding - gap
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding - gap
+    const openAbove = spaceAbove >= Math.min(estimatedHeight, 240) || spaceAbove > spaceBelow
+    const maxHeight = Math.max(180, Math.min(360, openAbove ? spaceAbove : spaceBelow))
+    const left = Math.min(
+      Math.max(viewportPadding, rect.right - width),
+      window.innerWidth - width - viewportPadding,
+    )
+    const top = openAbove
+      ? Math.max(viewportPadding, rect.top - gap - Math.min(estimatedHeight, maxHeight))
+      : Math.min(window.innerHeight - viewportPadding - maxHeight, rect.bottom + gap)
+
+    setMenuPosition({ left, top, width, maxHeight })
+  }, [models.length])
+
+  useEffect(() => {
+    if (!open) return
+
+    updatePosition()
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      onOpenChange(false)
+    }
+
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') onOpenChange(false)
+    }
+
+    const onScroll = (event: Event) => {
+      const target = event.target as Node
+      if (menuRef.current?.contains(target)) return
+      onOpenChange(false)
+    }
+
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', onScroll, true)
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', onScroll, true)
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onOpenChange, open, updatePosition])
 
   if (!selected) return null
 
+  const modelMenu =
+    open && typeof document !== 'undefined' && menuPosition
+      ? createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              left: menuPosition.left,
+              top: menuPosition.top,
+              width: menuPosition.width,
+              maxHeight: menuPosition.maxHeight,
+            }}
+            className="fixed z-[1000] overflow-y-auto rounded-2xl border border-border bg-background p-1.5 shadow-2xl shadow-black/50"
+          >
+            <div className="flex items-center justify-between px-2.5 py-2">
+              <span className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
+                Model
+              </span>
+              <span className="text-[10px] text-muted-foreground">credits</span>
+            </div>
+            <div className="space-y-1">
+              {models.map((model) => {
+                const active = model.id === selected.id
+                const creditCost = model.creditCost + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    onClick={() => onModelChange(model)}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-xl px-2.5 py-2.5 text-left transition-colors',
+                      active
+                        ? 'bg-secondary text-foreground'
+                        : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
+                    )}
+                  >
+                    <ProviderMark provider={model.provider} providerLabel={model.providerLabel} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[12px] font-medium">{model.name}</span>
+                        {model.badge ? (
+                          <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            {model.badge}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 opacity-75">
+                        {model.description}
+                      </span>
+                      <span className="mt-1 block font-mono text-[8px] uppercase tracking-[0.22em] text-muted-foreground/80">
+                        {model.providerLabel || 'Provider'}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px]">
+                        {active ? selectedCreditCost : creditCost}
+                      </span>
+                      {active ? <CheckIcon className="h-3.5 w-3.5" /> : null}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null
+
   return (
-    <div className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => onOpenChange(!open)}
-        className="inline-flex h-8 min-w-[120px] max-w-[170px] items-center justify-between gap-2 rounded-full border border-border bg-background/70 px-2.5 text-left text-[11px] text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-8 min-w-[132px] max-w-[190px] items-center justify-between gap-2 rounded-full border border-border bg-background/70 px-2.5 text-left text-[11px] text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="min-w-0 truncate">{selected.name}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <ProviderMark provider={selected.provider} providerLabel={selected.providerLabel} compact />
+          <span className="min-w-0 truncate">{selected.name}</span>
+        </span>
         <ChevronDownIcon className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
 
-      {open ? (
-        <div className="absolute bottom-10 right-0 z-[100] max-h-56 w-[230px] overflow-y-auto rounded-xl border border-border bg-background p-1 shadow-2xl shadow-black/40">
-          {models.map((model) => {
-            const active = model.id === selected.id
-            const creditCost = model.creditCost + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
-            return (
-              <button
-                key={model.id}
-                type="button"
-                onClick={() => onModelChange(model)}
-                className={cn(
-                  'flex w-full items-start justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors',
-                  active ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
-                )}
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-[12px] font-medium">{model.name}</span>
-                  <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 opacity-75">{model.description}</span>
-                </span>
-                <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[9px]">
-                  {active ? selectedCreditCost : creditCost}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-    </div>
+      {modelMenu}
+    </>
+  )
+}
+
+function ProviderMark({
+  provider,
+  providerLabel,
+  compact = false,
+}: {
+  provider?: string
+  providerLabel?: string
+  compact?: boolean
+}) {
+  const text = provider === 'openrouter' ? 'OR' : provider === 'cerebras' ? 'C' : (providerLabel || 'AI').slice(0, 2).toUpperCase()
+
+  return (
+    <span
+      className={cn(
+        'grid shrink-0 place-items-center rounded-full border border-border bg-background font-mono font-semibold uppercase text-muted-foreground',
+        compact ? 'h-4 w-4 text-[7px]' : 'h-7 w-7 text-[9px]',
+      )}
+      title={providerLabel || provider || 'Provider'}
+      aria-hidden="true"
+    >
+      {text}
+    </span>
   )
 }

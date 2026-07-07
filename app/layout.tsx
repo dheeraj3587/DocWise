@@ -1,21 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Outfit } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistPixelSquare } from "geist/font/pixel";
 import "./globals.css";
 import { ClerkThemeProvider } from "@/components/clerk-theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_API_URL || "https://app.dheerajjoshi.me"),
@@ -72,8 +61,8 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${outfit.variable} antialiased font-sans`}
-        style={{ fontFamily: "var(--font-inter)" }}
+        className={`${GeistSans.variable} ${GeistPixelSquare.variable} antialiased font-sans`}
+        style={{ fontFamily: "var(--font-geist-sans)" }}
       >
         <ThemeProvider>
           <ClerkThemeProvider>

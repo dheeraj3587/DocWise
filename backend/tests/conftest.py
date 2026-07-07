@@ -1,6 +1,5 @@
 """Shared pytest fixtures for all backend tests."""
 
-import asyncio
 import os
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -25,6 +24,9 @@ os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"] = "text-embedding-3-large"
 os.environ["AZURE_OPENAI_EMBEDDING_API_VERSION"] = "2024-12-01-preview"
 os.environ["CEREBRAS_API_KEY"] = "test-key"
 os.environ["CEREBRAS_BASE_URL"] = "https://api.cerebras.ai/v1"
+os.environ["OPENROUTER_API_KEY"] = "test-openrouter-key"
+os.environ["OPENROUTER_BASE_URL"] = "https://openrouter.ai/api/v1"
+os.environ["OPENROUTER_APP_TITLE"] = "DocWise Tests"
 os.environ["OPENAI_API_KEY"] = "test-key"
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"
 os.environ["CLERK_JWKS_URL"] = "https://test.clerk.dev/.well-known/jwks.json"

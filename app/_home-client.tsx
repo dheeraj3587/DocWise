@@ -18,16 +18,10 @@ import {
 import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useUserSync } from "@/lib/use-user-sync";
-
-type SpherePoint = {
-  x: number;
-  y: number;
-  z: number;
-};
 
 type PipelineStep = {
   n: string;
@@ -46,108 +40,6 @@ type SystemCard = {
     value: string;
   }>;
 };
-
-function fibonacciSpherePoints(count: number): SpherePoint[] {
-  const points: SpherePoint[] = [];
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-
-  for (let i = 0; i < count; i += 1) {
-    const y = 1 - (i / (count - 1)) * 2;
-    const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
-    const theta = goldenAngle * i;
-    const x = Math.cos(theta) * radiusAtY;
-    const z = Math.sin(theta) * radiusAtY;
-    points.push({ x, y, z });
-  }
-
-  return points;
-}
-
-function DotSphere({
-  size = 64,
-  dots = 240,
-  color = "currentColor",
-}: {
-  size?: number;
-  dots?: number;
-  color?: string;
-}) {
-  const points = useMemo(() => fibonacciSpherePoints(dots), [dots]);
-  const r = size / 2;
-
-  return (
-    <svg
-      aria-hidden
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      className="block overflow-visible"
-    >
-      {points.map((p, i) => {
-        const cx = r + p.x * r * 0.96;
-        const cy = r + p.y * r * 0.96;
-        const light = (p.z + 1) / 2;
-        const dotR = 0.35 + light * (size / 70);
-        const opacity = 0.1 + light * 0.7;
-
-        return (
-          <circle
-            key={`${i}-${cx}-${cy}`}
-            cx={cx}
-            cy={cy}
-            r={dotR}
-            fill={color}
-            opacity={opacity}
-          />
-        );
-      })}
-    </svg>
-  );
-}
-
-function TracedLogoBackdrop({ reduceMotion }: { reduceMotion: boolean }) {
-  return (
-    <svg
-      aria-hidden
-      viewBox="520 230 520 520"
-      className="h-full w-full overflow-visible"
-      fill="none"
-    >
-      <defs>
-        <radialGradient
-          id="landingLogoTraceGradient"
-          cx="760"
-          cy="488"
-          r="310"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="var(--premium-teal)" stopOpacity="0.78" />
-          <stop
-            offset="0.56"
-            stopColor="var(--premium-amber)"
-            stopOpacity="0.36"
-          />
-          <stop offset="1" stopColor="var(--foreground)" stopOpacity="0.1" />
-        </radialGradient>
-      </defs>
-      <path
-        d={DOCWISE_LOGO_PATH}
-        stroke="var(--foreground)"
-        strokeOpacity="0.08"
-        strokeLinejoin="round"
-        strokeWidth="18"
-      />
-      <motion.path
-        d={DOCWISE_LOGO_PATH}
-        className={reduceMotion ? undefined : "landing-trace-draw"}
-        stroke="url(#landingLogoTraceGradient)"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="4"
-      />
-    </svg>
-  );
-}
 
 const PIPELINE_STEPS: PipelineStep[] = [
   {
@@ -234,8 +126,26 @@ const TRACE_LINES = [
 ];
 const CITATIONS = ["MSA section 4.2", "Refund Policy v3", "Support Handbook"];
 const HERO_DOCUMENTS = ["MSA.pdf", "Refund.md", "Support.txt"];
-const DOCWISE_LOGO_PATH =
-  "M 624 256.980 C 573.695 257.814, 571.702 258.213, 563.736 269.045 C 556.420 278.993, 559.566 291.334, 583.729 347.460 C 600.533 386.492, 602.961 389.586, 621.952 396.170 C 630.771 399.228, 651.763 399.935, 734.750 399.969 L 811 400 811 407.818 C 811 424.400, 802.562 440.823, 787.076 454.382 C 774.997 464.958, 779.412 464.378, 705 465.159 C 630.097 465.944, 627.534 466.059, 619.753 468.982 C 606.040 474.134, 596.693 488.516, 560.726 559.805 C 547.375 586.268, 547.754 588.946, 572.603 643.726 C 596.074 695.466, 598.874 699.035, 615.946 698.978 C 631.121 698.927, 638.449 691.883, 655.974 660.500 C 667.185 640.425, 672.413 635.011, 680.593 635.004 C 693.035 634.992, 701.353 646.042, 713.712 679 C 721.631 700.114, 726.473 706.590, 738.533 712.192 C 744.550 714.988, 805.709 715.729, 899 714.137 C 955.185 713.178, 955.594 713.137, 963.651 707.723 C 977.716 698.271, 977.693 693.886, 963.370 654.132 C 940.505 590.666, 941.160 592.223, 934.246 584.832 C 923.035 572.846, 920.311 572.438, 839 570.572 C 725.144 567.957, 735.150 568.963, 732.979 559.914 C 729.158 543.984, 734.954 526.790, 748.693 513.298 C 756.374 505.756, 753.656 506.015, 825.500 505.980 C 929.609 505.929, 920.932 509.732, 952.090 450.500 C 987.700 382.804, 987.352 390.586, 958.344 310.652 C 943.685 270.257, 941.110 265.754, 929.602 260.395 C 913.751 253.014, 903.638 259.323, 885.296 288.036 C 854.924 335.581, 851.247 335.906, 829 293 C 809.407 255.214, 814.356 256.980, 727 256.589 C 692.625 256.435, 646.275 256.611, 624 256.980";
+
+const LANDING_BLACK_THEME = {
+  "--background": "#050505",
+  "--foreground": "#ededed",
+  "--muted-foreground": "#9b9ba3",
+  "--border": "rgba(255,255,255,0.105)",
+  "--input": "rgba(255,255,255,0.12)",
+  "--primary": "#ededed",
+  "--primary-foreground": "#050505",
+  "--secondary": "rgba(255,255,255,0.075)",
+  "--secondary-foreground": "#ededed",
+  "--accent": "rgba(255,255,255,0.085)",
+  "--accent-foreground": "#ededed",
+  "--glass-bg": "rgba(10,10,10,0.82)",
+  "--glass-border": "rgba(255,255,255,0.13)",
+  "--glass-shadow": "0 24px 80px rgba(0,0,0,0.52)",
+  "--surface-1": "rgba(255,255,255,0.035)",
+  "--surface-2": "rgba(255,255,255,0.06)",
+  "--surface-3": "rgba(255,255,255,0.09)",
+} as CSSProperties;
 
 const revealUp = {
   hidden: { opacity: 0, y: 18 },
@@ -304,31 +214,20 @@ export default function HomeClient() {
   );
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-mesh text-foreground">
+    <main
+      className="min-h-screen overflow-x-hidden bg-[#050505] text-foreground"
+      style={LANDING_BLACK_THEME}
+    >
       <style>{`
-        .landing-float-slow { animation: landing-float 7s ease-in-out infinite; }
-        .landing-spin-soft { animation: landing-spin 26s linear infinite; transform-origin: center; }
-        .landing-scan { animation: landing-scan 2.8s ease-in-out infinite; }
         .landing-pulse { animation: landing-pulse 1.7s ease-in-out infinite; }
         .landing-doc-flow { animation: landing-doc-flow 4.8s cubic-bezier(.45,0,.2,1) infinite; }
-        .landing-shimmer-line { animation: landing-shimmer-line 2.6s ease-in-out infinite; }
         .landing-stack-drift { animation: landing-stack-drift 7.2s ease-in-out infinite; }
-        .landing-trace-draw { stroke-dasharray: 1320; stroke-dashoffset: 1320; animation: landing-trace-draw 2.6s cubic-bezier(.2,.75,.12,1) forwards, landing-trace-breathe 5.8s ease-in-out 2.6s infinite; }
-        .landing-flow-packet { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--premium-teal) 68%, transparent)); }
         .landing-flow-card { transition: border-color .35s ease, background-color .35s ease, box-shadow .35s ease, color .35s ease; }
+        .pipeline-pop {
+          --pipeline-accent: #ededed;
+          --pipeline-ink: #080808;
+        }
 
-        @keyframes landing-float {
-          0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-          50% { transform: translate3d(0, -10px, 0) rotate(1.5deg); }
-        }
-        @keyframes landing-spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes landing-scan {
-          0% { transform: translateY(-120%); opacity: 0; }
-          18%, 72% { opacity: .75; }
-          100% { transform: translateY(360%); opacity: 0; }
-        }
         @keyframes landing-pulse {
           0%, 100% { opacity: .45; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.6); }
@@ -339,30 +238,14 @@ export default function HomeClient() {
           72% { opacity: .48; }
           100% { transform: translate3d(182px, -10px, 0) scale(.78); opacity: 0; }
         }
-        @keyframes landing-shimmer-line {
-          0%, 100% { background-position: 0% 50%; opacity: .55; }
-          50% { background-position: 100% 50%; opacity: 1; }
-        }
         @keyframes landing-stack-drift {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-6px); }
         }
-        @keyframes landing-trace-draw {
-          to { stroke-dashoffset: 0; }
-        }
-        @keyframes landing-trace-breathe {
-          0%, 100% { opacity: .28; }
-          50% { opacity: .58; }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .landing-float-slow,
-          .landing-spin-soft,
-          .landing-scan,
           .landing-pulse,
           .landing-doc-flow,
-          .landing-shimmer-line,
-          .landing-stack-drift,
-          .landing-trace-draw {
+          .landing-stack-drift {
             animation: none !important;
           }
         }
@@ -423,7 +306,6 @@ export default function HomeClient() {
                 <Button
                   size="sm"
                   onClick={() => router.push("/signup")}
-                  className="glow-gold-subtle"
                 >
                   Get started
                 </Button>
@@ -440,19 +322,7 @@ export default function HomeClient() {
         </nav>
       </header>
 
-      <section className="relative overflow-hidden px-4 py-16 sm:px-6 sm:py-24">
-        <div className="pointer-events-none absolute -left-28 -top-24 hidden text-gold/35 dark:text-gold/25 lg:block landing-spin-soft">
-          <DotSphere size={330} dots={420} />
-        </div>
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_560px_at_82%_12%,rgba(196,154,58,0.14),transparent_60%)] dark:bg-[radial-gradient(900px_560px_at_82%_12%,rgba(241,206,115,0.09),transparent_60%)]"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--premium-amber),var(--premium-teal),transparent)] bg-[length:220%_100%] landing-shimmer-line"
-        />
-
+      <section className="relative overflow-hidden border-b border-border/70 px-4 py-16 sm:px-6 sm:py-24">
         <div className="relative mx-auto grid max-w-6xl items-start gap-10 lg:grid-cols-[1.06fr_0.94fr] lg:gap-14">
           <motion.div
             className="pt-4"
@@ -476,7 +346,7 @@ export default function HomeClient() {
               <Button
                 size="xl"
                 onClick={handleGetStarted}
-                className="glow-gold-subtle w-full sm:w-auto"
+                className="w-full sm:w-auto"
               >
                 {user ? "Open dashboard" : "Get started free"}
                 <ArrowRight />
@@ -502,10 +372,6 @@ export default function HomeClient() {
             animate="visible"
             transition={{ duration: 0.6, delay: 0.12, ease: "easeOut" }}
           >
-            <div className="pointer-events-none absolute -right-16 -top-20 z-0 hidden h-60 w-60 lg:block">
-              <TracedLogoBackdrop reduceMotion={reduceMotion} />
-            </div>
-
             <div className="pointer-events-none absolute -left-10 top-32 z-0 hidden h-28 w-72 lg:block">
               {HERO_DOCUMENTS.map((doc, index) => (
                 <span
@@ -522,16 +388,12 @@ export default function HomeClient() {
             </div>
 
             <div className="glass-strong relative z-10 overflow-hidden rounded-lg p-4 shadow-2xl shadow-black/5">
-              <div
-                aria-hidden
-                className="landing-scan pointer-events-none absolute left-0 right-0 top-1/3 h-12 bg-gradient-to-b from-transparent via-gold/5 to-transparent"
-              />
               <div className="mb-5 flex items-center justify-between">
                 <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                   Live query trace
                 </span>
                 <span className="inline-flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-                  <span className="landing-pulse size-1.5 rounded-full bg-premium-teal" />
+                  <span className="landing-pulse size-1.5 rounded-full bg-foreground" />
                   Example
                 </span>
               </div>
@@ -553,7 +415,7 @@ export default function HomeClient() {
                         }
                         transition={{ duration: 0.25 }}
                       >
-                        <CheckCircle2 className="size-3.5 shrink-0 text-premium-teal" />
+                        <CheckCircle2 className="size-3.5 shrink-0 text-foreground" />
                         <span>{line}</span>
                       </motion.div>
                     ) : null,
@@ -590,7 +452,7 @@ export default function HomeClient() {
       </section>
 
       <motion.section
-        className="border-t border-border/70 px-4 py-16 sm:px-6 sm:py-24"
+        className="pipeline-pop border-t border-border/70 px-4 py-16 sm:px-6 sm:py-24"
         id="pipeline"
         variants={revealUp}
         initial="hidden"
@@ -605,11 +467,16 @@ export default function HomeClient() {
         />
 
         <div className="relative mx-auto mt-12 max-w-6xl">
-          <div className="absolute left-[8.333%] right-[8.333%] top-[27px] hidden h-px md:block">
-            <div className="absolute inset-0 border-t border-dotted border-border" />
+          <div className="absolute left-[8.333%] right-[8.333%] top-[27px] hidden h-[2px] md:block">
+            <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border/70" />
             <motion.div
               aria-hidden
-              className="absolute left-0 top-0 h-px bg-[linear-gradient(90deg,var(--premium-teal),var(--premium-amber))]"
+              className="absolute left-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full"
+              style={{
+                background: "var(--pipeline-accent)",
+                boxShadow:
+                  "0 0 22px color-mix(in srgb, var(--pipeline-accent) 34%, transparent)",
+              }}
               animate={{ width: `${pipelineProgress}%` }}
               transition={{
                 duration: reduceMotion ? 0 : 0.55,
@@ -618,7 +485,12 @@ export default function HomeClient() {
             />
             <motion.div
               aria-hidden
-              className="landing-flow-packet absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-background bg-[var(--premium-teal)]"
+              className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background"
+              style={{
+                background: "var(--pipeline-accent)",
+                boxShadow:
+                  "0 0 0 8px color-mix(in srgb, var(--pipeline-accent) 12%, transparent), 0 0 30px color-mix(in srgb, var(--pipeline-accent) 58%, transparent)",
+              }}
               animate={{ left: `${pipelineProgress}%` }}
               transition={{
                 duration: reduceMotion ? 0 : 0.55,
@@ -646,7 +518,13 @@ export default function HomeClient() {
                     {isActive && !reduceMotion ? (
                       <motion.span
                         aria-hidden
-                        className="absolute inset-[-7px] rounded-full border border-[color:var(--premium-teal)]"
+                        className="absolute inset-[-8px] rounded-full border"
+                        style={{
+                          borderColor:
+                            "color-mix(in srgb, var(--pipeline-accent) 70%, transparent)",
+                          boxShadow:
+                            "0 0 26px color-mix(in srgb, var(--pipeline-accent) 22%, transparent)",
+                        }}
                         initial={{ opacity: 0, scale: 0.82 }}
                         animate={{
                           opacity: [0.2, 0.85, 0.2],
@@ -664,17 +542,19 @@ export default function HomeClient() {
                       style={{
                         borderColor:
                           isActive || isDone
-                            ? "color-mix(in srgb, var(--premium-teal) 64%, var(--border))"
+                            ? isActive
+                              ? "var(--pipeline-accent)"
+                              : "color-mix(in srgb, var(--pipeline-accent) 52%, var(--border))"
                             : "var(--border)",
                         background: isActive
-                          ? "color-mix(in srgb, var(--premium-teal) 14%, var(--background))"
+                          ? "color-mix(in srgb, var(--pipeline-ink) 90%, var(--pipeline-accent))"
                           : undefined,
                         color:
                           isActive || isDone
                             ? "var(--foreground)"
                             : "var(--muted-foreground)",
                         boxShadow: isActive
-                          ? "0 0 0 6px color-mix(in srgb, var(--premium-teal) 10%, transparent), 0 18px 36px rgba(0,0,0,.12)"
+                          ? "0 0 0 6px color-mix(in srgb, var(--pipeline-accent) 10%, transparent), 0 0 28px color-mix(in srgb, var(--pipeline-accent) 24%, transparent), 0 18px 36px rgba(0,0,0,.18)"
                           : undefined,
                       }}
                     >
@@ -687,7 +567,7 @@ export default function HomeClient() {
                         className="font-mono text-[11px]"
                         style={{
                           color: isActive
-                            ? "var(--premium-teal)"
+                            ? "var(--pipeline-accent)"
                             : "var(--muted-foreground)",
                         }}
                       >
@@ -704,7 +584,15 @@ export default function HomeClient() {
             })}
           </div>
           <motion.div
-            className="mx-auto mt-10 grid max-w-4xl gap-4 rounded-lg border border-border/80 bg-surface-1 p-4 shadow-sm md:grid-cols-[0.74fr_1.26fr] md:items-center"
+            className="mx-auto mt-10 grid max-w-4xl gap-4 rounded-lg border p-4 shadow-sm md:grid-cols-[0.74fr_1.26fr] md:items-center"
+            style={{
+              borderColor:
+                "color-mix(in srgb, var(--pipeline-accent) 24%, var(--border))",
+              background:
+                "color-mix(in srgb, var(--surface-1) 86%, var(--pipeline-accent))",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,.04), 0 18px 50px rgba(0,0,0,.16)",
+            }}
             animate={
               reduceMotion ? undefined : { y: activePipelineStep % 2 ? -2 : 0 }
             }
@@ -715,7 +603,14 @@ export default function HomeClient() {
                 Active stage
               </div>
               <div className="mt-2 flex items-center gap-3">
-                <span className="grid size-9 place-items-center rounded-full border border-[color:var(--premium-teal)] bg-background font-mono text-[11px] text-foreground">
+                <span
+                  className="grid size-9 place-items-center rounded-full border bg-background font-mono text-[11px] text-foreground"
+                  style={{
+                    borderColor: "var(--pipeline-accent)",
+                    boxShadow:
+                      "0 0 20px color-mix(in srgb, var(--pipeline-accent) 20%, transparent)",
+                  }}
+                >
                   {activeStep.n}
                 </span>
                 <span className="font-heading text-xl font-semibold">
@@ -726,7 +621,12 @@ export default function HomeClient() {
             <div>
               <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
                 <motion.div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,var(--premium-teal),var(--premium-amber))]"
+                  className="h-full rounded-full"
+                  style={{
+                    background: "var(--pipeline-accent)",
+                    boxShadow:
+                      "0 0 16px color-mix(in srgb, var(--pipeline-accent) 28%, transparent)",
+                  }}
                   initial={false}
                   animate={{ width: `${pipelineProgress}%` }}
                   transition={{
@@ -824,11 +724,7 @@ export default function HomeClient() {
           to the source material.
         </p>
         <div className="mt-8 flex justify-center">
-          <Button
-            size="xl"
-            onClick={handleGetStarted}
-            className="glow-gold-subtle"
-          >
+          <Button size="xl" onClick={handleGetStarted}>
             {user ? "Open dashboard" : "Get started free"}
             <ArrowRight />
           </Button>

@@ -1,13 +1,10 @@
 """Tests for chat and summarization endpoints."""
 
-import json
 import uuid
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
-from models.file import File as FileModel
 
 
 @pytest.mark.asyncio
@@ -24,11 +21,18 @@ class TestChat:
             "gpt-oss-120b",
             "gemma-4-31b",
             "zai-glm-4.7",
+            "tencent/hy3:free",
         }
         glm = next(model for model in models if model["id"] == "zai-glm-4.7")
         assert glm["name"] == "GLM 4.7"
         assert glm["reasoning"] is False
         assert glm["creditCost"] > 1
+        tencent = next(model for model in models if model["id"] == "tencent/hy3:free")
+        assert tencent["name"] == "Tencent HY3"
+        assert tencent["provider"] == "openrouter"
+        assert tencent["providerLabel"] == "OpenRouter"
+        assert tencent["badge"] == "Free"
+        assert tencent["creditCost"] == 1
 
     async def test_chat_models_endpoint_is_public(self):
         """Test model picker metadata does not require a logged-in user."""
@@ -260,6 +264,55 @@ class TestChat:
             )
             assert second.status_code == 429
             assert "costs 4 credits" in second.text
+
+    async def test_openrouter_model_routes_provider_to_ai_service(
+        self,
+        client,
+        monkeypatch,
+    ):
+        """Test OpenRouter model requests are passed through with provider metadata."""
+        captured = {}
+
+        async def fake_no_context(*args, **kwargs):
+            captured.update(kwargs)
+            yield "openrouter answer"
+
+        monkeypatch.setattr("routers.chat.ai_service.chat_no_context", fake_no_context)
+
+        response = await client.post(
+            "/api/chat/ask",
+            json={
+                "question": "Use Tencent",
+                "model_id": "tencent/hy3:free",
+                "deep_mode": True,
+            },
+        )
+
+        assert response.status_code == 200
+        assert "openrouter answer" in response.text
+        assert captured["model"] == "tencent/hy3:free"
+        assert captured["provider"] == "openrouter"
+        assert captured["deep_mode"] is True
+        assert captured["reasoning_effort"] == "medium"
+
+    async def test_openrouter_model_requires_configured_key(
+        self,
+        client,
+        monkeypatch,
+    ):
+        """Test missing OpenRouter credentials fail before streaming starts."""
+        monkeypatch.setattr("routers.chat.settings.OPENROUTER_API_KEY", "")
+
+        response = await client.post(
+            "/api/chat/ask",
+            json={
+                "question": "Use Tencent",
+                "model_id": "tencent/hy3:free",
+            },
+        )
+
+        assert response.status_code == 503
+        assert "OPENROUTER_API_KEY" in response.text
 
 
 @pytest.mark.asyncio

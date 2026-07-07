@@ -84,6 +84,28 @@ class TestAIServiceModelSelection:
             reasoning_effort="high",
         ) == "high"
 
+    @patch("services.ai_service.settings")
+    @patch("services.ai_service.AsyncOpenAI")
+    def test_openrouter_client_uses_provider_config(self, mock_client, mock_settings):
+        mock_settings.CEREBRAS_API_KEY = "cerebras-key"
+        mock_settings.CEREBRAS_BASE_URL = "https://api.cerebras.ai/v1"
+        mock_settings.OPENROUTER_API_KEY = "openrouter-key"
+        mock_settings.OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+        mock_settings.OPENROUTER_HTTP_REFERER = "https://app.dheerajjoshi.dev"
+        mock_settings.OPENROUTER_APP_TITLE = "DocWise"
+
+        svc = AIService()
+        svc._get_client("openrouter")
+
+        mock_client.assert_any_call(
+            api_key="openrouter-key",
+            base_url="https://openrouter.ai/api/v1",
+            default_headers={
+                "HTTP-Referer": "https://app.dheerajjoshi.dev",
+                "X-Title": "DocWise",
+            },
+        )
+
 
 @pytest.mark.asyncio
 class TestAIServiceChat:
@@ -150,6 +172,36 @@ class TestAIServiceChat:
             chunks.append(chunk)
 
         assert chunks == ["data"]
+
+    @patch("services.ai_service.AsyncOpenAI")
+    async def test_openrouter_stream_uses_reasoning_extra_body(self, mock_client_cls):
+        svc = AIService()
+        openrouter_client = MagicMock()
+        openrouter_client.chat.completions.create = AsyncMock(
+            return_value=_AsyncChunks([_stream_chunk("OR")])
+        )
+        svc.openrouter_client = openrouter_client
+
+        chunks = []
+        async for chunk in svc.chat_no_context(
+            "Hello",
+            deep_mode=True,
+            model="tencent/hy3:free",
+            provider="openrouter",
+            reasoning_effort="medium",
+        ):
+            chunks.append(chunk)
+
+        assert chunks == ["OR"]
+        kwargs = openrouter_client.chat.completions.create.await_args.kwargs
+        assert kwargs["model"] == "tencent/hy3:free"
+        assert kwargs["extra_body"] == {
+            "reasoning": {
+                "enabled": True,
+                "effort": "medium",
+            }
+        }
+        assert "reasoning_effort" not in kwargs
 
     @patch("services.ai_service.AsyncOpenAI")
     async def test_summarize(self, mock_client_cls):

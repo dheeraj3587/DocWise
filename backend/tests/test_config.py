@@ -1,8 +1,5 @@
 """Tests for core.config — Settings validators."""
 
-import json
-import pytest
-
 from core.config import Settings
 
 
@@ -72,3 +69,16 @@ class TestParseApiKeys:
     def test_filters_empty_items(self):
         result = Settings.parse_api_keys(["key1", "", "  ", "key2"])
         assert result == ["key1", "key2"]
+
+
+class TestProviderDefaults:
+    """Tests for chat provider configuration defaults."""
+
+    def test_openrouter_defaults(self, monkeypatch):
+        monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
+        monkeypatch.delenv("OPENROUTER_APP_TITLE", raising=False)
+
+        settings = Settings()
+
+        assert settings.OPENROUTER_BASE_URL == "https://openrouter.ai/api/v1"
+        assert settings.OPENROUTER_APP_TITLE == "DocWise"
