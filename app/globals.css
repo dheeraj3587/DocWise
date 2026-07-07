@@ -452,6 +452,38 @@ footer,
   font-size: 1em;
 }
 
+.chat-full-prose {
+  --tw-prose-code: var(--foreground);
+  --tw-prose-quotes: var(--muted-foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+}
+
+.chat-full-prose > :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+  max-width: min(100%, 1280px);
+}
+
+.chat-full-prose :where(pre, table, .katex-display) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.chat-full-prose :where(pre) {
+  margin-block: 1.25rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.chat-full-prose :where(code) {
+  font-size: 0.92em;
+}
+
 .shimmer-text {
     color: transparent;
     background: linear-gradient(90deg, #a3a3a3 0%, #a3a3a3 35%, #525252 50%, #a3a3a3 65%, #a3a3a3 100%);

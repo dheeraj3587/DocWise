@@ -6,6 +6,10 @@ from core.config import settings
 
 ChatProvider = Literal["cerebras", "openrouter"]
 
+CEREBRAS_CONTEXT_WINDOW_TOKENS = 65536
+OPENROUTER_TENCENT_CONTEXT_WINDOW_TOKENS = 262144
+DEFAULT_OUTPUT_RESERVE_TOKENS = 4096
+
 
 class ChatModel(TypedDict):
     id: str
@@ -18,6 +22,8 @@ class ChatModel(TypedDict):
     creditCost: int
     reasoning: bool
     badge: str | None
+    contextWindow: int
+    outputReserveTokens: int
 
 
 def available_chat_models() -> list[ChatModel]:
@@ -38,6 +44,8 @@ def available_chat_models() -> list[ChatModel]:
             "creditCost": fast_cost,
             "reasoning": False,
             "badge": "Fast",
+            "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
+            "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
         },
         {
             "id": "gemma-4-31b",
@@ -50,6 +58,8 @@ def available_chat_models() -> list[ChatModel]:
             "creditCost": fast_cost,
             "reasoning": False,
             "badge": "Docs",
+            "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
+            "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
         },
         {
             "id": "zai-glm-4.7",
@@ -62,6 +72,8 @@ def available_chat_models() -> list[ChatModel]:
             "creditCost": deep_cost,
             "reasoning": False,
             "badge": "Heavy",
+            "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
+            "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
         },
         {
             "id": "tencent/hy3:free",
@@ -74,6 +86,8 @@ def available_chat_models() -> list[ChatModel]:
             "creditCost": fast_cost,
             "reasoning": False,
             "badge": "Free",
+            "contextWindow": OPENROUTER_TENCENT_CONTEXT_WINDOW_TOKENS,
+            "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
         },
     ]
 
@@ -109,4 +123,6 @@ def public_chat_model(model: ChatModel) -> dict[str, object]:
         "badge": model["badge"],
         "provider": model["provider"],
         "providerLabel": model["providerLabel"],
+        "contextWindow": model["contextWindow"],
+        "outputReserveTokens": model["outputReserveTokens"],
     }

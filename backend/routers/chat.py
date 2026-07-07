@@ -57,6 +57,8 @@ class ChatModelResponse(BaseModel):
     provider: str
     providerLabel: str
     badge: str | None = None
+    contextWindow: int
+    outputReserveTokens: int
 
 
 class ChatCreditsResponse(BaseModel):

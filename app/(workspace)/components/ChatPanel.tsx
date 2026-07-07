@@ -4,6 +4,7 @@ import {
   AudioWaveformIcon,
   CheckIcon,
   ChevronDownIcon,
+  CircleGauge,
   FileIcon,
   ImageIcon,
   LightbulbIcon,
@@ -63,11 +64,14 @@ export interface ModelOption {
   provider?: string
   providerLabel?: string
   badge?: string | null
+  contextWindow: number
+  outputReserveTokens: number
 }
 
 interface ChatPanelProps {
   embedded?: boolean
   compact?: boolean
+  layout?: 'default' | 'full'
   fileId?: string
   title?: string
   subtitle?: string
@@ -77,6 +81,7 @@ interface ChatPanelProps {
   className?: string
   hideHeader?: boolean
   allowGeneralChat?: boolean
+  topBarStart?: ReactNode
   messages?: ChatMessage[]
   setMessages?: Dispatch<SetStateAction<ChatMessage[]>>
 }
@@ -91,6 +96,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     provider: 'cerebras',
     providerLabel: 'Cerebras',
     badge: 'Fast',
+    contextWindow: 65536,
+    outputReserveTokens: 4096,
   },
   {
     id: 'gemma-4-31b',
@@ -101,6 +108,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     provider: 'cerebras',
     providerLabel: 'Cerebras',
     badge: 'Docs',
+    contextWindow: 65536,
+    outputReserveTokens: 4096,
   },
   {
     id: 'zai-glm-4.7',
@@ -111,6 +120,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     provider: 'cerebras',
     providerLabel: 'Cerebras',
     badge: 'Heavy',
+    contextWindow: 65536,
+    outputReserveTokens: 4096,
   },
   {
     id: 'tencent/hy3:free',
@@ -121,8 +132,15 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     provider: 'openrouter',
     providerLabel: 'OpenRouter',
     badge: 'Free',
+    contextWindow: 262144,
+    outputReserveTokens: 4096,
   },
 ]
+
+const SYSTEM_PROMPT_TOKEN_RESERVE = 600
+const DOCUMENT_CONTEXT_RESERVE_TOKENS = 12000
+const THINKING_CONTEXT_RESERVE_TOKENS = 4096
+const MESSAGE_TOKEN_OVERHEAD = 12
 
 const getRouteFileId = (value: unknown) => {
   if (typeof value === 'string') return value
@@ -130,9 +148,57 @@ const getRouteFileId = (value: unknown) => {
   return undefined
 }
 
+const estimateTokens = (text: string) => Math.ceil(text.trim().length / 4)
+
+const formatTokenCount = (tokens: number) => {
+  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`
+  if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`
+  return String(tokens)
+}
+
+function estimateContextUsage({
+  messages,
+  input,
+  selectedModel,
+  hasDocumentContext,
+  thinkEnabled,
+}: {
+  messages: ChatMessage[]
+  input: string
+  selectedModel?: ModelOption
+  hasDocumentContext: boolean
+  thinkEnabled: boolean
+}) {
+  const contextWindow = Math.max(1, selectedModel?.contextWindow || 65536)
+  const outputReserve = selectedModel?.outputReserveTokens || 4096
+  const messageTokens = messages.reduce(
+    (total, message) => total + estimateTokens(message.content) + MESSAGE_TOKEN_OVERHEAD,
+    0,
+  )
+  const inputTokens = estimateTokens(input)
+  const used =
+    SYSTEM_PROMPT_TOKEN_RESERVE +
+    messageTokens +
+    inputTokens +
+    outputReserve +
+    (hasDocumentContext ? DOCUMENT_CONTEXT_RESERVE_TOKENS : 0) +
+    (thinkEnabled ? THINKING_CONTEXT_RESERVE_TOKENS : 0)
+  const clampedUsed = Math.min(used, contextWindow)
+  const remaining = Math.max(0, contextWindow - used)
+  const remainingPercent = Math.max(0, Math.min(100, Math.round((remaining / contextWindow) * 100)))
+
+  return {
+    contextWindow,
+    used: clampedUsed,
+    remaining,
+    remainingPercent,
+  }
+}
+
 export const ChatPanel = ({
   embedded = false,
   compact = false,
+  layout = 'default',
   fileId: fileIdProp,
   title = 'DocWise Chat',
   subtitle = 'Ask questions about this file',
@@ -142,6 +208,7 @@ export const ChatPanel = ({
   className,
   hideHeader = false,
   allowGeneralChat = false,
+  topBarStart,
   messages: controlledMessages,
   setMessages: controlledSetMessages,
 }: ChatPanelProps) => {
@@ -172,8 +239,20 @@ export const ChatPanel = ({
   const selectedModel = models.find((model) => model.id === selectedModelId) || models[0]
   const selectedCreditCost = (selectedModel?.creditCost || 1) + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
   const canSend = allowGeneralChat || Boolean(fileId)
+  const isFullLayout = layout === 'full'
 
   const modelLabel = useMemo(() => selectedModel?.name || 'Model', [selectedModel])
+  const contextEstimate = useMemo(
+    () =>
+      estimateContextUsage({
+        messages,
+        input,
+        selectedModel,
+        hasDocumentContext: Boolean(fileId),
+        thinkEnabled,
+      }),
+    [fileId, input, messages, selectedModel, thinkEnabled],
+  )
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const scrollEl = messagesScrollRef.current
@@ -205,6 +284,17 @@ export const ChatPanel = ({
       inputRef.current?.focus()
     }
   }, [isOpen])
+
+  useEffect(() => {
+    const textarea = inputRef.current
+    if (!textarea) return
+
+    const maxHeight = isFullLayout ? 240 : compact ? 128 : 168
+    textarea.style.height = 'auto'
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
+    textarea.style.height = `${nextHeight}px`
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [compact, input, isFullLayout])
 
   useEffect(() => {
     const focusChat = () => inputRef.current?.focus()
@@ -441,7 +531,39 @@ export const ChatPanel = ({
 
   const chatContent = (
     <div className="flex h-full w-full flex-col">
-      {!hideHeader ? (
+      {isFullLayout ? (
+        <div className="shrink-0 border-b border-border bg-background/95">
+          <div className="mx-auto flex min-h-14 w-full max-w-[1760px] flex-wrap items-center justify-between gap-3 px-[clamp(1rem,3vw,3.25rem)] py-2.5">
+            {topBarStart ?? (
+              <div className="min-w-0">
+                <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
+                  {title}
+                </div>
+                <div className="mt-1 truncate text-[11px] text-muted-foreground">{subtitle}</div>
+              </div>
+            )}
+            <div className="ml-auto flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
+              <ContextRemaining estimate={contextEstimate} />
+              <span className="hidden rounded-full border border-border bg-background/70 px-2.5 py-1 text-[10px] text-muted-foreground md:inline-flex">
+                {credits.remaining}/{credits.limit} credits
+              </span>
+              <ModelSelect
+                models={models}
+                selectedModelId={selectedModelId}
+                selectedCreditCost={selectedCreditCost}
+                thinkEnabled={thinkEnabled}
+                open={modelMenuOpen}
+                disabled={isStreaming}
+                onOpenChange={setModelMenuOpen}
+                onModelChange={(model) => {
+                  setSelectedModelId(model.id)
+                  setModelMenuOpen(false)
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : !hideHeader ? (
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
           <div className="min-w-0">
             <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
@@ -468,11 +590,19 @@ export const ChatPanel = ({
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        <div className="mx-auto h-full w-full max-w-4xl">
+        <div
+          className={cn(
+            'mx-auto h-full w-full',
+            isFullLayout ? 'max-w-[1760px] px-[clamp(1rem,3vw,3.25rem)]' : 'max-w-4xl',
+          )}
+        >
           <div
             ref={messagesScrollRef}
             onScroll={handleMessagesScroll}
-            className="custom-scrollbar h-full overflow-y-auto px-4 py-5"
+            className={cn(
+              'custom-scrollbar h-full overflow-y-auto',
+              isFullLayout ? 'px-0 py-8' : 'px-4 py-5',
+            )}
           >
             {messages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
@@ -485,7 +615,12 @@ export const ChatPanel = ({
             ) : (
               <div className={cn('space-y-4', compact && 'space-y-3')}>
                 {messages.map((message) => (
-                  <ChatMessageBubble key={message.id} message={message} compact={compact} />
+                  <ChatMessageBubble
+                    key={message.id}
+                    message={message}
+                    compact={compact}
+                    layout={layout}
+                  />
                 ))}
               </div>
             )}
@@ -493,8 +628,16 @@ export const ChatPanel = ({
         </div>
       </div>
 
-      <div className={cn('shrink-0 p-4', compact && 'p-3')}>
-        <div className="mx-auto w-full max-w-4xl">
+      <div
+        className={cn(
+          'shrink-0',
+          isFullLayout
+            ? 'border-t border-border bg-background/95 px-[clamp(1rem,3vw,3.25rem)] py-3'
+            : 'p-4',
+          compact && !isFullLayout && 'p-3',
+        )}
+      >
+        <div className={cn('mx-auto w-full', isFullLayout ? 'max-w-[1760px]' : 'max-w-4xl')}>
           <div className="grid gap-3">
             <div className="overflow-visible rounded-[24px] border border-border bg-secondary/45 shadow-xs/5">
               <textarea
@@ -504,10 +647,10 @@ export const ChatPanel = ({
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 disabled={isStreaming || !canSend}
-                rows={compact ? 2 : 3}
+                rows={isFullLayout ? 2 : compact ? 2 : 3}
                 className={cn(
                   'block w-full resize-none bg-transparent px-4 pt-3 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60',
-                  compact ? 'min-h-[52px]' : 'min-h-[72px]',
+                  isFullLayout ? 'min-h-[64px] text-sm' : compact ? 'min-h-[52px]' : 'min-h-[72px]',
                 )}
               />
               <div className={cn('flex flex-wrap items-center justify-between gap-2 p-2', compact && 'p-1.5')}>
@@ -564,19 +707,21 @@ export const ChatPanel = ({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <ModelSelect
-                    models={models}
-                    selectedModelId={selectedModelId}
-                    selectedCreditCost={selectedCreditCost}
-                    thinkEnabled={thinkEnabled}
-                    open={modelMenuOpen}
-                    disabled={isStreaming}
-                    onOpenChange={setModelMenuOpen}
-                    onModelChange={(model) => {
-                      setSelectedModelId(model.id)
-                      setModelMenuOpen(false)
-                    }}
-                  />
+                  {!isFullLayout ? (
+                    <ModelSelect
+                      models={models}
+                      selectedModelId={selectedModelId}
+                      selectedCreditCost={selectedCreditCost}
+                      thinkEnabled={thinkEnabled}
+                      open={modelMenuOpen}
+                      disabled={isStreaming}
+                      onOpenChange={setModelMenuOpen}
+                      onModelChange={(model) => {
+                        setSelectedModelId(model.id)
+                        setModelMenuOpen(false)
+                      }}
+                    />
+                  ) : null}
                   <ToolButton
                     ariaLabel="Voice"
                     disabled={isStreaming}
@@ -622,18 +767,32 @@ export const ChatPanel = ({
   )
 }
 
-function ChatMessageBubble({ message, compact }: { message: ChatMessage; compact: boolean }) {
+function ChatMessageBubble({
+  message,
+  compact,
+  layout,
+}: {
+  message: ChatMessage
+  compact: boolean
+  layout: 'default' | 'full'
+}) {
   const isUser = message.role === 'user'
+  const isFullLayout = layout === 'full'
 
   return (
-    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start', isFullLayout && 'w-full')}>
       <div
         className={cn(
-          'max-w-[88%]',
+          isFullLayout && isUser
+            ? 'max-w-[min(92%,720px)] sm:max-w-[min(72%,820px)] lg:max-w-[min(48%,860px)]'
+            : isFullLayout
+              ? 'w-full'
+              : 'max-w-[88%]',
           isUser
             ? 'rounded-[22px] rounded-br-sm border border-border bg-background px-3.5 py-2.5 text-foreground'
             : 'text-foreground',
           compact && isUser && 'px-3.5 py-2.5',
+          isFullLayout && isUser && 'px-4 py-3',
         )}
       >
         {!message.content ? (
@@ -648,15 +807,61 @@ function ChatMessageBubble({ message, compact }: { message: ChatMessage; compact
             )}
           </div>
         ) : isUser ? (
-          <p className="whitespace-pre-wrap text-[13px] leading-6">{message.content}</p>
+          <p className={cn('whitespace-pre-wrap text-[13px] leading-6', isFullLayout && 'text-sm leading-7')}>
+            {message.content}
+          </p>
         ) : (
-          <div className="prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border">
+          <div
+            className={cn(
+              'prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border',
+              isFullLayout && 'chat-full-prose text-sm leading-7 prose-p:leading-7 prose-li:leading-7 prose-pre:my-5',
+            )}
+          >
             <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>
               {normalizeMathDelimiters(message.content)}
             </ReactMarkdown>
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function ContextRemaining({
+  estimate,
+}: {
+  estimate: ReturnType<typeof estimateContextUsage>
+}) {
+  const status =
+    estimate.remainingPercent < 8 ? 'critical' : estimate.remainingPercent < 20 ? 'warning' : 'normal'
+
+  return (
+    <div
+      className={cn(
+        'inline-flex h-8 items-center gap-2 rounded-full border bg-background/70 px-2.5 text-[10px] text-muted-foreground',
+        status === 'warning' && 'border-foreground/25 text-foreground',
+        status === 'critical' && 'border-destructive/45 bg-destructive/10 text-destructive',
+      )}
+      title={`Approximate context remaining: ${formatTokenCount(estimate.remaining)} of ${formatTokenCount(estimate.contextWindow)} tokens`}
+      aria-label={`Approximate context remaining ${estimate.remainingPercent} percent`}
+    >
+      <CircleGauge className="h-3.5 w-3.5 shrink-0" />
+      <span className="hidden font-mono uppercase tracking-[0.18em] sm:inline">Context</span>
+      <span className={cn('font-medium', status === 'normal' && 'text-foreground')}>
+        {estimate.remainingPercent}%
+      </span>
+      <span className="hidden text-muted-foreground lg:inline">
+        {formatTokenCount(estimate.remaining)} left
+      </span>
+      <span className="h-1.5 w-10 overflow-hidden rounded-full bg-secondary sm:w-14" aria-hidden="true">
+        <span
+          className={cn(
+            'block h-full rounded-full bg-foreground',
+            status === 'critical' && 'bg-destructive',
+          )}
+          style={{ width: `${estimate.remainingPercent}%` }}
+        />
+      </span>
     </div>
   )
 }

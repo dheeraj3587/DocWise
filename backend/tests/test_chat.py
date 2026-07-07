@@ -27,12 +27,16 @@ class TestChat:
         assert glm["name"] == "GLM 4.7"
         assert glm["reasoning"] is False
         assert glm["creditCost"] > 1
+        assert glm["contextWindow"] > 0
+        assert glm["outputReserveTokens"] > 0
         tencent = next(model for model in models if model["id"] == "tencent/hy3:free")
         assert tencent["name"] == "Tencent HY3"
         assert tencent["provider"] == "openrouter"
         assert tencent["providerLabel"] == "OpenRouter"
         assert tencent["badge"] == "Free"
         assert tencent["creditCost"] == 1
+        assert tencent["contextWindow"] == 262144
+        assert tencent["outputReserveTokens"] > 0
 
     async def test_chat_models_endpoint_is_public(self):
         """Test model picker metadata does not require a logged-in user."""
