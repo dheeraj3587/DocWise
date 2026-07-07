@@ -260,6 +260,7 @@ Open `http://YOUR_DROPLET_IP` in your browser.
 | Restart a service | `docker compose restart backend` |
 | Stop everything | `docker compose down` |
 | Update code | `git pull && docker compose up -d --build` |
+| Sync nginx storage proxy | `npm run deploy:nginx` |
 | Resource usage | `docker stats` |
 | Access Postgres | `docker compose exec db psql -U kagaz` |
 | MinIO logs | `docker compose logs -f minio` |

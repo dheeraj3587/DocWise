@@ -280,6 +280,9 @@ jobs:
             echo "==> Restarting nginx to resolve new container IPs..."
             docker compose restart nginx
 
+            echo "==> Syncing and validating nginx storage proxy..."
+            DOCWISE_VPS_APP_DIR="$APP_DIR" DOCWISE_PUBLIC_URL="https://app.dheerajjoshi.dev" bash scripts/sync-nginx-proxy.sh --local
+
             echo "==> Cleaning up old images..."
             docker image prune -f
 
