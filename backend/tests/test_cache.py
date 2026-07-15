@@ -1,8 +1,7 @@
 """Tests for core.cache — CacheService with memory fallback."""
 
-import asyncio
 import time
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -128,12 +127,10 @@ class TestCacheServiceRedis:
     async def test_clear_redis(self):
         svc = CacheService()
         mock_redis = AsyncMock()
-        
+
         # clear() closes the connection if it exists
         svc._redis = mock_redis
-        
+
         await svc.clear()
-        mock_redis.close.assert_called()
+        mock_redis.aclose.assert_awaited_once()
         assert svc._redis is None
-
-

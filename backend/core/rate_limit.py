@@ -63,7 +63,7 @@ class RateLimiter:
 
         if self._redis is not None:
             try:
-                await self._redis.close()
+                await self._redis.aclose()
             except Exception:
                 pass
             self._redis = None

@@ -174,5 +174,18 @@ class UsageLimiter:
             else:
                 self._memory_streams[key] = current - 1
 
+    async def clear(self) -> None:
+        """Reset local state and release the cached Redis client."""
+        async with self._lock:
+            self._memory_daily_units.clear()
+            self._memory_streams.clear()
+
+        if self._redis is not None:
+            try:
+                await self._redis.aclose()
+            except Exception:
+                pass
+            self._redis = None
+
 
 usage_limiter = UsageLimiter()

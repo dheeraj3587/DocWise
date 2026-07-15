@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Override settings before importing app
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
@@ -35,17 +34,15 @@ os.environ["FAISS_INDEX_PATH"] = "./test_faiss_indices"
 os.environ["API_KEYS"] = '["test-api-key"]'
 os.environ["CORS_ORIGINS"] = '["http://localhost:3000"]'
 
-from models.database import Base
+from models.database import (
+    Base,
+    async_session as test_session_factory,
+    engine as test_engine,
+)
 from core.config import settings
 from core.security import get_current_user as _original_get_current_user
 
 settings.API_KEYS = ["test-api-key"]
-
-
-# Use SQLite for testing
-TEST_DB_URL = "sqlite+aiosqlite:///./test.db"
-test_engine = create_async_engine(TEST_DB_URL, echo=False)
-test_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 # Mock user for authenticated requests
@@ -68,6 +65,7 @@ async def setup_database():
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
 
     # Clean up test db file
     if os.path.exists("./test.db"):
@@ -257,10 +255,12 @@ async def cleanup_runtime_state():
     """Reset cache/rate-limiter state across tests."""
     from core.cache import cache_service
     from core.rate_limit import rate_limiter
+    from core.usage_limits import usage_limiter
 
     await cache_service.clear()
     await rate_limiter.clear()
-    
+    await usage_limiter.clear()
+
     # Also flush Redis to ensure rate limits are reset
     from redis.asyncio import Redis
     redis = Redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/15"), decode_responses=True)
@@ -269,8 +269,9 @@ async def cleanup_runtime_state():
     except Exception:
         pass
     finally:
-        await redis.close()
+        await redis.aclose()
 
     yield
     await cache_service.clear()
     await rate_limiter.clear()
+    await usage_limiter.clear()

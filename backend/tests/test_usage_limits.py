@@ -172,6 +172,21 @@ class TestUsageLimiterRedis:
             result = await ul._get_redis()
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_clear_resets_memory_and_closes_redis(self):
+        ul = UsageLimiter()
+        mock_redis = AsyncMock()
+        ul._redis = mock_redis
+        ul._memory_daily_units["daily"] = (3, time.time() + 60, time.time())
+        ul._memory_streams["stream"] = 1
+
+        await ul.clear()
+
+        assert ul._memory_daily_units == {}
+        assert dict(ul._memory_streams) == {}
+        mock_redis.aclose.assert_awaited_once()
+        assert ul._redis is None
+
 
 
 
