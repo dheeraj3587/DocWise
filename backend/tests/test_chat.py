@@ -99,7 +99,9 @@ class TestChat:
         assert "[DONE]" in response.text
         mock_embedding_service.search_similar.assert_not_called()
 
-    async def test_chat_ask_with_timestamps(self, client, create_owned_file):
+    async def test_chat_ask_with_timestamps(
+        self, client, mock_embedding_service, create_owned_file
+    ):
         """Test chat returns timestamp info for media files."""
         file_id = await create_owned_file(file_type="audio", file_name="test.mp3")
 

@@ -61,6 +61,8 @@ class ChatModelResponse(BaseModel):
     badge: str | None = None
     contextWindow: int
     outputReserveTokens: int
+    toolCalling: bool
+    agentToolsEnabled: bool
 
 
 class ChatCreditsResponse(BaseModel):

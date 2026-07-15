@@ -13,6 +13,7 @@ from models.conversation import (
     MessageCitation,
     OutboxEvent,
     ProcessingJob,
+    ToolInvocation,
     UsageLedger,
 )
 
@@ -34,5 +35,6 @@ __all__ = [
     "MessageCitation",
     "OutboxEvent",
     "ProcessingJob",
+    "ToolInvocation",
     "UsageLedger",
 ]

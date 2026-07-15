@@ -113,6 +113,9 @@ class ConversationMessage(Base):
     original_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     model_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reasoning: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    agent_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    agent_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tool_call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     fallback_used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     request_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
@@ -211,9 +214,57 @@ class MessageCitation(Base):
     retrieval_rank: Mapped[int] = mapped_column(Integer, nullable=False)
     retrieval_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     source_removed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    source_type: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="document"
+    )
+    web_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    web_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    web_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
+
+
+class ToolInvocation(Base):
+    __tablename__ = "tool_invocations"
+    __table_args__ = (
+        UniqueConstraint(
+            "assistant_message_id",
+            "provider_tool_call_id",
+            name="uq_tool_invocation_provider_call",
+        ),
+        Index(
+            "ix_tool_invocations_message_sequence",
+            "assistant_message_id",
+            "sequence",
+        ),
+        Index("ix_tool_invocations_status", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    assistant_message_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversation_messages.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider_tool_call_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    iteration: Mapped[int] = mapped_column(Integer, nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    arguments: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    result_summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    source_labels: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="started")
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class DailyUsage(Base):

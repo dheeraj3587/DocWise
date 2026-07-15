@@ -124,7 +124,8 @@ def mock_embedding_service():
     )
     with patch("routers.search.embedding_service", mock), \
          patch("routers.chat.embedding_service", mock), \
-         patch("services.embedding_service.embedding_service", mock):
+         patch("services.embedding_service.embedding_service", mock), \
+         patch("services.document_index_service.embedding_service", mock):
         yield mock
 
 

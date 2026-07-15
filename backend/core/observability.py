@@ -47,6 +47,26 @@ INVALID_CITATIONS = Counter(
     "docwise_invalid_citations_total",
     "Answers requiring citation repair",
 )
+AGENT_RUNS = Counter(
+    "docwise_agent_runs_total",
+    "Bounded agent runs by final status",
+    ("status",),
+)
+AGENT_ITERATIONS = Histogram(
+    "docwise_agent_iterations",
+    "Model iterations used by bounded agent turns",
+    buckets=(1, 2, 3, 4, 5, 6),
+)
+AGENT_TOOL_CALLS = Counter(
+    "docwise_agent_tool_calls_total",
+    "Allowlisted agent tool calls by tool and status",
+    ("tool", "status"),
+)
+AGENT_TOOL_LATENCY = Histogram(
+    "docwise_agent_tool_duration_seconds",
+    "Allowlisted agent tool execution duration",
+    ("tool",),
+)
 JOB_RETRIES = Counter(
     "docwise_processing_job_retries_total",
     "Document processing retries",

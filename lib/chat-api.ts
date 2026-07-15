@@ -17,6 +17,27 @@ export interface ChatCitation {
   retrievalRank: number;
   retrievalScore: number;
   sourceRemoved: boolean;
+  sourceType: "document" | "web";
+  webUrl: string | null;
+  webTitle: string | null;
+  webDomain: string | null;
+  retrievedAt: string | null;
+}
+
+export interface ToolInvocationRecord {
+  id: string;
+  providerToolCallId: string;
+  sequence: number;
+  iteration: number;
+  toolName: string;
+  arguments: Record<string, unknown>;
+  resultSummary: Record<string, unknown>;
+  sourceLabels: string[];
+  status: "started" | "complete" | "failed";
+  durationMs: number | null;
+  error: { code: string; detail: string } | null;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 export interface ChatUsage {
@@ -52,6 +73,10 @@ export interface ConversationMessageRecord {
   originalProvider: string | null;
   modelId: string | null;
   reasoning: boolean;
+  agentMode: boolean;
+  agentIterations: number;
+  toolCallCount: number;
+  toolInvocations: ToolInvocationRecord[];
   fallbackUsed: boolean;
   requestId: string | null;
   usage: ChatUsage;
@@ -156,6 +181,7 @@ export const chatApi = {
       content: string;
       modelId?: string;
       reasoning: boolean;
+      agentMode: boolean;
     },
     token?: string | null,
   ) {
@@ -168,7 +194,12 @@ export const chatApi = {
   retryMessage(
     conversationId: string,
     messageId: string,
-    input: { requestId: string; modelId?: string; reasoning?: boolean },
+    input: {
+      requestId: string;
+      modelId?: string;
+      reasoning?: boolean;
+      agentMode?: boolean;
+    },
     token?: string | null,
   ) {
     return fetch(

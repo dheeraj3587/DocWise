@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 
-_CITATION_PATTERN = re.compile(r"\[\[(S\d+)\]\]")
+_CITATION_PATTERN = re.compile(r"\[\[((?:S|W)\d+)\]\]")
 
 
 def label_sources(chunks: list[dict[str, Any]], file_names: dict[str, str]) -> list[dict[str, Any]]:
@@ -25,6 +25,13 @@ def label_sources(chunks: list[dict[str, Any]], file_names: dict[str, str]) -> l
 def format_sources(sources: list[dict[str, Any]]) -> str:
     blocks: list[str] = []
     for source in sources:
+        if source.get("source_type") == "web":
+            blocks.append(
+                f"[{source['label']}] {source.get('web_title') or source.get('web_domain') or 'Web source'} "
+                f"({source.get('web_url') or 'web'})\n{source.get('text') or ''}"
+            )
+            continue
+
         location = ""
         if source.get("page_start") is not None:
             page_end = source.get("page_end") or source["page_start"]
@@ -58,6 +65,15 @@ def validate_citations(answer: str, sources: list[dict[str, Any]]) -> tuple[bool
     return True, []
 
 
+def strip_unknown_citations(answer: str, sources: list[dict[str, Any]]) -> str:
+    """Remove citation markers that do not resolve to collected evidence."""
+    valid = {str(source["label"]) for source in sources}
+    return _CITATION_PATTERN.sub(
+        lambda match: match.group(0) if match.group(1) in valid else "",
+        answer,
+    ).strip()
+
+
 def _is_insufficient_answer(answer: str) -> bool:
     normalized = answer.lower()
     phrases = (
@@ -77,21 +93,27 @@ def citation_payloads(answer: str, sources: list[dict[str, Any]]) -> list[dict[s
         source = source_by_label.get(label)
         if source is None:
             continue
+        source_type = str(source.get("source_type") or "document")
         payloads.append(
             {
                 "sourceLabel": label,
                 "sourceOrder": order,
-                "chunkId": source["id"],
-                "fileId": source["file_id"],
-                "fileName": source["file_name"],
-                "excerpt": source["text"],
+                "sourceType": source_type,
+                "chunkId": source.get("id") if source_type == "document" else None,
+                "fileId": source.get("file_id"),
+                "fileName": source.get("file_name"),
+                "excerpt": source.get("text"),
                 "pageStart": source.get("page_start"),
                 "pageEnd": source.get("page_end"),
                 "startTime": source.get("start_time"),
                 "endTime": source.get("end_time"),
-                "retrievalRank": source["rank"],
+                "retrievalRank": int(source.get("rank") or order),
                 "retrievalScore": float(source.get("score") or 0.0),
                 "sourceRemoved": False,
+                "webUrl": source.get("web_url"),
+                "webTitle": source.get("web_title"),
+                "webDomain": source.get("web_domain"),
+                "retrievedAt": source.get("retrieved_at"),
             }
         )
     return payloads

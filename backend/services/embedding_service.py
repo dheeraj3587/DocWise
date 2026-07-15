@@ -1,6 +1,7 @@
 """Embedding service - generates local embeddings for free document search."""
 
-from typing import List
+from threading import Lock
+from typing import List, Optional
 
 from fastembed import TextEmbedding
 
@@ -12,7 +13,19 @@ class EmbeddingService:
     """Generates embeddings and stores them in FAISS."""
 
     def __init__(self):
-        self.embeddings_model = TextEmbedding(model_name=settings.LOCAL_EMBEDDING_MODEL)
+        self._embeddings_model: Optional[TextEmbedding] = None
+        self._model_lock = Lock()
+
+    @property
+    def embeddings_model(self) -> TextEmbedding:
+        """Load the embedding model only when an embedding is requested."""
+        if self._embeddings_model is None:
+            with self._model_lock:
+                if self._embeddings_model is None:
+                    self._embeddings_model = TextEmbedding(
+                        model_name=settings.LOCAL_EMBEDDING_MODEL
+                    )
+        return self._embeddings_model
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of text chunks."""
@@ -60,9 +73,5 @@ class EmbeddingService:
         """
         query_embedding = self.embed_query(query)
         return faiss_index.search(file_id, query_embedding, top_k)
-
-
-
-
 # Singleton
 embedding_service = EmbeddingService()

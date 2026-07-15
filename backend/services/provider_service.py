@@ -57,6 +57,9 @@ class ProviderService:
             client = AsyncOpenAI(
                 api_key=settings.CEREBRAS_API_KEY,
                 base_url=settings.CEREBRAS_BASE_URL,
+                default_headers={
+                    "X-Cerebras-Version-Patch": settings.CEREBRAS_API_VERSION_PATCH
+                },
                 timeout=timeout,
                 max_retries=0,
             )
@@ -110,16 +113,21 @@ class ProviderService:
     @staticmethod
     def _request(
         model: ChatModel,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         reasoning: bool,
         stream: bool,
+        tools: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         request: dict[str, Any] = {
             "model": model["model"],
             "messages": messages,
             "stream": stream,
         }
+        if tools:
+            request["tools"] = tools
+            request["tool_choice"] = "auto"
+            request["parallel_tool_calls"] = False
         if model["provider"] == "openrouter":
             if reasoning:
                 request["extra_body"] = {
@@ -137,13 +145,21 @@ class ProviderService:
     async def _stream_once(
         self,
         model: ChatModel,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         reasoning: bool,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        request = self._request(model, messages, reasoning=reasoning, stream=True)
+        request = self._request(
+            model,
+            messages,
+            reasoning=reasoning,
+            stream=True,
+            tools=tools,
+        )
         stream = await self._client(model["provider"]).chat.completions.create(**request)
         usage = {"promptTokens": 0, "completionTokens": 0, "totalTokens": 0}
+        tool_calls: dict[int, dict[str, Any]] = {}
 
         async for chunk in stream:
             if getattr(chunk, "usage", None) is not None:
@@ -152,21 +168,50 @@ class ProviderService:
                     "completionTokens": int(getattr(chunk.usage, "completion_tokens", 0) or 0),
                     "totalTokens": int(getattr(chunk.usage, "total_tokens", 0) or 0),
                 }
-            text = chunk.choices[0].delta.content if chunk.choices else None
+            delta = chunk.choices[0].delta if chunk.choices else None
+            text = getattr(delta, "content", None)
             if text:
                 yield {"type": "delta", "text": text}
+
+            for fragment in getattr(delta, "tool_calls", None) or []:
+                index = int(getattr(fragment, "index", 0) or 0)
+                assembled = tool_calls.setdefault(
+                    index,
+                    {
+                        "id": "",
+                        "type": "function",
+                        "function": {"name": "", "arguments": ""},
+                    },
+                )
+                fragment_id = getattr(fragment, "id", None)
+                if fragment_id and not assembled["id"]:
+                    assembled["id"] = str(fragment_id)
+                function = getattr(fragment, "function", None)
+                function_name = getattr(function, "name", None)
+                if function_name and not assembled["function"]["name"]:
+                    assembled["function"]["name"] = str(function_name)
+                function_arguments = getattr(function, "arguments", None)
+                if function_arguments:
+                    assembled["function"]["arguments"] += str(function_arguments)
+
+        if tool_calls:
+            yield {
+                "type": "tool_calls",
+                "toolCalls": [tool_calls[index] for index in sorted(tool_calls)],
+            }
 
         yield {"type": "usage", **usage}
 
     async def stream_chat(
         self,
         model: ChatModel,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         reasoning: bool,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream with a bounded retry and one compatible fallback before output."""
-        fallback = fallback_chat_model(model, reasoning)
+        fallback = fallback_chat_model(model, reasoning, require_tools=bool(tools))
         candidates = [(model, False)]
         if fallback and fallback["id"] != model["id"]:
             candidates.append((fallback, True))
@@ -183,10 +228,11 @@ class ProviderService:
             for attempt in range(attempts):
                 emitted = False
                 try:
+                    stream_kwargs: dict[str, Any] = {"reasoning": reasoning}
+                    if tools:
+                        stream_kwargs["tools"] = tools
                     async for event in self._stream_once(
-                        candidate,
-                        messages,
-                        reasoning=reasoning,
+                        candidate, messages, **stream_kwargs
                     ):
                         if event["type"] == "delta":
                             emitted = True
@@ -215,7 +261,7 @@ class ProviderService:
     async def complete(
         self,
         model: ChatModel,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         reasoning: bool = False,
     ) -> tuple[str, dict[str, Any]]:

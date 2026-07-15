@@ -25,6 +25,7 @@ class ChatModel(TypedDict):
     contextWindow: int
     outputReserveTokens: int
     fallbackModelId: str | None
+    toolCalling: bool
 
 
 def available_chat_models() -> list[ChatModel]:
@@ -48,6 +49,7 @@ def available_chat_models() -> list[ChatModel]:
             "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
             "fallbackModelId": "tencent/hy3:free",
+            "toolCalling": True,
         },
         {
             "id": "gemma-4-31b",
@@ -63,6 +65,7 @@ def available_chat_models() -> list[ChatModel]:
             "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
             "fallbackModelId": "gpt-oss-120b",
+            "toolCalling": True,
         },
         {
             "id": "zai-glm-4.7",
@@ -78,6 +81,7 @@ def available_chat_models() -> list[ChatModel]:
             "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
             "fallbackModelId": "gpt-oss-120b",
+            "toolCalling": True,
         },
         {
             "id": "tencent/hy3:free",
@@ -93,6 +97,7 @@ def available_chat_models() -> list[ChatModel]:
             "contextWindow": OPENROUTER_TENCENT_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
             "fallbackModelId": "gpt-oss-120b",
+            "toolCalling": True,
         },
     ]
 
@@ -130,16 +135,25 @@ def public_chat_model(model: ChatModel) -> dict[str, object]:
         "providerLabel": model["providerLabel"],
         "contextWindow": model["contextWindow"],
         "outputReserveTokens": model["outputReserveTokens"],
+        "toolCalling": model["toolCalling"],
+        "agentToolsEnabled": settings.AGENT_TOOLS_ENABLED,
     }
 
 
-def fallback_chat_model(model: ChatModel, deep_mode: bool) -> ChatModel | None:
+def fallback_chat_model(
+    model: ChatModel,
+    deep_mode: bool,
+    *,
+    require_tools: bool = False,
+) -> ChatModel | None:
     """Return a configured compatible fallback, if its provider is usable."""
     fallback_id = model.get("fallbackModelId")
     if not fallback_id:
         return None
     fallback = resolve_chat_model(fallback_id, deep_mode)
     if fallback is None:
+        return None
+    if require_tools and not fallback["toolCalling"]:
         return None
     if fallback["provider"] == "openrouter" and not settings.OPENROUTER_API_KEY:
         return None

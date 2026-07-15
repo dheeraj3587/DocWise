@@ -45,6 +45,7 @@ import {
   type ChatCitation,
   type ChatUsage,
   type ConversationMessageRecord,
+  type ToolInvocationRecord,
 } from "@/lib/chat-api";
 import { normalizeMathDelimiters } from "@/lib/markdown-math";
 import { readSSE } from "@/lib/sse";
@@ -57,12 +58,17 @@ const REMARK_PLUGINS: any = [remarkGfm, remarkMath];
 const REHYPE_PLUGINS: any = [rehypeKatex];
 
 const THINK_CREDIT_SURCHARGE = 3;
+const AGENT_CREDIT_SURCHARGE = 2;
 
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   reasoning?: boolean;
+  agentMode?: boolean;
+  agentIterations?: number;
+  toolCallCount?: number;
+  toolInvocations?: ToolInvocationRecord[];
   status?: "streaming" | "complete" | "failed" | "cancelled";
   citations?: ChatCitation[];
   usage?: ChatUsage;
@@ -83,6 +89,8 @@ export interface ModelOption {
   badge?: string | null;
   contextWindow: number;
   outputReserveTokens: number;
+  toolCalling: boolean;
+  agentToolsEnabled: boolean;
 }
 
 interface ChatPanelProps {
@@ -120,6 +128,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     badge: "Fast",
     contextWindow: 65536,
     outputReserveTokens: 4096,
+    toolCalling: true,
+    agentToolsEnabled: false,
   },
   {
     id: "gemma-4-31b",
@@ -132,6 +142,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     badge: "Docs",
     contextWindow: 65536,
     outputReserveTokens: 4096,
+    toolCalling: true,
+    agentToolsEnabled: false,
   },
   {
     id: "zai-glm-4.7",
@@ -144,6 +156,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     badge: "Heavy",
     contextWindow: 65536,
     outputReserveTokens: 4096,
+    toolCalling: true,
+    agentToolsEnabled: false,
   },
   {
     id: "tencent/hy3:free",
@@ -156,6 +170,8 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     badge: "Free",
     contextWindow: 262144,
     outputReserveTokens: 4096,
+    toolCalling: true,
+    agentToolsEnabled: false,
   },
 ];
 
@@ -253,7 +269,7 @@ export const ChatPanel = ({
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [thinkEnabled, setThinkEnabled] = useState(false);
-  const [deepSearchEnabled, setDeepSearchEnabled] = useState(false);
+  const [agentEnabled, setAgentEnabled] = useState(false);
   const [models, setModels] = useState<ModelOption[]>(FALLBACK_CHAT_MODELS);
   const [selectedModelId, setSelectedModelId] = useState("gpt-oss-120b");
   const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 });
@@ -285,6 +301,7 @@ export const ChatPanel = ({
     models.find((model) => model.id === selectedModelId) || models[0];
   const selectedCreditCost =
     (selectedModel?.creditCost || 1) +
+    (agentEnabled ? AGENT_CREDIT_SURCHARGE : 0) +
     (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
   const canSend = allowGeneralChat || documentIds.length > 0 || Boolean(conversationId);
   const isFullLayout = layout === "full";
@@ -320,6 +337,15 @@ export const ChatPanel = ({
       ),
     };
   }, [contextEstimate, serverContextUsage]);
+
+  useEffect(() => {
+    if (
+      agentEnabled &&
+      (!selectedModel?.toolCalling || !selectedModel?.agentToolsEnabled)
+    ) {
+      setAgentEnabled(false);
+    }
+  }, [agentEnabled, selectedModel]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const scrollEl = messagesScrollRef.current;
@@ -573,6 +599,40 @@ export const ChatPanel = ({
             continue;
           }
 
+          if (type === "agent.started") {
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId
+                  ? { ...message, agentMode: true }
+                  : message,
+              ),
+            );
+            continue;
+          }
+
+          if (
+            ["tool.started", "tool.completed", "tool.failed"].includes(type) &&
+            payload.toolInvocation
+          ) {
+            const toolInvocation =
+              payload.toolInvocation as unknown as ToolInvocationRecord;
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId
+                  ? {
+                      ...message,
+                      agentMode: true,
+                      toolInvocations: upsertToolInvocation(
+                        message.toolInvocations ?? [],
+                        toolInvocation,
+                      ),
+                    }
+                  : message,
+              ),
+            );
+            continue;
+          }
+
           if (type === "citation" && payload.citation) {
             const citation = payload.citation as unknown as ChatCitation;
             setMessages((previous) =>
@@ -621,6 +681,13 @@ export const ChatPanel = ({
                         ? String(payload.modelId)
                         : message.modelId,
                       fallbackUsed: Boolean(payload.fallbackUsed),
+                      agentMode: Boolean(payload.agentMode ?? message.agentMode),
+                      agentIterations: Number(
+                        payload.agentIterations ?? message.agentIterations ?? 0,
+                      ),
+                      toolCallCount: Number(
+                        payload.toolCallCount ?? message.toolCallCount ?? 0,
+                      ),
                     }
                   : message,
               ),
@@ -715,8 +782,10 @@ export const ChatPanel = ({
         role: "assistant",
         content: "",
         reasoning: thinkEnabled,
+        agentMode: agentEnabled,
         status: "streaming",
         citations: [],
+        toolInvocations: [],
       };
       streamingMessageIdRef.current = assistantMsg.id;
       setMessages((previous) => [...previous, userMsg, assistantMsg]);
@@ -730,6 +799,7 @@ export const ChatPanel = ({
           content: question,
           modelId: selectedModel?.id,
           reasoning: thinkEnabled,
+          agentMode: agentEnabled,
         },
         token,
       );
@@ -776,6 +846,7 @@ export const ChatPanel = ({
               status: "streaming",
               error: null,
               citations: [],
+              toolInvocations: [],
             }
           : item,
       ),
@@ -790,6 +861,7 @@ export const ChatPanel = ({
           requestId: crypto.randomUUID(),
           modelId: selectedModel?.id,
           reasoning: thinkEnabled,
+          agentMode: message.agentMode ?? agentEnabled,
         },
         token,
       );
@@ -826,7 +898,16 @@ export const ChatPanel = ({
   };
 
   const handleCitationNavigate = (citation: ChatCitation) => {
-    if (citation.sourceRemoved || !citation.fileId) return;
+    if (citation.sourceRemoved) return;
+    if (citation.sourceType === "web") {
+      const externalUrl = safeExternalUrl(citation.webUrl);
+      if (externalUrl) {
+        window.open(externalUrl, "_blank", "noopener,noreferrer");
+        setActiveCitation(null);
+      }
+      return;
+    }
+    if (!citation.fileId) return;
     if (onCitationNavigate) {
       onCitationNavigate(citation);
       setActiveCitation(null);
@@ -873,6 +954,7 @@ export const ChatPanel = ({
                 selectedModelId={selectedModelId}
                 selectedCreditCost={selectedCreditCost}
                 thinkEnabled={thinkEnabled}
+                agentEnabled={agentEnabled}
                 open={modelMenuOpen}
                 disabled={isStreaming}
                 onOpenChange={setModelMenuOpen}
@@ -1026,28 +1108,26 @@ export const ChatPanel = ({
                     ) : null}
                   </div>
 
-                  <div className="flex items-center rounded-lg border border-border">
-                    <ToolButton
-                      ariaLabel="DeepSearch"
-                      active={deepSearchEnabled}
-                      disabled={isStreaming}
-                      className="rounded-l-lg rounded-r-none border-0"
-                      onClick={() => setDeepSearchEnabled((active) => !active)}
-                    >
-                      <SearchIcon className="h-3.5 w-3.5" />
-                      <span className={compact ? "hidden sm:inline" : ""}>
-                        DeepSearch
-                      </span>
-                    </ToolButton>
-                    <div className="h-6 w-px bg-border" />
-                    <ToolButton
-                      ariaLabel="DeepSearch options"
-                      disabled={isStreaming}
-                      className="rounded-l-none rounded-r-lg border-0 px-2"
-                    >
-                      <ChevronDownIcon className="h-3.5 w-3.5" />
-                    </ToolButton>
-                  </div>
+                  <ToolButton
+                    ariaLabel={
+                      selectedModel?.agentToolsEnabled
+                        ? "Agent"
+                        : "Agent is not enabled"
+                    }
+                    active={agentEnabled}
+                    disabled={
+                      isStreaming ||
+                      !selectedModel?.toolCalling ||
+                      !selectedModel?.agentToolsEnabled
+                    }
+                    onClick={() => setAgentEnabled((active) => !active)}
+                  >
+                    <SearchIcon className="h-3.5 w-3.5" />
+                    <span className={compact ? "hidden sm:inline" : ""}>Agent</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      +{AGENT_CREDIT_SURCHARGE}
+                    </span>
+                  </ToolButton>
 
                   <ToolButton
                     ariaLabel="Think"
@@ -1070,6 +1150,7 @@ export const ChatPanel = ({
                       selectedModelId={selectedModelId}
                       selectedCreditCost={selectedCreditCost}
                       thinkEnabled={thinkEnabled}
+                      agentEnabled={agentEnabled}
                       open={modelMenuOpen}
                       disabled={isStreaming}
                       onOpenChange={setModelMenuOpen}
@@ -1181,6 +1262,13 @@ function ChatMessageBubble({
           isFullLayout && isUser && "px-4 py-3",
         )}
       >
+        {!isUser && message.agentMode ? (
+          <AgentTrace
+            invocations={message.toolInvocations ?? []}
+            status={message.status}
+            iterations={message.agentIterations}
+          />
+        ) : null}
         {message.status === "failed" && !message.content ? (
           <div className="rounded-lg border border-border bg-secondary/35 px-3.5 py-3 text-[12px] text-muted-foreground">
             <p>{message.error?.detail || "The response could not be completed."}</p>
@@ -1238,7 +1326,11 @@ function ChatMessageBubble({
                         onClick={() => citation && onCitationClick(citation)}
                         className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[9px] font-semibold no-underline transition-colors hover:bg-secondary disabled:cursor-default disabled:opacity-50"
                       >
-                        <BookOpenIcon className="size-2.5" />
+                        {citation?.sourceType === "web" ? (
+                          <ExternalLinkIcon className="size-2.5" />
+                        ) : (
+                          <BookOpenIcon className="size-2.5" />
+                        )}
                         {children}
                       </button>
                     );
@@ -1275,9 +1367,24 @@ function ChatMessageBubble({
 
 function citationMarkdown(content: string, citations: ChatCitation[]) {
   const labels = new Set(citations.map((citation) => citation.sourceLabel));
-  return content.replace(/\[\[(S\d+)\]\]/g, (marker, label: string) =>
+  return content.replace(/\[\[((?:S|W)\d+)\]\]/g, (marker, label: string) =>
     labels.has(label) ? `[${label}](citation:${label})` : marker,
   );
+}
+
+function upsertToolInvocation(
+  invocations: ToolInvocationRecord[],
+  next: ToolInvocationRecord,
+) {
+  const index = invocations.findIndex(
+    (invocation) =>
+      invocation.id === next.id ||
+      invocation.providerToolCallId === next.providerToolCallId,
+  );
+  const updated = [...invocations];
+  if (index === -1) updated.push(next);
+  else updated[index] = next;
+  return updated.sort((left, right) => left.sequence - right.sequence);
 }
 
 function mapServerMessage(message: ConversationMessageRecord): ChatMessage {
@@ -1286,6 +1393,10 @@ function mapServerMessage(message: ConversationMessageRecord): ChatMessage {
     role: message.role,
     content: message.content,
     reasoning: message.reasoning,
+    agentMode: message.agentMode,
+    agentIterations: message.agentIterations,
+    toolCallCount: message.toolCallCount,
+    toolInvocations: message.toolInvocations,
     status: message.status,
     citations: message.citations,
     usage: message.usage,
@@ -1294,6 +1405,154 @@ function mapServerMessage(message: ConversationMessageRecord): ChatMessage {
     fallbackUsed: message.fallbackUsed,
     error: message.error,
   };
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  list_selected_documents: "Review selected documents",
+  search_selected_documents: "Search selected documents",
+  inspect_document_passage: "Inspect document passage",
+  search_web: "Search the web",
+  inspect_web_source: "Inspect web source",
+  calculate: "Calculate",
+  get_datetime: "Check date and time",
+};
+
+function AgentTrace({
+  invocations,
+  status,
+  iterations,
+}: {
+  invocations: ToolInvocationRecord[];
+  status?: ChatMessage["status"];
+  iterations?: number;
+}) {
+  const running = status === "streaming";
+  const failed = status === "failed";
+  return (
+    <div className="mb-5 overflow-hidden rounded-lg border border-border bg-secondary/20">
+      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border/70 px-3.5 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          {running ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+          ) : failed ? (
+            <X className="size-3.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <CheckIcon className="size-3.5 shrink-0 text-foreground" />
+          )}
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.24em] text-foreground">
+            Agent trace
+          </span>
+        </div>
+        <span className="shrink-0 text-[10px] text-muted-foreground">
+          {invocations.length
+            ? `${invocations.length} step${invocations.length === 1 ? "" : "s"}`
+            : running
+              ? "Planning"
+              : `${iterations ?? 0} iteration${iterations === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      {invocations.length ? (
+        <div className="divide-y divide-border/70">
+          {invocations.map((invocation, index) => (
+            <details
+              key={invocation.id || invocation.providerToolCallId}
+              open={running && index === invocations.length - 1}
+              className="group"
+            >
+              <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-secondary/45 [&::-webkit-details-marker]:hidden">
+                <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[9px] text-muted-foreground">
+                  {String(invocation.sequence).padStart(2, "0")}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[11px] font-medium text-foreground">
+                    {TOOL_LABELS[invocation.toolName] || invocation.toolName}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                    {toolSummary(invocation)}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 font-mono text-[8px] uppercase tracking-[0.16em] text-muted-foreground">
+                  {invocation.durationMs !== null
+                    ? `${invocation.durationMs}ms`
+                    : invocation.status}
+                  <ChevronDownIcon className="size-3 transition-transform group-open:rotate-180" />
+                </span>
+              </summary>
+              <div className="grid gap-3 border-t border-border/60 bg-background/35 px-3.5 py-3 md:grid-cols-2">
+                <TraceData label="Arguments" value={invocation.arguments} />
+                <TraceData
+                  label={invocation.error ? "Failure" : "Result"}
+                  value={invocation.error ?? invocation.resultSummary}
+                />
+                {invocation.sourceLabels.length ? (
+                  <div className="md:col-span-2">
+                    <div className="font-mono text-[8px] uppercase tracking-[0.2em] text-muted-foreground">
+                      Evidence
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {invocation.sourceLabels.map((label) => (
+                        <span
+                          key={label}
+                          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] text-foreground"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </details>
+          ))}
+        </div>
+      ) : (
+        <div className="px-3.5 py-3 text-[11px] text-muted-foreground">
+          {running
+            ? "Choosing the smallest set of read-only tools needed for this request."
+            : "No tools were called for this turn."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TraceData({
+  label,
+  value,
+}: {
+  label: string;
+  value: Record<string, unknown>;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="font-mono text-[8px] uppercase tracking-[0.2em] text-muted-foreground">
+        {label}
+      </div>
+      <pre className="mt-1.5 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-background p-2.5 font-mono text-[9px] leading-4 text-foreground/80">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
+function toolSummary(invocation: ToolInvocationRecord) {
+  if (invocation.error?.detail) return invocation.error.detail;
+  const summary = invocation.resultSummary;
+  if (typeof summary.message === "string") return summary.message;
+  if (invocation.status === "started") return "Running";
+  return invocation.status === "complete" ? "Completed" : "Could not complete";
+}
+
+function safeExternalUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function CitationDrawer({
@@ -1305,7 +1564,12 @@ function CitationDrawer({
   onClose: () => void;
   onOpenSource: () => void;
 }) {
-  const location = citation.pageStart
+  const isWeb = citation.sourceType === "web";
+  const location = isWeb
+    ? citation.retrievedAt
+      ? `Retrieved ${new Date(citation.retrievedAt).toLocaleString()}`
+      : "Web source"
+    : citation.pageStart
     ? citation.pageEnd && citation.pageEnd !== citation.pageStart
       ? `Pages ${citation.pageStart}-${citation.pageEnd}`
       : `Page ${citation.pageStart}`
@@ -1321,7 +1585,9 @@ function CitationDrawer({
             Verified source · {citation.sourceLabel}
           </div>
           <p className="mt-1 truncate text-[11px] text-foreground">
-            {citation.fileName || "Document"}
+            {isWeb
+              ? citation.webTitle || citation.webDomain || "Web source"
+              : citation.fileName || "Document"}
           </p>
         </div>
         <button
@@ -1346,17 +1612,25 @@ function CitationDrawer({
             {citation.excerpt}
           </blockquote>
         )}
+        {isWeb && citation.webDomain ? (
+          <p className="mt-4 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+            {citation.webDomain}
+          </p>
+        ) : null}
       </div>
       <div className="shrink-0 border-t border-border p-3">
         <Button
           type="button"
           size="sm"
-          disabled={citation.sourceRemoved || !citation.fileId}
+          disabled={
+            citation.sourceRemoved ||
+            (isWeb ? !safeExternalUrl(citation.webUrl) : !citation.fileId)
+          }
           onClick={onOpenSource}
           className="w-full"
         >
           <ExternalLinkIcon className="size-3.5" />
-          Open source
+          {isWeb ? "Open website" : "Open source"}
         </Button>
       </div>
     </aside>
@@ -1439,6 +1713,7 @@ function ToolButton({
     <button
       type="button"
       aria-label={ariaLabel}
+      title={ariaLabel}
       disabled={disabled}
       onClick={onClick}
       className={cn(
@@ -1471,6 +1746,7 @@ function ModelSelect({
   selectedModelId,
   selectedCreditCost,
   thinkEnabled,
+  agentEnabled,
   open,
   disabled,
   onOpenChange,
@@ -1480,6 +1756,7 @@ function ModelSelect({
   selectedModelId: string;
   selectedCreditCost: number;
   thinkEnabled: boolean;
+  agentEnabled: boolean;
   open: boolean;
   disabled?: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1600,6 +1877,7 @@ function ModelSelect({
                 const active = model.id === selected.id;
                 const creditCost =
                   model.creditCost +
+                  (agentEnabled ? AGENT_CREDIT_SURCHARGE : 0) +
                   (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
                 return (
                   <button

@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     OPENROUTER_HTTP_REFERER: str = ""
     OPENROUTER_APP_TITLE: str = "DocWise"
 
+    # Tavily - provider-neutral agent web research
+    TAVILY_API_KEY: str = ""
+    TAVILY_BASE_URL: str = "https://api.tavily.com"
+    TAVILY_TIMEOUT_SECONDS: float = 20.0
+    TAVILY_MAX_RESULTS: int = 6
+
     # Local embeddings - free document indexing/search
     LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIMENSION: int = 384
@@ -92,6 +98,18 @@ class Settings(BaseSettings):
     CHAT_RETRIEVAL_LIMIT: int = 10
     CHAT_RETRIEVAL_CANDIDATES: int = 30
 
+    # Bounded read-only agent tools
+    AGENT_TOOLS_ENABLED: bool = False
+    AGENT_CREDIT_SURCHARGE: int = 2
+    AGENT_MAX_ITERATIONS: int = 6
+    AGENT_MAX_TOOL_CALLS: int = 8
+    AGENT_MAX_WEB_SEARCHES: int = 2
+    AGENT_MAX_WEB_INSPECTIONS: int = 2
+    AGENT_TOOL_TIMEOUT_SECONDS: float = 20.0
+    AGENT_TOTAL_TIMEOUT_SECONDS: float = 150.0
+    AGENT_MAX_TOOL_RESULT_CHARS: int = 16000
+    CEREBRAS_API_VERSION_PATCH: str = "2"
+
     # Upload limits
     MAX_UPLOAD_SIZE_MB: int = 50
     MAX_FILES_PER_USER_PER_DAY: int = 5
@@ -112,7 +130,7 @@ class Settings(BaseSettings):
     PROCESSING_STALE_AFTER_SECONDS: int = 600
 
     # Schema lifecycle
-    REQUIRED_SCHEMA_REVISION: str = "0001_project_grade_backend"
+    REQUIRED_SCHEMA_REVISION: str = "0002_agent_tools"
 
     class Config:
         env_file = ".env"
