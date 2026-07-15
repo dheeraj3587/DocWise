@@ -22,6 +22,8 @@ from models.chat_message import ChatMessage
 from models.file import File as FileModel
 from services.ai_service import ai_service
 from services.embedding_service import embedding_service
+from services.document_index_service import document_index_service
+from services.usage_service import usage_service
 from services.model_registry import available_chat_models, public_chat_model, resolve_chat_model
 from services.storage_service import storage_service
 from services.pdf_service import pdf_service
@@ -74,7 +76,7 @@ class DocumentTopicResponse(BaseModel):
 
 
 def _user_identity(user: dict) -> str:
-    return user.get("email") or user.get("sub") or ""
+    return user.get("sub") or user.get("email") or ""
 
 
 def _resolve_chat_model(model_id: str | None, deep_mode: bool) -> dict:
@@ -98,6 +100,8 @@ async def _get_owned_file(file_id: str, user: dict, db: AsyncSession) -> FileMod
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     assert_file_owner(file_record, user)
+    if not file_record.owner_sub:
+        file_record.owner_sub = user.get("sub")
     return file_record
 
 
@@ -183,11 +187,14 @@ async def get_chat_models():
 async def get_chat_credits(
     _: None = Depends(rate_limit("chat")),
     user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Return today's LLM credit usage for the authenticated user."""
     created_by = _user_identity(user)
     limit = max(1, settings.LLM_DAILY_BUDGET_UNITS_PER_USER)
-    used = await usage_limiter.get_daily_units(created_by, "chat")
+    legacy_used = await usage_limiter.get_daily_units(created_by, "chat")
+    durable_used = await usage_service.daily_units(db, created_by)
+    used = legacy_used + durable_used
     return {"used": used, "limit": limit, "remaining": max(0, limit - used)}
 
 
@@ -259,8 +266,9 @@ async def chat_ask(
     Ask a question. Uses RAG when file_id is present; otherwise answers in general chat mode.
     Returns Server-Sent Events (SSE) stream.
     """
+    file_record = None
     if body.file_id:
-        await _get_owned_file(body.file_id, user, db)
+        file_record = await _get_owned_file(body.file_id, user, db)
     created_by = _user_identity(user)
     chats_today = await _count_chats_today(created_by, db)
     if chats_today >= settings.CHAT_DAILY_LIMIT_PER_USER:
@@ -307,13 +315,21 @@ async def chat_ask(
         )
 
     context_chunks = []
-    if body.file_id:
-        context_chunks = await asyncio.to_thread(
-            embedding_service.search_similar,
-            file_id=body.file_id,
+    if body.file_id and file_record is not None:
+        context_chunks = await document_index_service.search(
+            db,
+            owner_sub=(user.get("sub") or "").strip(),
+            file_ids=[file_record.file_id],
             query=body.question,
-            top_k=10,
+            limit=10,
         )
+        if not context_chunks and settings.LEGACY_FAISS_DUAL_WRITE:
+            context_chunks = await asyncio.to_thread(
+                embedding_service.search_similar,
+                file_id=body.file_id,
+                query=body.question,
+                top_k=10,
+            )
 
     async def event_generator():
         response_parts = []

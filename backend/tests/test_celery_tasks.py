@@ -19,9 +19,14 @@ class TestProcessPdfAsync:
         mock_storage.download_file.return_value = b"%PDF-1.4 test content"
 
         mock_pdf = MagicMock()
-        mock_pdf.extract_and_chunk.return_value = ["chunk 1", "chunk 2"]
+        mock_pdf.extract_structured_chunks.return_value = [
+            {"ordinal": 0, "text": "chunk 1", "page_start": 1, "page_end": 1},
+            {"ordinal": 1, "text": "chunk 2", "page_start": 2, "page_end": 2},
+        ]
 
         mock_embedding = MagicMock()
+        mock_index = MagicMock()
+        mock_index.replace_chunks = AsyncMock(return_value=2)
 
         mock_file_record = MagicMock()
         mock_file_record.status = "processing"
@@ -43,12 +48,15 @@ class TestProcessPdfAsync:
                 with patch("services.storage_service.storage_service", mock_storage), \
                      patch("services.pdf_service.pdf_service", mock_pdf), \
                      patch("services.embedding_service.embedding_service", mock_embedding), \
+                     patch("services.document_index_service.document_index_service", mock_index), \
+                     patch("tasks.celery_worker._find_job", new_callable=AsyncMock, return_value=None), \
                      patch("models.database.async_session") as mock_session_factory:
 
                     mock_session_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
                     mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
 
                     await _process_pdf_async(file_id, storage_key)
+                    mock_index.replace_chunks.assert_awaited_once()
 
     async def test_process_pdf_no_file_record(self):
         """When file record is not found, should not crash."""
@@ -58,7 +66,9 @@ class TestProcessPdfAsync:
         mock_storage.download_file.return_value = b"%PDF data"
 
         mock_pdf = MagicMock()
-        mock_pdf.extract_and_chunk.return_value = ["chunk"]
+        mock_pdf.extract_structured_chunks.return_value = [
+            {"ordinal": 0, "text": "chunk", "page_start": 1, "page_end": 1}
+        ]
 
         mock_embedding = MagicMock()
 
@@ -71,6 +81,7 @@ class TestProcessPdfAsync:
         with patch("services.storage_service.storage_service", mock_storage), \
              patch("services.pdf_service.pdf_service", mock_pdf), \
              patch("services.embedding_service.embedding_service", mock_embedding), \
+             patch("tasks.celery_worker._find_job", new_callable=AsyncMock, return_value=None), \
              patch("models.database.async_session") as mock_session_factory:
 
             mock_session_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
@@ -104,6 +115,8 @@ class TestProcessMediaAsync:
         ]
 
         mock_embedding = MagicMock()
+        mock_index = MagicMock()
+        mock_index.replace_chunks = AsyncMock(return_value=1)
 
         mock_timestamp = MagicMock()
         mock_timestamp.extract_topics = AsyncMock(return_value=[
@@ -123,7 +136,9 @@ class TestProcessMediaAsync:
         with patch("services.storage_service.storage_service", mock_storage), \
              patch("services.transcription_service.transcription_service", mock_transcription), \
              patch("services.embedding_service.embedding_service", mock_embedding), \
+             patch("services.document_index_service.document_index_service", mock_index), \
              patch("services.timestamp_service.timestamp_service", mock_timestamp), \
+             patch("tasks.celery_worker._find_job", new_callable=AsyncMock, return_value=None), \
              patch("models.database.async_session") as mock_session_factory:
 
             mock_session_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
@@ -131,3 +146,4 @@ class TestProcessMediaAsync:
 
             from tasks.celery_worker import _process_media_async
             await _process_media_async(file_id, "media/test.mp3", "test.mp3")
+            mock_index.replace_chunks.assert_awaited_once()

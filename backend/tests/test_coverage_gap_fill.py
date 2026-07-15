@@ -406,7 +406,7 @@ class TestRouterDirectCoverage:
 
     async def test_files_direct_upload_get_list_delete(self, db_session):
         """Test files router direct calls."""
-        user = {"email": ""}
+        user = {"email": "direct@example.com", "sub": "user_direct"}
         file = UploadFile(
             file=io.BytesIO(b"%PDF-1.4"),
             filename="test.pdf",
@@ -414,13 +414,11 @@ class TestRouterDirectCoverage:
         )
 
         with patch("routers.files.storage_service") as mock_storage, \
-             patch("routers.files.process_pdf") as mock_pdf, \
-             patch("routers.files.process_media") as mock_media:
-            mock_storage.upload_file = MagicMock()
+             patch("routers.files.dispatch_outbox") as mock_dispatch:
+            mock_storage.upload_stream = MagicMock()
             mock_storage.get_presigned_url = MagicMock(return_value="url")
             mock_storage.delete_file = MagicMock()
-            mock_pdf.delay = MagicMock()
-            mock_media.delay = MagicMock()
+            mock_dispatch.delay = MagicMock()
 
             upload_result = await upload_file(
                 file=file,
@@ -439,6 +437,7 @@ class TestRouterDirectCoverage:
                 file_type="audio",
                 storage_key="audio/key",
                 created_by="fallback@example.com",
+                owner_sub="user_fallback",
                 status="ready",
             )
             db_session.add(media_record)
@@ -452,10 +451,11 @@ class TestRouterDirectCoverage:
             db_session.add(ts)
             await db_session.commit()
 
-            result = await get_file(media_id, None, {"email": "fallback@example.com"}, db_session)
+            fallback_user = {"email": "fallback@example.com", "sub": "user_fallback"}
+            result = await get_file(media_id, None, fallback_user, db_session)
             assert result["timestamps"][0]["topic"] == "topic"
 
-            files = await list_files(None, {"email": "fallback@example.com"}, db_session)
+            files = await list_files(None, fallback_user, db_session)
             assert len(files) >= 1
 
             with patch("vector_store.faiss_index.faiss_index") as mock_faiss:
@@ -463,7 +463,7 @@ class TestRouterDirectCoverage:
                 deleted = await delete_file(
                     file_id=media_id,
                     _=None,
-                    user={"email": "fallback@example.com"},
+                    user=fallback_user,
                     db=db_session
                 )
             assert deleted["status"] == "deleted"

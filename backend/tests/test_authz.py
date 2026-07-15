@@ -13,7 +13,7 @@ class TestGetUserScope:
 
     def test_email_present(self):
         user = {"email": "test@example.com", "sub": "user_123"}
-        assert get_user_scope(user) == "email:test@example.com"
+        assert get_user_scope(user) == "sub:user_123"
 
     def test_email_empty_falls_back_to_sub(self):
         user = {"email": "", "sub": "user_123"}
@@ -65,6 +65,7 @@ class TestAssertFileOwner:
 
     def test_matching_email(self):
         file_record = MagicMock()
+        file_record.owner_sub = None
         file_record.created_by = "test@example.com"
         user = {"email": "test@example.com", "sub": "user_123"}
         # Should not raise
@@ -72,30 +73,45 @@ class TestAssertFileOwner:
 
     def test_matching_sub(self):
         file_record = MagicMock()
+        file_record.owner_sub = None
         file_record.created_by = "user_123"
         user = {"email": "", "sub": "user_123"}
         assert_file_owner(file_record, user)
 
     def test_mismatch_raises_403(self):
         file_record = MagicMock()
+        file_record.owner_sub = None
         file_record.created_by = "other@example.com"
         user = {"email": "test@example.com", "sub": "user_123"}
         with pytest.raises(HTTPException) as exc:
             assert_file_owner(file_record, user)
         assert exc.value.status_code == 403
 
-    def test_empty_owner_allows_authenticated_access(self):
-        """Files with empty created_by allow any authenticated user (legacy data)."""
+    def test_empty_owner_is_forbidden(self):
+        """Unowned legacy rows must never become public resources."""
         file_record = MagicMock()
+        file_record.owner_sub = None
         file_record.created_by = ""
         user = {"email": "test@example.com", "sub": "user_123"}
-        # Should NOT raise — allows authenticated access for legacy records
-        assert_file_owner(file_record, user)
+        with pytest.raises(HTTPException) as exc:
+            assert_file_owner(file_record, user)
+        assert exc.value.status_code == 403
 
-    def test_none_owner_allows_authenticated_access(self):
-        """Files with None created_by allow any authenticated user (legacy data)."""
+    def test_none_owner_is_forbidden(self):
+        """Missing ownership is denied until a trusted backfill claims the row."""
         file_record = MagicMock()
+        file_record.owner_sub = None
         file_record.created_by = None
         user = {"email": "test@example.com", "sub": "user_123"}
-        # Should NOT raise — allows authenticated access for legacy records
-        assert_file_owner(file_record, user)
+        with pytest.raises(HTTPException) as exc:
+            assert_file_owner(file_record, user)
+        assert exc.value.status_code == 403
+
+    def test_canonical_sub_takes_precedence(self):
+        file_record = MagicMock()
+        file_record.owner_sub = "user_123"
+        file_record.created_by = "old@example.com"
+        assert_file_owner(
+            file_record,
+            {"email": "new@example.com", "sub": "user_123"},
+        )

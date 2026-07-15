@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Float, DateTime, Text
+from sqlalchemy import BigInteger, String, Float, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,7 +21,16 @@ class File(Base):
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)  # pdf | audio | video
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)  # MinIO object key
     created_by: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    owner_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    checksum_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     transcript: Mapped[str] = mapped_column(Text, nullable=True)
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="processing")  # processing | ready | failed
+    embedding_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )

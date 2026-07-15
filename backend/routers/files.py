@@ -2,11 +2,13 @@
 
 import uuid
 import re
+import hashlib
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Request, status
-from sqlalchemy import select, func
+from sqlalchemy import delete as sa_delete, or_, select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.authz import assert_file_owner
@@ -17,10 +19,17 @@ from core.security import get_current_user
 from models.database import get_db
 from models.file import File as FileModel
 from models.timestamp import MediaTimestamp
+from models.conversation import (
+    DocumentChunk,
+    MessageCitation,
+    OutboxEvent,
+    ProcessingJob,
+)
 from services.storage_service import storage_service
-from tasks.celery_worker import process_pdf, process_media
+from tasks.celery_worker import dispatch_outbox
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Allowed MIME types
 PDF_TYPES = {"application/pdf"}
@@ -61,13 +70,18 @@ def _external_base_url(request: Optional[Request]) -> Optional[str]:
     return f"{scheme}://{host}"
 
 
-async def _count_uploads_today(email: str, db: AsyncSession) -> int:
+async def _count_uploads_today(owner_sub: str, email: str, db: AsyncSession) -> int:
     """Count files uploaded by a user in the current UTC day."""
     start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     stmt = (
         select(func.count())
         .select_from(FileModel)
-        .where(FileModel.created_by == email)
+        .where(
+            or_(
+                FileModel.owner_sub == owner_sub,
+                FileModel.created_by == email,
+            )
+        )
         .where(FileModel.created_at >= start_of_day)
     )
     result = await db.execute(stmt)
@@ -81,8 +95,9 @@ async def get_upload_count(
     db: AsyncSession = Depends(get_db),
 ):
     """Return how many files the user has uploaded today and the daily limit."""
-    email = user.get("email") or user.get("sub") or ""
-    count = await _count_uploads_today(email, db)
+    owner_sub = user.get("sub") or ""
+    email = (user.get("email") or "").strip().lower()
+    count = await _count_uploads_today(owner_sub, email, db)
     limit = settings.MAX_FILES_PER_USER_PER_DAY
     return {"count": count, "limit": limit, "remaining": max(0, limit - count)}
 
@@ -100,8 +115,11 @@ async def upload_file(
     Processing (parsing/transcription/embedding) happens in the background via Celery.
     Limited to MAX_FILES_PER_USER_PER_DAY uploads per user per UTC day.
     """
-    created_by_email = user.get("email") or user.get("sub") or ""
-    today_count = await _count_uploads_today(created_by_email, db)
+    owner_sub = (user.get("sub") or "").strip()
+    if not owner_sub:
+        raise HTTPException(status_code=401, detail="Missing Clerk subject")
+    created_by_email = (user.get("email") or owner_sub).strip().lower()
+    today_count = await _count_uploads_today(owner_sub, created_by_email, db)
     if today_count >= settings.MAX_FILES_PER_USER_PER_DAY:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -110,20 +128,33 @@ async def upload_file(
 
     content_type = file.content_type or "application/octet-stream"
     file_type = _classify_file(content_type)
-    file_bytes = await file.read()
-
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    if len(file_bytes) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE_MB} MB.",
-        )
+    digest = hashlib.sha256()
+    size_bytes = 0
+    while chunk := await file.read(1024 * 1024):
+        size_bytes += len(chunk)
+        if size_bytes > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE_MB} MB.",
+            )
+        digest.update(chunk)
+    await file.seek(0)
 
     file_id = str(uuid.uuid4())
     original_name = (file_name or "").strip() or file.filename or "untitled"
     storage_key = f"{file_type}/{file_id}/{_safe_storage_name(original_name)}"
 
-    storage_service.upload_file(file_bytes, storage_key, content_type)
+    try:
+        storage_service.upload_stream(
+            file.file,
+            storage_key,
+            content_type,
+            size_bytes,
+        )
+    except Exception as exc:
+        logger.error("Object upload failed for %s: %s", file_id, exc, exc_info=True)
+        raise HTTPException(status_code=503, detail="File storage is temporarily unavailable") from exc
 
     file_record = FileModel(
         file_id=uuid.UUID(file_id),
@@ -131,10 +162,38 @@ async def upload_file(
         file_type=file_type,
         storage_key=storage_key,
         created_by=created_by_email,
+        owner_sub=owner_sub,
+        mime_type=content_type,
+        checksum_sha256=digest.hexdigest(),
+        size_bytes=size_bytes,
         status="processing",
     )
     db.add(file_record)
     await db.flush()
+
+    job = ProcessingJob(
+        file_id=file_record.file_id,
+        kind=f"process_{file_type}",
+        version=settings.EMBEDDING_VERSION,
+        status="queued",
+        phase="Queued for processing",
+        progress=1,
+    )
+    db.add(job)
+    await db.flush()
+    db.add(
+        OutboxEvent(
+            event_type="file.process",
+            aggregate_id=file_id,
+            payload={
+                "fileId": file_id,
+                "storageKey": storage_key,
+                "fileName": original_name,
+                "fileType": file_type,
+                "jobId": str(job.id),
+            },
+        )
+    )
 
     await cache_service.set_json(
         f"files:progress:{file_id}",
@@ -147,10 +206,20 @@ async def upload_file(
         ttl_seconds=60 * 60 * 24,
     )
 
-    if file_type == "pdf":
-        process_pdf.delay(file_id, storage_key)
-    else:
-        process_media.delay(file_id, storage_key, original_name)
+    try:
+        await db.commit()
+    except Exception:
+        try:
+            storage_service.delete_file(storage_key)
+        except Exception:
+            logger.exception("Failed to compensate object upload for %s", storage_key)
+        raise
+
+    try:
+        dispatch_outbox.delay()
+    except Exception:
+        # The durable outbox is also polled by Celery beat.
+        logger.warning("Immediate outbox wake-up failed for %s", file_id, exc_info=True)
 
     return {
         "fileId": file_id,
@@ -174,6 +243,24 @@ async def get_file_progress(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     assert_file_owner(file_record, user)
+
+    job = (
+        await db.execute(
+            select(ProcessingJob)
+            .where(ProcessingJob.file_id == file_record.file_id)
+            .order_by(ProcessingJob.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if job:
+        return {
+            "fileId": file_id,
+            "status": file_record.status,
+            "phase": job.phase,
+            "progress": job.progress,
+            "attempts": job.attempts,
+            "error": job.error_detail,
+        }
 
     cached = await cache_service.get_json(f"files:progress:{file_id}")
     if cached:
@@ -222,6 +309,8 @@ async def get_file(
 
     # Ownership check — only the file owner can access it
     assert_file_owner(file_record, user)
+    if not file_record.owner_sub:
+        file_record.owner_sub = user.get("sub")
 
     file_url = storage_service.get_presigned_url(
         file_record.storage_key,
@@ -269,15 +358,13 @@ async def list_files(
     if not hasattr(db, "execute") and request is not None and hasattr(request, "execute"):
         db, request = request, None
 
-    # Match files by email OR sub (Clerk user ID) so files created
-    # before the email-fix are still returned.
-    from sqlalchemy import or_
     identifiers = []
     email = (user.get("email") or "").strip().lower()
     sub = (user.get("sub") or "").strip()
     if email:
         identifiers.append(FileModel.created_by == email)
     if sub:
+        identifiers.append(FileModel.owner_sub == sub)
         identifiers.append(FileModel.created_by == sub)
 
     stmt = (
@@ -329,12 +416,35 @@ async def delete_file(
     # Ownership check — only JWT identity (email or sub) is trusted
     assert_file_owner(file_record, user)
 
-    storage_service.delete_file(file_record.storage_key)
+    await db.execute(
+        update(MessageCitation)
+        .where(MessageCitation.source_file_id == file_record.file_id)
+        .values(
+            chunk_id=None,
+            source_file_id=None,
+            excerpt=None,
+            source_removed=True,
+        )
+    )
+    await db.execute(
+        sa_delete(DocumentChunk).where(DocumentChunk.file_id == file_record.file_id)
+    )
 
-    from vector_store.faiss_index import faiss_index
-    faiss_index.delete_index(file_id)
+    try:
+        storage_service.delete_file(file_record.storage_key)
+    except Exception:
+        db.add(
+            OutboxEvent(
+                event_type="storage.delete",
+                aggregate_id=file_id,
+                payload={"storageKey": file_record.storage_key},
+            )
+        )
 
-    from sqlalchemy import delete as sa_delete
+    if settings.LEGACY_FAISS_DUAL_WRITE:
+        from vector_store.faiss_index import faiss_index
+        faiss_index.delete_index(file_id)
+
     from models.chat_message import ChatMessage
 
     await db.execute(
@@ -345,5 +455,11 @@ async def delete_file(
     )
 
     await db.delete(file_record)
+    await db.commit()
+
+    try:
+        dispatch_outbox.delay()
+    except Exception:
+        logger.warning("Cleanup outbox wake-up failed for %s", file_id, exc_info=True)
 
     return {"status": "deleted"}

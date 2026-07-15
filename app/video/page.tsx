@@ -1,35 +1,41 @@
 "use client";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
-const VideoPage = () => {
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, VideoOff } from "lucide-react";
+
+import { BrandMark } from "@/components/docwise/brand-mark";
+import { EmptyState } from "@/components/docwise/empty-state";
+import { IconButton } from "@/components/docwise/icon-button";
+
+export default function VideoPage() {
   const router = useRouter();
   const [videoError, setVideoError] = useState(false);
 
   return (
-    <div className="min-h-screen bg-mesh flex-col-center justify-center px-4 py-8">
-      <Button
-        variant="outline"
-        onClick={() => router.back()}
-        className="fixed top-6 left-6 z-50 glass"
-      >
-        ← Back
-      </Button>
+    <div className="flex h-[100dvh] flex-col bg-background text-foreground">
+      <header className="flex h-14 shrink-0 items-center border-b border-border px-3 sm:px-5">
+        <IconButton
+          onClick={() => router.back()}
+          aria-label="Go back"
+          title="Go back"
+        >
+          <ArrowLeft className="size-4" />
+        </IconButton>
+        <div className="mx-3 h-6 w-px bg-border" />
+        <BrandMark />
+        <span className="mono-label ml-auto">Product tour</span>
+      </header>
 
-      <div className="max-w-5xl w-full">
-        <h1 className="text-4xl md:text-5xl font-bold text-foreground text-center mb-8">
-          How to Use
-        </h1>
-
-        <div className="glass-strong rounded-2xl p-6 md:p-8">
+      <main className="min-h-0 flex-1 p-3 sm:p-5">
+        <div className="mx-auto h-full w-full max-w-7xl overflow-hidden rounded-lg border border-border bg-[#101010]">
           {videoError ? (
-            <div className="flex-col-center justify-center py-20 text-center">
-              <div className="text-6xl mb-4">⚠️</div>
-              <p className="text-muted-foreground text-lg">
-                Video failed to load. Please refresh the page.
-              </p>
-            </div>
+            <EmptyState
+              icon={VideoOff}
+              title="Video unavailable"
+              description="The product tour could not be loaded."
+              className="h-full"
+            />
           ) : (
             <video
               src="/how-to-use.mp4"
@@ -38,13 +44,11 @@ const VideoPage = () => {
               muted
               controls
               onError={() => setVideoError(true)}
-              className="rounded-xl w-full max-h-[600px] object-contain"
+              className="h-full w-full object-contain"
             />
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
-};
-
-export default VideoPage;
+}

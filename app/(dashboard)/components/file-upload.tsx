@@ -66,7 +66,9 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
   const total = files.length;
   const overall = useMemo(() => {
     if (!files.length) return 0;
-    return Math.round(files.reduce((acc, f) => acc + f.progress, 0) / files.length);
+    return Math.round(
+      files.reduce((acc, f) => acc + f.progress, 0) / files.length,
+    );
   }, [files]);
 
   const onFilesSelect = (fileList: FileList | null) => {
@@ -90,7 +92,9 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
 
     setLoading(true);
     setError(null);
-    showProgress(files.map((file) => ({ ...file, progress: 0, phase: "Waiting" })));
+    showProgress(
+      files.map((file) => ({ ...file, progress: 0, phase: "Waiting" })),
+    );
     try {
       const token = await getToken();
       for (const item of files) {
@@ -100,13 +104,18 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
           progress: 0,
           phase: "Uploading",
         });
-        const uploaded = await uploadFile(item.file, "", token, (uploadProgress) => {
-          updateFileProgress(item.name, {
-            state: "uploading",
-            progress: Math.round(uploadProgress * 0.45),
-            phase: "Uploading",
-          });
-        });
+        const uploaded = await uploadFile(
+          item.file,
+          "",
+          token,
+          (uploadProgress) => {
+            updateFileProgress(item.name, {
+              state: "uploading",
+              progress: Math.round(uploadProgress * 0.45),
+              phase: "Uploading",
+            });
+          },
+        );
         await pollProcessingProgress(uploaded.fileId, item.name, token);
       }
       setLoading(false);
@@ -121,7 +130,10 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       dismissToast(UPLOAD_TOAST_ID);
-      if (msg.includes("429") || msg.toLowerCase().includes("daily upload limit")) {
+      if (
+        msg.includes("429") ||
+        msg.toLowerCase().includes("daily upload limit")
+      ) {
         const message = `Daily upload limit reached (${dailyLimit} files/day). Try again tomorrow.`;
         setError(message);
         showRetryToast({
@@ -134,7 +146,8 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
         setError(message);
         showRetryToast({
           title: "Upload failed",
-          description: "The upload or processing job did not finish. Try again with the same files.",
+          description:
+            "The upload or processing job did not finish. Try again with the same files.",
           onRetry: () => {
             void onUpload();
           },
@@ -154,7 +167,10 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
           ? {
               ...file,
               ...update,
-              progress: Math.max(0, Math.min(100, update.progress ?? file.progress)),
+              progress: Math.max(
+                0,
+                Math.min(100, update.progress ?? file.progress),
+              ),
             }
           : file,
       );
@@ -170,10 +186,14 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
   ) => {
     for (let attempt = 0; attempt < 240; attempt += 1) {
       const progress = await getFileProgress(fileId, token);
-      const backendProgress = Math.max(0, Math.min(100, Number(progress.progress) || 0));
-      const combinedProgress = progress.status === "ready"
-        ? 100
-        : Math.min(99, 45 + Math.round(backendProgress * 0.55));
+      const backendProgress = Math.max(
+        0,
+        Math.min(100, Number(progress.progress) || 0),
+      );
+      const combinedProgress =
+        progress.status === "ready"
+          ? 100
+          : Math.min(99, 45 + Math.round(backendProgress * 0.55));
 
       updateFileProgress(fileName, {
         state: progress.status === "failed" ? "failed" : "uploading",
@@ -218,10 +238,17 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         showCloseButton={false}
-        className="w-full max-w-xl gap-0 rounded-xl border border-border bg-background p-0 shadow-2xl"
+        className="w-[calc(100%-2rem)] max-w-xl gap-0 rounded-lg border border-border bg-background p-0 shadow-2xl"
       >
         <div className="flex items-center justify-between border-border/60 border-b px-5 py-3.5">
-          <DialogTitle className="font-heading text-sm">Upload documents</DialogTitle>
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.26em] text-muted-foreground">
+              Add sources
+            </div>
+            <DialogTitle className="mt-1 font-heading text-base">
+              Upload documents
+            </DialogTitle>
+          </div>
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -238,7 +265,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
               e.preventDefault();
               onFilesSelect(e.dataTransfer.files);
             }}
-            className="block cursor-pointer rounded-xl border-2 border-dashed border-border/70 bg-background px-6 py-8 text-center transition-colors hover:border-foreground/40 hover:bg-muted/60"
+            className="block cursor-pointer rounded-lg border border-dashed border-border bg-background px-6 py-9 text-center outline-none transition-colors hover:border-foreground/30 hover:bg-secondary/35 focus-within:ring-2 focus-within:ring-ring"
           >
             <input
               type="file"
@@ -247,7 +274,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
               accept=".pdf,audio/*,video/*"
               onChange={(e) => onFilesSelect(e.target.files)}
             />
-            <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-foreground/[0.06]">
+            <div className="mx-auto flex size-10 items-center justify-center rounded-lg border border-border bg-secondary">
               <CloudUploadIcon className="size-5 opacity-70" />
             </div>
             <div className="mt-3 text-sm">
@@ -261,88 +288,104 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
             </div>
           </label>
 
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
-                {done} of {Math.max(total, 1)} complete
+          {files.length ? (
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+                  {done} of {Math.max(total, 1)} complete
+                </div>
+                <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+                  {overall}%
+                </div>
               </div>
-              <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
-                {overall}%
+              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-foreground transition-[width] duration-200"
+                  style={{ width: `${overall}%` }}
+                />
               </div>
-            </div>
-            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-foreground"
-                style={{ width: `${overall}%` }}
-              />
-            </div>
 
-            <ul className="mt-4 flex flex-col gap-2.5">
-              {(files.length ? files : EMPTY_FILES).map((f) => (
-                <li
-                  key={f.name}
-                  className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2.5"
-                >
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground/[0.06]">
-                    <FileGlyph kind={f.kind} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm">{f.name}</span>
-                      <span className="font-mono text-[10px] text-muted-foreground">
-                        {f.size}
-                      </span>
-                    </div>
-                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={
-                          "h-full " +
-                          (f.state === "done"
-                            ? "bg-emerald-500"
-                            : f.state === "failed"
-                              ? "bg-destructive"
-                            : f.state === "paused"
-                              ? "bg-amber-500"
-                              : "bg-foreground")
-                        }
-                        style={{ width: `${f.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!files.length}
-                    onClick={() => setFiles((current) => current.filter((item) => item.name !== f.name))}
-                    className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground disabled:pointer-events-none"
+              <ul className="mt-4 flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
+                {files.map((f) => (
+                  <li
+                    key={f.name}
+                    className="flex items-center gap-3 rounded-lg border border-border bg-secondary/35 px-3 py-2.5"
                   >
-                    {f.state === "done" ? (
-                      <CheckIcon className="size-3.5 text-emerald-600" />
-                    ) : f.state === "failed" ? (
-                      <XIcon className="size-3.5 text-destructive" />
-                    ) : f.state === "paused" ? (
-                      <PauseIcon className="size-3.5" />
-                    ) : (
-                      <XIcon className="size-3.5" />
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {remaining !== null ? (
-              <div className="mt-3 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
-                {remaining} upload{remaining === 1 ? "" : "s"} remaining today
-              </div>
-            ) : null}
-            {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
-          </div>
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground/[0.06]">
+                      <FileGlyph kind={f.kind} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-sm">{f.name}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {f.size}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={
+                            "h-full " +
+                            (f.state === "done"
+                              ? "bg-emerald-500"
+                              : f.state === "failed"
+                                ? "bg-destructive"
+                                : "bg-foreground")
+                          }
+                          style={{ width: `${f.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!files.length}
+                      onClick={() =>
+                        setFiles((current) =>
+                          current.filter((item) => item.name !== f.name),
+                        )
+                      }
+                      className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground disabled:pointer-events-none"
+                    >
+                      {f.state === "done" ? (
+                        <CheckIcon className="size-3.5 text-emerald-600" />
+                      ) : f.state === "failed" ? (
+                        <XIcon className="size-3.5 text-destructive" />
+                      ) : f.state === "paused" ? (
+                        <PauseIcon className="size-3.5" />
+                      ) : (
+                        <XIcon className="size-3.5" />
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {remaining !== null ? (
+                <div className="mt-3 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+                  {remaining} upload{remaining === 1 ? "" : "s"} remaining today
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {error ? (
+            <p className="mt-3 text-sm text-destructive">{error}</p>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-border/60 border-t px-5 py-3">
-          <Button variant="ghost" type="button" onClick={reset}>
-            Cancel all
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={reset}
+            disabled={!files.length}
+          >
+            Clear
           </Button>
-          <Button type="button" loading={loading} disabled={!files.length || loading} onClick={onUpload}>
-            Done
+          <Button
+            type="button"
+            loading={loading}
+            disabled={!files.length || loading}
+            onClick={onUpload}
+          >
+            Upload
           </Button>
         </div>
       </DialogContent>
@@ -350,23 +393,14 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
   );
 }
 
-const EMPTY_FILES: UploadFile[] = [
-  {
-    name: "lecture-notes.pdf",
-    size: "PDF",
-    progress: 0,
-    state: "paused",
-    kind: "doc",
-  },
-];
-
 function toUploadFile(file: File): UploadFile {
   return {
     file,
     name: file.name,
     size: formatBytes(file.size),
-    progress: 12,
-    state: "uploading",
+    progress: 0,
+    state: "paused",
+    phase: "Queued",
     kind: getFileKind(file),
   };
 }
@@ -383,7 +417,10 @@ function toProgressToastJob(file: UploadFile): ProgressToastJob {
 
 function getFileKind(file: File): UploadFile["kind"] {
   if (file.type.startsWith("image/")) return "image";
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+  if (
+    file.type === "application/pdf" ||
+    file.name.toLowerCase().endsWith(".pdf")
+  ) {
     return "doc";
   }
   return "file";
@@ -392,7 +429,10 @@ function getFileKind(file: File): UploadFile["kind"] {
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
   const value = bytes / 1024 ** index;
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }

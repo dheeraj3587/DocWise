@@ -5,10 +5,13 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from core.rate_limit import rate_limit
 from core.security import get_current_user
+from models.conversation import OutboxEvent, ProcessingJob
 from models.database import get_db
 from models.user import User
+from models.file import File
 
 router = APIRouter()
 
@@ -22,6 +25,75 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     name: str | None = None
     image_url: str | None = None
+
+
+async def _claim_and_queue_legacy_files(
+    db: AsyncSession,
+    *,
+    email: str,
+    owner_sub: str | None,
+) -> int:
+    """Claim email-owned files and durably queue any that need pgvector indexing."""
+    if not owner_sub:
+        return 0
+
+    files = (
+        await db.execute(
+            select(File).where(File.owner_sub.is_(None), File.created_by == email)
+        )
+    ).scalars().all()
+    queued = 0
+    for file_record in files:
+        file_record.owner_sub = owner_sub
+        if (
+            file_record.status != "ready"
+            or file_record.embedding_version == settings.EMBEDDING_VERSION
+        ):
+            continue
+
+        kind = f"reindex_{file_record.file_type}"
+        job = (
+            await db.execute(
+                select(ProcessingJob).where(
+                    ProcessingJob.file_id == file_record.file_id,
+                    ProcessingJob.kind == kind,
+                    ProcessingJob.version == settings.EMBEDDING_VERSION,
+                )
+            )
+        ).scalar_one_or_none()
+        if job and job.status in {"queued", "running", "retrying"}:
+            continue
+        if job is None:
+            job = ProcessingJob(
+                file_id=file_record.file_id,
+                kind=kind,
+                version=settings.EMBEDDING_VERSION,
+            )
+            db.add(job)
+            await db.flush()
+        else:
+            job.status = "queued"
+            job.phase = "Queued after ownership migration"
+            job.progress = 0
+            job.error_code = None
+            job.error_detail = None
+            job.completed_at = None
+
+        db.add(
+            OutboxEvent(
+                event_type="file.process",
+                aggregate_id=str(file_record.file_id),
+                payload={
+                    "fileId": str(file_record.file_id),
+                    "storageKey": file_record.storage_key,
+                    "fileName": file_record.file_name,
+                    "fileType": file_record.file_type,
+                    "jobId": str(job.id),
+                },
+            )
+        )
+        queued += 1
+    return queued
 
 
 @router.post("")
@@ -42,21 +114,33 @@ async def create_user(
     if jwt_email and jwt_email != body_email:
         raise HTTPException(status_code=403, detail="You can only create your own profile")
 
-    stmt = select(User).where(User.email == body.email)
+    stmt = select(User).where(User.email == body_email)
     result = await db.execute(stmt)
     existing = result.scalar_one_or_none()
 
     if existing:
+        existing.clerk_sub = user.get("sub") or existing.clerk_sub
+        await _claim_and_queue_legacy_files(
+            db,
+            email=body_email,
+            owner_sub=user.get("sub"),
+        )
         return {"status": "exists", "email": existing.email}
 
     new_user = User(
-        email=body.email,
+        clerk_sub=user.get("sub"),
+        email=body_email,
         name=body.name,
         image_url=body.image_url,
     )
     db.add(new_user)
+    await _claim_and_queue_legacy_files(
+        db,
+        email=body_email,
+        owner_sub=user.get("sub"),
+    )
 
-    return {"status": "created", "email": body.email}
+    return {"status": "created", "email": body_email}
 
 
 @router.get("/me")

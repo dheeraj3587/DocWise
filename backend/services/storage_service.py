@@ -1,7 +1,7 @@
 """MinIO object storage service — S3-compatible file storage."""
 
 import io
-from typing import Optional
+from typing import BinaryIO, Optional
 from urllib.parse import urlparse, urlunparse
 
 import boto3
@@ -86,6 +86,24 @@ class StorageService:
         )
         return key
 
+    def upload_stream(
+        self,
+        file_obj: BinaryIO,
+        key: str,
+        content_type: str,
+        size_bytes: int,
+    ) -> str:
+        """Upload a seekable file object without copying it into API memory."""
+        self._ensure_bucket()
+        file_obj.seek(0)
+        self.client.upload_fileobj(
+            Fileobj=file_obj,
+            Bucket=self.bucket,
+            Key=key,
+            ExtraArgs={"ContentType": content_type},
+        )
+        return key
+
     def get_presigned_url(
         self,
         key: str,
@@ -141,6 +159,15 @@ class StorageService:
             self.client.head_object(Bucket=self.bucket, Key=key)
             return True
         except ClientError:
+            return False
+
+    def healthcheck(self) -> bool:
+        """Return whether the configured bucket is reachable."""
+        try:
+            self._ensure_bucket()
+            self.client.head_bucket(Bucket=self.bucket)
+            return True
+        except Exception:
             return False
 
 

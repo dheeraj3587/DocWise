@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kagaz}
@@ -40,6 +40,24 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
 
+  migrate:
+    image: ${BACKEND_IMAGE:-docwise-backend:latest}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - .env
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kagaz}:${POSTGRES_PASSWORD:-kagaz_password}@db:5432/${POSTGRES_DB:-kagaz}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   backend:
     image: ${BACKEND_IMAGE:-docwise-backend:latest}
     build:
@@ -66,8 +84,8 @@ services:
     volumes:
       - faiss_data:/app/faiss_indices
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:
@@ -96,8 +114,36 @@ services:
     volumes:
       - faiss_data:/app/faiss_indices
     depends_on:
-      db:
+      migrate:
+        condition: service_completed_successfully
+      redis:
         condition: service_healthy
+      minio:
+        condition: service_started
+
+  beat:
+    image: ${WORKER_IMAGE:-docwise-worker:latest}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.worker
+    restart: unless-stopped
+    command: ["celery", "-A", "tasks.celery_worker.celery_app", "beat", "--loglevel=info"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kagaz}:${POSTGRES_PASSWORD:-kagaz_password}@db:5432/${POSTGRES_DB:-kagaz}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-localhost}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-kagaz-files}
+      MINIO_USE_SSL: "false"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:

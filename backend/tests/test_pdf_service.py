@@ -65,3 +65,31 @@ class TestPDFService:
         svc = PDFService()
         text = svc.extract_full_text(b"%PDF-1.4")
         assert text == ""
+
+    @patch("services.pdf_service.PdfReader")
+    def test_structured_chunks_skip_blank_pages_and_extract_outline_pages(self, mock_reader_cls):
+        blank = MagicMock()
+        blank.extract_text.return_value = "   "
+        content = MagicMock()
+        content.extract_text.return_value = "Section one discusses grounded retrieval."
+        mock_reader_cls.return_value.pages = [blank, content]
+
+        service = PDFService(chunk_size=30, chunk_overlap=5)
+        chunks = service.extract_structured_chunks(b"pdf")
+        pages = service.extract_pages(b"pdf")
+
+        assert chunks
+        assert all(chunk["page_start"] == 2 for chunk in chunks)
+        assert pages == [{"page": 2, "text": "Section one discusses grounded retrieval."}]
+
+    @patch("services.pdf_service.PdfReader")
+    def test_structured_chunk_uses_cursor_when_split_text_is_not_found(self, mock_reader_cls):
+        page = MagicMock()
+        page.extract_text.return_value = "Original page text"
+        mock_reader_cls.return_value.pages = [page]
+        service = PDFService()
+        service.splitter.split_text = MagicMock(return_value=["normalized text"])
+
+        chunks = service.extract_structured_chunks(b"pdf")
+
+        assert chunks[0]["character_start"] == 0

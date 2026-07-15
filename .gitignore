@@ -82,5 +82,6 @@ minio_data/
 
 # Python coverage
 .coverage
+.coverage.*
 coverage.xml
 htmlcov/

@@ -1,5 +1,6 @@
 """Tests for storage service."""
 
+import io
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -154,3 +155,21 @@ class TestStorageService:
         )
 
         assert url.startswith("https://app.dheerajjoshi.me/storage/kagaz-files/test/key.pdf")
+
+    def test_stream_upload_healthcheck_and_public_ssl_inference(self):
+        service = StorageService.__new__(StorageService)
+        service.client = MagicMock()
+        service.bucket = "docwise"
+        service._bucket_ready = True
+        payload = io.BytesIO(b"streamed")
+
+        assert service.upload_stream(payload, "files/a.pdf", "application/pdf", 8) == "files/a.pdf"
+        service.client.upload_fileobj.assert_called_once()
+        assert StorageService._infer_public_ssl("localhost:9000") is False
+        assert StorageService._infer_public_ssl("minio.local:9000") is False
+        assert StorageService._infer_public_ssl("storage.example.com") is True
+
+        service.client.head_bucket.return_value = {}
+        assert service.healthcheck() is True
+        service.client.head_bucket.side_effect = OSError("offline")
+        assert service.healthcheck() is False

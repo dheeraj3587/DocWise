@@ -24,6 +24,7 @@ class ChatModel(TypedDict):
     badge: str | None
     contextWindow: int
     outputReserveTokens: int
+    fallbackModelId: str | None
 
 
 def available_chat_models() -> list[ChatModel]:
@@ -46,6 +47,7 @@ def available_chat_models() -> list[ChatModel]:
             "badge": "Fast",
             "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
+            "fallbackModelId": "tencent/hy3:free",
         },
         {
             "id": "gemma-4-31b",
@@ -60,6 +62,7 @@ def available_chat_models() -> list[ChatModel]:
             "badge": "Docs",
             "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
+            "fallbackModelId": "gpt-oss-120b",
         },
         {
             "id": "zai-glm-4.7",
@@ -74,6 +77,7 @@ def available_chat_models() -> list[ChatModel]:
             "badge": "Heavy",
             "contextWindow": CEREBRAS_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
+            "fallbackModelId": "gpt-oss-120b",
         },
         {
             "id": "tencent/hy3:free",
@@ -88,6 +92,7 @@ def available_chat_models() -> list[ChatModel]:
             "badge": "Free",
             "contextWindow": OPENROUTER_TENCENT_CONTEXT_WINDOW_TOKENS,
             "outputReserveTokens": DEFAULT_OUTPUT_RESERVE_TOKENS,
+            "fallbackModelId": "gpt-oss-120b",
         },
     ]
 
@@ -126,3 +131,18 @@ def public_chat_model(model: ChatModel) -> dict[str, object]:
         "contextWindow": model["contextWindow"],
         "outputReserveTokens": model["outputReserveTokens"],
     }
+
+
+def fallback_chat_model(model: ChatModel, deep_mode: bool) -> ChatModel | None:
+    """Return a configured compatible fallback, if its provider is usable."""
+    fallback_id = model.get("fallbackModelId")
+    if not fallback_id:
+        return None
+    fallback = resolve_chat_model(fallback_id, deep_mode)
+    if fallback is None:
+        return None
+    if fallback["provider"] == "openrouter" and not settings.OPENROUTER_API_KEY:
+        return None
+    if fallback["provider"] == "cerebras" and not settings.CEREBRAS_API_KEY:
+        return None
+    return fallback

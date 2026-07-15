@@ -23,7 +23,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -73,6 +73,27 @@ jobs:
           pip install ruff
           ruff check . --exit-zero
 
+      - name: Verify database migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test_kagaz
+          MINIO_ENDPOINT: localhost:9000
+          MINIO_ACCESS_KEY: test
+          MINIO_SECRET_KEY: test
+        run: |
+          alembic -c alembic.ini upgrade head
+          alembic -c alembic.ini downgrade base
+          alembic -c alembic.ini upgrade head
+
+      - name: Verify resumable migration command
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test_kagaz
+          MINIO_ENDPOINT: localhost:9000
+          MINIO_ACCESS_KEY: test
+          MINIO_SECRET_KEY: test
+        run: python scripts/migrate_and_reindex.py --dry-run
+
       - name: Run tests with coverage
         working-directory: backend
         env:
@@ -83,6 +104,8 @@ jobs:
           GOOGLE_API_KEY: test-key
           CEREBRAS_API_KEY: test-key
           CEREBRAS_BASE_URL: https://api.cerebras.ai/v1
+          OPENROUTER_API_KEY: test-openrouter-key
+          OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
           OPENAI_API_KEY: test-key
           CLERK_ISSUER: https://test.clerk.accounts.dev
           CLERK_JWKS_URL: https://test.clerk.accounts.dev/.well-known/jwks.json
@@ -274,8 +297,17 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
             timeout 5m docker compose pull backend worker frontend
 
+            echo "==> Backing up PostgreSQL and MinIO before migration..."
+            DOCWISE_APP_DIR="$APP_DIR" bash scripts/backup-data.sh
+
+            echo "==> Running schema migration..."
+            timeout 5m docker compose up --no-build --abort-on-container-exit migrate
+
             echo "==> Restarting containers..."
-            timeout 5m docker compose up -d --no-build db redis minio backend worker frontend nginx
+            timeout 5m docker compose up -d --no-build db redis minio backend worker beat frontend nginx
+
+            echo "==> Backfilling owners, migrating legacy chats, and queuing reindexing..."
+            timeout 10m docker compose exec -T backend python scripts/migrate_and_reindex.py --step all
 
             echo "==> Restarting nginx to resolve new container IPs..."
             docker compose restart nginx
@@ -288,7 +320,7 @@ jobs:
 
             echo "==> Waiting for services to stabilize..."
             for attempt in $(seq 1 12); do
-              if curl -sf https://app.dheerajjoshi.dev/api/health; then
+              if curl -sf https://app.dheerajjoshi.dev/api/ready; then
                 break
               fi
               if [ "$attempt" -eq 12 ]; then

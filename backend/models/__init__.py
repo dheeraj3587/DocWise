@@ -4,6 +4,17 @@ from models.file import File
 from models.note import Note
 from models.timestamp import MediaTimestamp
 from models.chat_message import ChatMessage
+from models.conversation import (
+    Conversation,
+    ConversationDocument,
+    ConversationMessage,
+    DailyUsage,
+    DocumentChunk,
+    MessageCitation,
+    OutboxEvent,
+    ProcessingJob,
+    UsageLedger,
+)
 
 __all__ = [
     "Base",
@@ -15,4 +26,13 @@ __all__ = [
     "Note",
     "MediaTimestamp",
     "ChatMessage",
+    "Conversation",
+    "ConversationDocument",
+    "ConversationMessage",
+    "DailyUsage",
+    "DocumentChunk",
+    "MessageCitation",
+    "OutboxEvent",
+    "ProcessingJob",
+    "UsageLedger",
 ]

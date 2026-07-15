@@ -5,15 +5,20 @@ import "./globals.css";
 import { ClerkThemeProvider } from "@/components/clerk-theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { DocWiseMotionProvider } from "@/components/docwise/motion-provider";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_API_URL || "https://app.dheerajjoshi.me"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_API_URL || "https://app.dheerajjoshi.me",
+  ),
   title: "DocWise",
-  description: "Smart note-taking editor",
+  description:
+    "Read, question, and verify PDFs, audio, and video in one focused workspace.",
 
   openGraph: {
     title: "DocWise",
-    description: "Smart note-taking editor",
+    description:
+      "Read, question, and verify PDFs, audio, and video in one focused workspace.",
     url: "https://app.dheerajjoshi.me",
     siteName: "DocWise",
     images: [
@@ -29,7 +34,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "DocWise",
-    description: "Smart note-taking editor",
+    description:
+      "Read, question, and verify PDFs, audio, and video in one focused workspace.",
     images: ["/home-page.png"],
   },
 };
@@ -65,9 +71,9 @@ export default function RootLayout({
         style={{ fontFamily: "var(--font-geist-sans)" }}
       >
         <ThemeProvider>
-          <ClerkThemeProvider>
-            {children}
-          </ClerkThemeProvider>
+          <DocWiseMotionProvider>
+            <ClerkThemeProvider>{children}</ClerkThemeProvider>
+          </DocWiseMotionProvider>
           <Toaster />
         </ThemeProvider>
       </body>

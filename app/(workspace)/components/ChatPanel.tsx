@@ -1,11 +1,13 @@
-'use client'
+"use client";
 
 import {
   AudioWaveformIcon,
+  BookOpenIcon,
   CheckIcon,
   ChevronDownIcon,
   CircleGauge,
   FileIcon,
+  ExternalLinkIcon,
   ImageIcon,
   LightbulbIcon,
   Loader2,
@@ -13,10 +15,11 @@ import {
   PaperclipIcon,
   SearchIcon,
   Send,
+  RotateCcwIcon,
   X,
-} from 'lucide-react'
-import { useAuth } from '@clerk/nextjs'
-import { useParams } from 'next/navigation'
+} from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
+import { useParams } from "next/navigation";
 import {
   Dispatch,
   type KeyboardEvent,
@@ -27,134 +30,153 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react'
-import { createPortal } from 'react-dom'
-import ReactMarkdown from 'react-markdown'
-import rehypeKatex from 'rehype-katex'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
+} from "react";
+import { createPortal } from "react-dom";
+import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 
-import { Button } from '@/components/ui/button'
-import { ThinkingIndicator } from '@/components/ui/thinking-indicator'
-import { getApiBase } from '@/lib/api-base'
-import { normalizeMathDelimiters } from '@/lib/markdown-math'
-import { cn } from '@/lib/utils'
+import { Button } from "@/components/ui/button";
+import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
+import { getApiBase } from "@/lib/api-base";
+import {
+  chatApi,
+  type ChatCitation,
+  type ChatUsage,
+  type ConversationMessageRecord,
+} from "@/lib/chat-api";
+import { normalizeMathDelimiters } from "@/lib/markdown-math";
+import { readSSE } from "@/lib/sse";
+import { cn } from "@/lib/utils";
 
 // Memoize plugin arrays to avoid recreating on every render.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REMARK_PLUGINS: any = [remarkGfm, remarkMath]
+const REMARK_PLUGINS: any = [remarkGfm, remarkMath];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REHYPE_PLUGINS: any = [rehypeKatex]
+const REHYPE_PLUGINS: any = [rehypeKatex];
 
-const THINK_CREDIT_SURCHARGE = 3
+const THINK_CREDIT_SURCHARGE = 3;
 
 export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  reasoning?: boolean
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  reasoning?: boolean;
+  status?: "streaming" | "complete" | "failed" | "cancelled";
+  citations?: ChatCitation[];
+  usage?: ChatUsage;
+  provider?: string | null;
+  modelId?: string | null;
+  fallbackUsed?: boolean;
+  error?: { code: string; detail: string } | null;
 }
 
 export interface ModelOption {
-  id: string
-  name: string
-  description: string
-  creditCost: number
-  reasoning: boolean
-  provider?: string
-  providerLabel?: string
-  badge?: string | null
-  contextWindow: number
-  outputReserveTokens: number
+  id: string;
+  name: string;
+  description: string;
+  creditCost: number;
+  reasoning: boolean;
+  provider?: string;
+  providerLabel?: string;
+  badge?: string | null;
+  contextWindow: number;
+  outputReserveTokens: number;
 }
 
 interface ChatPanelProps {
-  embedded?: boolean
-  compact?: boolean
-  layout?: 'default' | 'full'
-  fileId?: string
-  title?: string
-  subtitle?: string
-  placeholder?: string
-  emptyTitle?: string
-  emptyDescription?: string
-  className?: string
-  hideHeader?: boolean
-  allowGeneralChat?: boolean
-  topBarStart?: ReactNode
-  messages?: ChatMessage[]
-  setMessages?: Dispatch<SetStateAction<ChatMessage[]>>
+  embedded?: boolean;
+  compact?: boolean;
+  layout?: "default" | "full";
+  fileId?: string;
+  documentIds?: string[];
+  title?: string;
+  subtitle?: string;
+  placeholder?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  className?: string;
+  hideHeader?: boolean;
+  allowGeneralChat?: boolean;
+  topBarStart?: ReactNode;
+  messages?: ChatMessage[];
+  setMessages?: Dispatch<SetStateAction<ChatMessage[]>>;
+  conversationId?: string;
+  onConversationIdChange?: (conversationId: string) => void;
+  onConversationUpdated?: () => void;
+  onCitationNavigate?: (citation: ChatCitation) => void;
 }
 
 const FALLBACK_CHAT_MODELS: ModelOption[] = [
   {
-    id: 'gpt-oss-120b',
-    name: 'GPT OSS 120B',
-    description: 'Fast Q&A for everyday questions.',
+    id: "gpt-oss-120b",
+    name: "GPT OSS 120B",
+    description: "Fast Q&A for everyday questions.",
     creditCost: 1,
     reasoning: false,
-    provider: 'cerebras',
-    providerLabel: 'Cerebras',
-    badge: 'Fast',
+    provider: "cerebras",
+    providerLabel: "Cerebras",
+    badge: "Fast",
     contextWindow: 65536,
     outputReserveTokens: 4096,
   },
   {
-    id: 'gemma-4-31b',
-    name: 'Gemma 4 31B',
-    description: 'Balanced model for richer prompts and files.',
+    id: "gemma-4-31b",
+    name: "Gemma 4 31B",
+    description: "Balanced model for richer prompts and files.",
     creditCost: 1,
     reasoning: false,
-    provider: 'cerebras',
-    providerLabel: 'Cerebras',
-    badge: 'Docs',
+    provider: "cerebras",
+    providerLabel: "Cerebras",
+    badge: "Docs",
     contextWindow: 65536,
     outputReserveTokens: 4096,
   },
   {
-    id: 'zai-glm-4.7',
-    name: 'GLM 4.7',
-    description: 'Higher-capacity model for complex reasoning.',
+    id: "zai-glm-4.7",
+    name: "GLM 4.7",
+    description: "Higher-capacity model for complex reasoning.",
     creditCost: 3,
     reasoning: false,
-    provider: 'cerebras',
-    providerLabel: 'Cerebras',
-    badge: 'Heavy',
+    provider: "cerebras",
+    providerLabel: "Cerebras",
+    badge: "Heavy",
     contextWindow: 65536,
     outputReserveTokens: 4096,
   },
   {
-    id: 'tencent/hy3:free',
-    name: 'Tencent HY3',
-    description: 'OpenRouter free model for general and document chat.',
+    id: "tencent/hy3:free",
+    name: "Tencent HY3",
+    description: "OpenRouter free model for general and document chat.",
     creditCost: 1,
     reasoning: false,
-    provider: 'openrouter',
-    providerLabel: 'OpenRouter',
-    badge: 'Free',
+    provider: "openrouter",
+    providerLabel: "OpenRouter",
+    badge: "Free",
     contextWindow: 262144,
     outputReserveTokens: 4096,
   },
-]
+];
 
-const SYSTEM_PROMPT_TOKEN_RESERVE = 600
-const DOCUMENT_CONTEXT_RESERVE_TOKENS = 12000
-const THINKING_CONTEXT_RESERVE_TOKENS = 4096
-const MESSAGE_TOKEN_OVERHEAD = 12
+const SYSTEM_PROMPT_TOKEN_RESERVE = 600;
+const DOCUMENT_CONTEXT_RESERVE_TOKENS = 12000;
+const THINKING_CONTEXT_RESERVE_TOKENS = 4096;
+const MESSAGE_TOKEN_OVERHEAD = 12;
 
 const getRouteFileId = (value: unknown) => {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value) && typeof value[0] === 'string') return value[0]
-  return undefined
-}
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+};
 
-const estimateTokens = (text: string) => Math.ceil(text.trim().length / 4)
+const estimateTokens = (text: string) => Math.ceil(text.trim().length / 4);
 
 const formatTokenCount = (tokens: number) => {
-  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`
-  if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`
-  return String(tokens)
-}
+  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+  if (tokens >= 1000) return `${Math.round(tokens / 1000)}k`;
+  return String(tokens);
+};
 
 function estimateContextUsage({
   messages,
@@ -163,359 +185,656 @@ function estimateContextUsage({
   hasDocumentContext,
   thinkEnabled,
 }: {
-  messages: ChatMessage[]
-  input: string
-  selectedModel?: ModelOption
-  hasDocumentContext: boolean
-  thinkEnabled: boolean
+  messages: ChatMessage[];
+  input: string;
+  selectedModel?: ModelOption;
+  hasDocumentContext: boolean;
+  thinkEnabled: boolean;
 }) {
-  const contextWindow = Math.max(1, selectedModel?.contextWindow || 65536)
-  const outputReserve = selectedModel?.outputReserveTokens || 4096
+  const contextWindow = Math.max(1, selectedModel?.contextWindow || 65536);
+  const outputReserve = selectedModel?.outputReserveTokens || 4096;
   const messageTokens = messages.reduce(
-    (total, message) => total + estimateTokens(message.content) + MESSAGE_TOKEN_OVERHEAD,
+    (total, message) =>
+      total + estimateTokens(message.content) + MESSAGE_TOKEN_OVERHEAD,
     0,
-  )
-  const inputTokens = estimateTokens(input)
+  );
+  const inputTokens = estimateTokens(input);
   const used =
     SYSTEM_PROMPT_TOKEN_RESERVE +
     messageTokens +
     inputTokens +
     outputReserve +
     (hasDocumentContext ? DOCUMENT_CONTEXT_RESERVE_TOKENS : 0) +
-    (thinkEnabled ? THINKING_CONTEXT_RESERVE_TOKENS : 0)
-  const clampedUsed = Math.min(used, contextWindow)
-  const remaining = Math.max(0, contextWindow - used)
-  const remainingPercent = Math.max(0, Math.min(100, Math.round((remaining / contextWindow) * 100)))
+    (thinkEnabled ? THINKING_CONTEXT_RESERVE_TOKENS : 0);
+  const clampedUsed = Math.min(used, contextWindow);
+  const remaining = Math.max(0, contextWindow - used);
+  const remainingPercent = Math.max(
+    0,
+    Math.min(100, Math.round((remaining / contextWindow) * 100)),
+  );
 
   return {
     contextWindow,
     used: clampedUsed,
     remaining,
     remainingPercent,
-  }
+  };
 }
 
 export const ChatPanel = ({
   embedded = false,
   compact = false,
-  layout = 'default',
+  layout = "default",
   fileId: fileIdProp,
-  title = 'DocWise Chat',
-  subtitle = 'Ask questions about this file',
-  placeholder = 'How can DocWise help?',
-  emptyTitle = 'Ask about this document',
-  emptyDescription = 'Type a question below to get started',
+  documentIds: documentIdsProp,
+  title = "DocWise Chat",
+  subtitle = "Ask questions about this file",
+  placeholder = "How can DocWise help?",
+  emptyTitle = "Ask about this document",
+  emptyDescription = "Type a question below to get started",
   className,
   hideHeader = false,
   allowGeneralChat = false,
   topBarStart,
   messages: controlledMessages,
   setMessages: controlledSetMessages,
+  conversationId: controlledConversationId,
+  onConversationIdChange,
+  onConversationUpdated,
+  onCitationNavigate,
 }: ChatPanelProps) => {
-  const params = useParams()
-  const { getToken } = useAuth()
+  const params = useParams();
+  const { getToken } = useAuth();
 
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [isOpen, setIsOpen] = useState(false)
-  const [modelMenuOpen, setModelMenuOpen] = useState(false)
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
-  const [thinkEnabled, setThinkEnabled] = useState(false)
-  const [deepSearchEnabled, setDeepSearchEnabled] = useState(false)
-  const [models, setModels] = useState<ModelOption[]>(FALLBACK_CHAT_MODELS)
-  const [selectedModelId, setSelectedModelId] = useState('gpt-oss-120b')
-  const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 })
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [thinkEnabled, setThinkEnabled] = useState(false);
+  const [deepSearchEnabled, setDeepSearchEnabled] = useState(false);
+  const [models, setModels] = useState<ModelOption[]>(FALLBACK_CHAT_MODELS);
+  const [selectedModelId, setSelectedModelId] = useState("gpt-oss-120b");
+  const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 });
+  const [localConversationId, setLocalConversationId] = useState<string>();
+  const [activeCitation, setActiveCitation] = useState<ChatCitation | null>(null);
+  const [serverContextUsage, setServerContextUsage] = useState<ChatUsage>();
 
-  const messagesScrollRef = useRef<HTMLDivElement>(null)
-  const shouldAutoScrollRef = useRef(true)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const streamingMessageIdRef = useRef<string | null>(null);
 
-  const API_BASE = getApiBase()
-  const routeFileId = getRouteFileId((params as { fileId?: unknown })?.fileId)
-  const fileId = fileIdProp || routeFileId
-  const messages = controlledMessages ?? localMessages
-  const setMessages = controlledSetMessages ?? setLocalMessages
-  const selectedModel = models.find((model) => model.id === selectedModelId) || models[0]
-  const selectedCreditCost = (selectedModel?.creditCost || 1) + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
-  const canSend = allowGeneralChat || Boolean(fileId)
-  const isFullLayout = layout === 'full'
+  const API_BASE = getApiBase();
+  const routeFileId = getRouteFileId((params as { fileId?: unknown })?.fileId);
+  const fileId = fileIdProp || routeFileId;
+  const documentIds = useMemo(
+    () =>
+      documentIdsProp?.length
+        ? Array.from(new Set(documentIdsProp))
+        : fileId
+          ? [fileId]
+          : [],
+    [documentIdsProp, fileId],
+  );
+  const conversationId = controlledConversationId ?? localConversationId;
+  const messages = controlledMessages ?? localMessages;
+  const setMessages = controlledSetMessages ?? setLocalMessages;
+  const selectedModel =
+    models.find((model) => model.id === selectedModelId) || models[0];
+  const selectedCreditCost =
+    (selectedModel?.creditCost || 1) +
+    (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
+  const canSend = allowGeneralChat || documentIds.length > 0 || Boolean(conversationId);
+  const isFullLayout = layout === "full";
 
-  const modelLabel = useMemo(() => selectedModel?.name || 'Model', [selectedModel])
+  const modelLabel = useMemo(
+    () => selectedModel?.name || "Model",
+    [selectedModel],
+  );
   const contextEstimate = useMemo(
     () =>
       estimateContextUsage({
         messages,
         input,
         selectedModel,
-        hasDocumentContext: Boolean(fileId),
+        hasDocumentContext: documentIds.length > 0,
         thinkEnabled,
       }),
-    [fileId, input, messages, selectedModel, thinkEnabled],
-  )
+    [documentIds.length, input, messages, selectedModel, thinkEnabled],
+  );
+  const displayedContextEstimate = useMemo(() => {
+    if (!serverContextUsage?.contextWindow) return contextEstimate;
+    const remaining = Math.max(0, serverContextUsage.contextRemaining);
+    return {
+      contextWindow: serverContextUsage.contextWindow,
+      used: serverContextUsage.contextUsed,
+      remaining,
+      remainingPercent: Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round((remaining / serverContextUsage.contextWindow) * 100),
+        ),
+      ),
+    };
+  }, [contextEstimate, serverContextUsage]);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    const scrollEl = messagesScrollRef.current
-    if (!scrollEl) return
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const scrollEl = messagesScrollRef.current;
+    if (!scrollEl) return;
 
     requestAnimationFrame(() => {
       scrollEl.scrollTo({
         top: scrollEl.scrollHeight,
         behavior,
-      })
-    })
-  }, [])
+      });
+    });
+  }, []);
 
   useEffect(() => {
-    if (!shouldAutoScrollRef.current) return
-    scrollToBottom(isStreaming ? 'auto' : 'smooth')
-  }, [isStreaming, messages, scrollToBottom])
+    if (!shouldAutoScrollRef.current) return;
+    scrollToBottom(isStreaming ? "auto" : "smooth");
+  }, [isStreaming, messages, scrollToBottom]);
 
   const handleMessagesScroll = useCallback(() => {
-    const scrollEl = messagesScrollRef.current
-    if (!scrollEl) return
+    const scrollEl = messagesScrollRef.current;
+    if (!scrollEl) return;
 
-    const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight
-    shouldAutoScrollRef.current = distanceFromBottom < 180
-  }, [])
+    const distanceFromBottom =
+      scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 180;
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
-      inputRef.current?.focus()
+      inputRef.current?.focus();
     }
-  }, [isOpen])
+  }, [isOpen]);
 
   useEffect(() => {
-    const textarea = inputRef.current
-    if (!textarea) return
+    const textarea = inputRef.current;
+    if (!textarea) return;
 
-    const maxHeight = isFullLayout ? 240 : compact ? 128 : 168
-    textarea.style.height = 'auto'
-    const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
-    textarea.style.height = `${nextHeight}px`
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
-  }, [compact, input, isFullLayout])
-
-  useEffect(() => {
-    const focusChat = () => inputRef.current?.focus()
-    window.addEventListener('docwise:focus-chat', focusChat)
-    return () => window.removeEventListener('docwise:focus-chat', focusChat)
-  }, [])
+    const maxHeight = isFullLayout ? 240 : compact ? 128 : 168;
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [compact, input, isFullLayout]);
 
   useEffect(() => {
-    if (!fileId) {
-      if (!allowGeneralChat) {
-        setMessages([])
-      }
-      return
+    const focusChat = () => inputRef.current?.focus();
+    window.addEventListener("docwise:focus-chat", focusChat);
+    return () => window.removeEventListener("docwise:focus-chat", focusChat);
+  }, []);
+
+  useEffect(() => {
+    if (controlledConversationId !== undefined) return;
+    const storageKey = fileId
+      ? `docwise:file-conversation:${fileId}`
+      : "docwise:general-conversation";
+    const saved = window.localStorage.getItem(storageKey) || undefined;
+    setLocalConversationId(saved);
+    setServerContextUsage(undefined);
+  }, [allowGeneralChat, controlledConversationId, fileId]);
+
+  useEffect(() => {
+    if (!conversationId) {
+      setMessages([]);
+      return;
     }
 
-    let cancelled = false
-
-    const loadHistory = async () => {
+    let cancelled = false;
+    const loadMessages = async () => {
       try {
-        const token = await getToken()
-        const response = await fetch(`${API_BASE}/api/chat/history/${fileId}`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        })
-        if (!response.ok) return
-
-        const history: Array<{
-          id: string | number
-          role: 'user' | 'assistant'
-          content: string
-          createdAt?: string
-        }> = await response.json()
-
-        if (cancelled) return
-        setMessages(
-          history
-            .filter((message) => message.role === 'user' || message.role === 'assistant')
-            .map((message) => ({
-              id: String(message.id),
-              role: message.role,
-              content: message.content,
-            })),
-        )
+        const token = await getToken();
+        const history = await chatApi.getMessages(conversationId, token);
+        if (cancelled) return;
+        const mapped = history.items.map(mapServerMessage);
+        setMessages(mapped);
+        const lastUsage = [...mapped]
+          .reverse()
+          .find((message) => message.usage)?.usage;
+        setServerContextUsage(lastUsage);
       } catch {
-        // History is a convenience; chat should still work if loading fails.
+        if (controlledConversationId === undefined) {
+          const storageKey = fileId
+            ? `docwise:file-conversation:${fileId}`
+            : "docwise:general-conversation";
+          window.localStorage.removeItem(storageKey);
+          setLocalConversationId(undefined);
+        }
       }
-    }
-
-    loadHistory()
-
+    };
+    loadMessages();
     return () => {
-      cancelled = true
-    }
-  }, [API_BASE, allowGeneralChat, fileId, getToken, setMessages])
+      cancelled = true;
+    };
+  }, [controlledConversationId, conversationId, fileId, getToken, setMessages]);
 
   const refreshCredits = useCallback(async () => {
     try {
-      const token = await getToken()
+      const token = await getToken();
       const response = await fetch(`${API_BASE}/api/chat/credits`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      })
-      if (!response.ok) return
-      const data = await response.json()
+      });
+      if (!response.ok) return;
+      const data = await response.json();
       setCredits({
         used: Number(data.used || 0),
         limit: Number(data.limit || 30),
         remaining: Number(data.remaining || 0),
-      })
+      });
     } catch {
       // Credits are advisory in the UI; the backend still enforces them.
     }
-  }, [API_BASE, getToken])
+  }, [API_BASE, getToken]);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     const loadModels = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/chat/models`)
-        if (!response.ok) return
-        const data: ModelOption[] = await response.json()
-        if (cancelled || data.length === 0) return
-        setModels(data)
-        setSelectedModelId((current) => (data.some((model) => model.id === current) ? current : data[0].id))
+        const response = await fetch(`${API_BASE}/api/chat/models`);
+        if (!response.ok) return;
+        const data: ModelOption[] = await response.json();
+        if (cancelled || data.length === 0) return;
+        setModels(data);
+        setSelectedModelId((current) =>
+          data.some((model) => model.id === current) ? current : data[0].id,
+        );
       } catch {
         // Keep the bundled fallback list visible if the metadata request fails.
       }
-    }
+    };
 
-    loadModels()
-    refreshCredits()
+    loadModels();
+    refreshCredits();
 
     return () => {
-      cancelled = true
+      cancelled = true;
+    };
+  }, [API_BASE, refreshCredits]);
+
+  const ensureConversation = useCallback(async () => {
+    if (conversationId) return conversationId;
+    const token = await getToken();
+    const created = await chatApi.createConversation(
+      {
+        mode: documentIds.length ? "document" : "general",
+        documentIds,
+        modelId: selectedModel?.id,
+      },
+      token,
+    );
+    setLocalConversationId(created.id);
+    onConversationIdChange?.(created.id);
+    if (controlledConversationId === undefined) {
+      const storageKey = fileId
+        ? `docwise:file-conversation:${fileId}`
+        : "docwise:general-conversation";
+      window.localStorage.setItem(storageKey, created.id);
     }
-  }, [API_BASE, refreshCredits])
+    onConversationUpdated?.();
+    return created.id;
+  }, [
+    controlledConversationId,
+    conversationId,
+    documentIds,
+    fileId,
+    getToken,
+    onConversationIdChange,
+    onConversationUpdated,
+    selectedModel?.id,
+  ]);
+
+  const consumeConversationStream = useCallback(
+    async (
+      response: Response,
+      initialMessageId: string,
+      activeConversationId: string,
+    ) => {
+      const assertStream = async (streamResponse: Response) => {
+        if (streamResponse.ok && streamResponse.body) return;
+        let message = `Request failed: ${streamResponse.status}`;
+        try {
+          const errorBody = await streamResponse.json();
+          message = errorBody?.detail || message;
+        } catch {
+          // Keep the HTTP status fallback.
+        }
+        throw new Error(message);
+      };
+
+      await assertStream(response);
+
+      let activeMessageId = initialMessageId;
+      let accumulated = "";
+      let lastEventId = 0;
+      let terminal = false;
+
+      const consume = async (streamResponse: Response) => {
+        await assertStream(streamResponse);
+        for await (const frame of readSSE<Record<string, unknown>>(
+          streamResponse.body!,
+        )) {
+          const payload = frame.data;
+          const frameId = Number(frame.id || payload.id || 0);
+          if (Number.isFinite(frameId)) lastEventId = Math.max(lastEventId, frameId);
+          const type = String(payload.type || frame.event || "");
+          const serverMessageId = payload.messageId
+            ? String(payload.messageId)
+            : activeMessageId;
+
+          if (serverMessageId !== activeMessageId) {
+            const previousId = activeMessageId;
+            activeMessageId = serverMessageId;
+            streamingMessageIdRef.current = activeMessageId;
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === previousId
+                  ? { ...message, id: activeMessageId, status: "streaming" }
+                  : message,
+              ),
+            );
+          }
+
+          if (payload.message) {
+            const persisted = mapServerMessage(
+              payload.message as unknown as ConversationMessageRecord,
+            );
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId ? persisted : message,
+              ),
+            );
+            if (persisted.usage) setServerContextUsage(persisted.usage);
+            terminal = ["complete", "failed", "cancelled"].includes(
+              persisted.status || "",
+            );
+            continue;
+          }
+
+          if (type === "response.delta") {
+            accumulated += String(payload.text || "");
+            const snapshot = accumulated;
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId
+                  ? { ...message, content: snapshot, status: "streaming" }
+                  : message,
+              ),
+            );
+            continue;
+          }
+
+          if (type === "citation" && payload.citation) {
+            const citation = payload.citation as unknown as ChatCitation;
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId
+                  ? {
+                      ...message,
+                      citations: [
+                        ...(message.citations ?? []).filter(
+                          (item) => item.sourceLabel !== citation.sourceLabel,
+                        ),
+                        citation,
+                      ],
+                    }
+                  : message,
+              ),
+            );
+            continue;
+          }
+
+          if (type === "usage" && payload.usage) {
+            const usage = payload.usage as unknown as ChatUsage;
+            setServerContextUsage(usage);
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId ? { ...message, usage } : message,
+              ),
+            );
+            continue;
+          }
+
+          if (type === "message.completed") {
+            const finalContent = String(payload.content || accumulated);
+            terminal = true;
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId
+                  ? {
+                      ...message,
+                      content: finalContent,
+                      status: "complete",
+                      provider: payload.provider
+                        ? String(payload.provider)
+                        : message.provider,
+                      modelId: payload.modelId
+                        ? String(payload.modelId)
+                        : message.modelId,
+                      fallbackUsed: Boolean(payload.fallbackUsed),
+                    }
+                  : message,
+              ),
+            );
+            continue;
+          }
+
+          if (type === "message.failed") {
+            terminal = true;
+            const error = (payload.error ?? {}) as {
+              code?: string;
+              detail?: string;
+            };
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === activeMessageId
+                  ? {
+                      ...message,
+                      status: "failed",
+                      error: {
+                        code: error.code || "generation_failed",
+                        detail:
+                          error.detail || "The response could not be completed.",
+                      },
+                    }
+                  : message,
+              ),
+            );
+          }
+        }
+      };
+
+      try {
+        await consume(response);
+      } catch {
+        // Resume below from the durable event buffer or persisted message.
+      }
+      if (terminal) return;
+      if (activeMessageId === initialMessageId) {
+        throw new Error("The response stream closed before it was accepted.");
+      }
+
+      try {
+        const token = await getToken();
+        const replay = await chatApi.replayEvents(
+          activeConversationId,
+          activeMessageId,
+          lastEventId,
+          token,
+        );
+        await consume(replay);
+      } catch {
+        // Fall back to the PostgreSQL message state below.
+      }
+      if (terminal) return;
+
+      const token = await getToken();
+      const history = await chatApi.getMessages(activeConversationId, token);
+      const persisted = history.items.find((item) => item.id === activeMessageId);
+      if (persisted && persisted.status !== "streaming") {
+        const mapped = mapServerMessage(persisted);
+        setMessages((previous) =>
+          previous.map((message) =>
+            message.id === activeMessageId ? mapped : message,
+          ),
+        );
+        if (mapped.usage) setServerContextUsage(mapped.usage);
+        return;
+      }
+      throw new Error("The response connection was lost. Retry this message.");
+    },
+    [getToken, setMessages],
+  );
 
   const handleSend = async () => {
-    const question = input.trim()
-    if (!question || isStreaming || !canSend) return
+    const question = input.trim();
+    if (!question || isStreaming || !canSend) return;
 
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: question,
-    }
-
-    const assistantMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      content: '',
-      reasoning: thinkEnabled,
-    }
-
-    shouldAutoScrollRef.current = true
-    setMessages((prev) => [...prev, userMsg, assistantMsg])
-    setInput('')
-    setIsStreaming(true)
-
+    setIsStreaming(true);
+    shouldAutoScrollRef.current = true;
     try {
-      const token = await getToken()
-      const response = await fetch(`${API_BASE}/api/chat/ask`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const activeConversationId = await ensureConversation();
+      const requestId = crypto.randomUUID();
+      const userMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: question,
+        status: "complete",
+      };
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "",
+        reasoning: thinkEnabled,
+        status: "streaming",
+        citations: [],
+      };
+      streamingMessageIdRef.current = assistantMsg.id;
+      setMessages((previous) => [...previous, userMsg, assistantMsg]);
+      setInput("");
+
+      const token = await getToken();
+      const response = await chatApi.sendMessage(
+        activeConversationId,
+        {
+          requestId,
+          content: question,
+          modelId: selectedModel?.id,
+          reasoning: thinkEnabled,
         },
-        body: JSON.stringify({
-          question,
-          ...(fileId ? { file_id: fileId } : {}),
-          deep_mode: thinkEnabled,
-          model_id: selectedModel?.id,
-        }),
-      })
-
-      if (!response.ok || !response.body) {
-        let message = `Request failed: ${response.status}`
-        try {
-          const errorBody = await response.json()
-          if (errorBody?.detail) {
-            message = errorBody.detail
-          }
-        } catch {
-          // keep fallback
-        }
-        throw new Error(message)
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let accumulated = ''
-      let rafPending = false
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6).trim()
-          if (data === '[DONE]') break
-
-          try {
-            const parsed = JSON.parse(data)
-            if (parsed.error) {
-              throw new Error(parsed.error)
-            }
-            if (parsed.text) {
-              accumulated += parsed.text
-              if (!rafPending) {
-                rafPending = true
-                requestAnimationFrame(() => {
-                  rafPending = false
-                  const snapshot = accumulated
-                  setMessages((prev) => {
-                    const updated = [...prev]
-                    const last = updated[updated.length - 1]
-                    if (last.role === 'assistant') {
-                      updated[updated.length - 1] = { ...last, content: snapshot }
-                    }
-                    return updated
-                  })
-                })
+        token,
+      );
+      await consumeConversationStream(
+        response,
+        assistantMsg.id,
+        activeConversationId,
+      );
+      onConversationUpdated?.();
+    } catch (error) {
+      const failedId = streamingMessageIdRef.current;
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.id === failedId
+            ? {
+                ...message,
+                status: "failed",
+                error: {
+                  code: "request_failed",
+                  detail: (error as Error).message,
+                },
               }
-            }
-          } catch (error) {
-            if (error instanceof SyntaxError) continue
-            throw error
-          }
-        }
-      }
-    } catch (err) {
-      setMessages((prev) => {
-        const updated = [...prev]
-        const last = updated[updated.length - 1]
-        if (last.role === 'assistant') {
-          updated[updated.length - 1] = {
-            ...last,
-            content: `Error: ${(err as Error).message}`,
-          }
-        }
-        return updated
-      })
+            : message,
+        ),
+      );
     } finally {
-      setIsStreaming(false)
-      refreshCredits()
+      streamingMessageIdRef.current = null;
+      setIsStreaming(false);
+      refreshCredits();
     }
-  }
+  };
+
+  const handleRetry = async (message: ChatMessage) => {
+    if (!conversationId || isStreaming || message.status !== "failed") return;
+    const temporaryId = crypto.randomUUID();
+    streamingMessageIdRef.current = temporaryId;
+    setMessages((previous) =>
+      previous.map((item) =>
+        item.id === message.id
+          ? {
+              ...item,
+              id: temporaryId,
+              content: "",
+              status: "streaming",
+              error: null,
+              citations: [],
+            }
+          : item,
+      ),
+    );
+    setIsStreaming(true);
+    try {
+      const token = await getToken();
+      const response = await chatApi.retryMessage(
+        conversationId,
+        message.id,
+        {
+          requestId: crypto.randomUUID(),
+          modelId: selectedModel?.id,
+          reasoning: thinkEnabled,
+        },
+        token,
+      );
+      await consumeConversationStream(response, temporaryId, conversationId);
+      onConversationUpdated?.();
+    } catch (error) {
+      const failedId = streamingMessageIdRef.current;
+      setMessages((previous) =>
+        previous.map((item) =>
+          item.id === failedId
+            ? {
+                ...item,
+                status: "failed",
+                error: {
+                  code: "retry_failed",
+                  detail: (error as Error).message,
+                },
+              }
+            : item,
+        ),
+      );
+    } finally {
+      streamingMessageIdRef.current = null;
+      setIsStreaming(false);
+      refreshCredits();
+    }
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
-  }
+  };
+
+  const handleCitationNavigate = (citation: ChatCitation) => {
+    if (citation.sourceRemoved || !citation.fileId) return;
+    if (onCitationNavigate) {
+      onCitationNavigate(citation);
+      setActiveCitation(null);
+      return;
+    }
+    const page = citation.pageStart ? `?page=${citation.pageStart}` : "";
+    window.location.assign(`/workspace/${citation.fileId}${page}`);
+  };
 
   if (!embedded && !isOpen) {
     return (
@@ -526,25 +845,27 @@ export const ChatPanel = ({
         <MessageCircle className="h-5 w-5" />
         <span className="text-sm font-medium">Chat</span>
       </Button>
-    )
+    );
   }
 
   const chatContent = (
-    <div className="flex h-full w-full flex-col">
+    <div className="relative flex h-full w-full flex-col">
       {isFullLayout ? (
-        <div className="shrink-0 border-b border-border bg-background/95">
+        <div className="shrink-0 border-b border-border bg-background">
           <div className="mx-auto flex min-h-14 w-full max-w-[1760px] flex-wrap items-center justify-between gap-3 px-[clamp(1rem,3vw,3.25rem)] py-2.5">
             {topBarStart ?? (
               <div className="min-w-0">
                 <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
                   {title}
                 </div>
-                <div className="mt-1 truncate text-[11px] text-muted-foreground">{subtitle}</div>
+                <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                  {subtitle}
+                </div>
               </div>
             )}
             <div className="ml-auto flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
-              <ContextRemaining estimate={contextEstimate} />
-              <span className="hidden rounded-full border border-border bg-background/70 px-2.5 py-1 text-[10px] text-muted-foreground md:inline-flex">
+              <ContextRemaining estimate={displayedContextEstimate} />
+              <span className="hidden h-8 items-center rounded-lg border border-border bg-background px-2.5 text-[10px] text-muted-foreground md:inline-flex">
                 {credits.remaining}/{credits.limit} credits
               </span>
               <ModelSelect
@@ -556,8 +877,8 @@ export const ChatPanel = ({
                 disabled={isStreaming}
                 onOpenChange={setModelMenuOpen}
                 onModelChange={(model) => {
-                  setSelectedModelId(model.id)
-                  setModelMenuOpen(false)
+                  setSelectedModelId(model.id);
+                  setModelMenuOpen(false);
                 }}
               />
             </div>
@@ -569,17 +890,19 @@ export const ChatPanel = ({
             <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
               {title}
             </div>
-            <div className="mt-1 truncate text-[11px] text-muted-foreground">{subtitle}</div>
+            <div className="mt-1 truncate text-[11px] text-muted-foreground">
+              {subtitle}
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden rounded-full border border-border px-2.5 py-1 text-[10px] text-muted-foreground sm:inline-flex">
+            <span className="hidden h-8 items-center rounded-lg border border-border px-2.5 text-[10px] text-muted-foreground sm:inline-flex">
               {credits.remaining}/{credits.limit} credits
             </span>
             {!embedded ? (
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 aria-label="Close chat"
               >
                 <X className="h-4 w-4" />
@@ -592,34 +915,44 @@ export const ChatPanel = ({
       <div className="min-h-0 flex-1 overflow-hidden">
         <div
           className={cn(
-            'mx-auto h-full w-full',
-            isFullLayout ? 'max-w-[1760px] px-[clamp(1rem,3vw,3.25rem)]' : 'max-w-4xl',
+            "mx-auto h-full w-full",
+            isFullLayout
+              ? "max-w-[1760px] px-[clamp(1rem,3vw,3.25rem)]"
+              : "max-w-4xl",
           )}
         >
           <div
             ref={messagesScrollRef}
             onScroll={handleMessagesScroll}
             className={cn(
-              'custom-scrollbar h-full overflow-y-auto',
-              isFullLayout ? 'px-0 py-8' : 'px-4 py-5',
+              "custom-scrollbar h-full overflow-y-auto",
+              isFullLayout ? "px-0 py-8" : "px-4 py-5",
             )}
           >
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
-                <MessageCircle className={cn('mb-3 opacity-35', compact ? 'h-8 w-8' : 'h-10 w-10')} />
-                <p className="text-[13px] font-medium text-foreground">{emptyTitle}</p>
+              <div className="flex h-full flex-col items-center justify-center px-6 text-center text-muted-foreground">
+                <span className="mb-4 grid size-10 place-items-center rounded-lg border border-border bg-secondary">
+                  <MessageCircle className="size-4 opacity-70" />
+                </span>
+                <p className="text-[13px] font-medium text-foreground">
+                  {emptyTitle}
+                </p>
                 <p className="mt-1 max-w-xs text-xs leading-relaxed">
-                  {canSend ? emptyDescription : 'Choose a ready document or switch to general chat.'}
+                  {canSend
+                    ? emptyDescription
+                    : "Choose a ready document or switch to general chat."}
                 </p>
               </div>
             ) : (
-              <div className={cn('space-y-4', compact && 'space-y-3')}>
+              <div className={cn("space-y-4", compact && "space-y-3")}>
                 {messages.map((message) => (
                   <ChatMessageBubble
                     key={message.id}
                     message={message}
                     compact={compact}
                     layout={layout}
+                    onCitationClick={setActiveCitation}
+                    onRetry={handleRetry}
                   />
                 ))}
               </div>
@@ -630,16 +963,21 @@ export const ChatPanel = ({
 
       <div
         className={cn(
-          'shrink-0',
+          "shrink-0",
           isFullLayout
-            ? 'border-t border-border bg-background/95 px-[clamp(1rem,3vw,3.25rem)] py-3'
-            : 'p-4',
-          compact && !isFullLayout && 'p-3',
+            ? "border-t border-border bg-background px-[clamp(1rem,3vw,3.25rem)] py-3"
+            : "p-4",
+          compact && !isFullLayout && "p-3",
         )}
       >
-        <div className={cn('mx-auto w-full', isFullLayout ? 'max-w-[1760px]' : 'max-w-4xl')}>
+        <div
+          className={cn(
+            "mx-auto w-full",
+            isFullLayout ? "max-w-[1760px]" : "max-w-4xl",
+          )}
+        >
           <div className="grid gap-3">
-            <div className="overflow-visible rounded-[24px] border border-border bg-secondary/45 shadow-xs/5">
+            <div className="overflow-visible rounded-lg border border-border bg-card shadow-xs/5 transition-colors focus-within:border-foreground/20">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -649,11 +987,20 @@ export const ChatPanel = ({
                 disabled={isStreaming || !canSend}
                 rows={isFullLayout ? 2 : compact ? 2 : 3}
                 className={cn(
-                  'block w-full resize-none bg-transparent px-4 pt-3 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60',
-                  isFullLayout ? 'min-h-[64px] text-sm' : compact ? 'min-h-[52px]' : 'min-h-[72px]',
+                  "block w-full resize-none bg-transparent px-4 pt-3 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60",
+                  isFullLayout
+                    ? "min-h-[64px] text-sm"
+                    : compact
+                      ? "min-h-[52px]"
+                      : "min-h-[72px]",
                 )}
               />
-              <div className={cn('flex flex-wrap items-center justify-between gap-2 p-2', compact && 'p-1.5')}>
+              <div
+                className={cn(
+                  "flex flex-wrap items-center justify-between gap-2 p-2",
+                  compact && "p-1.5",
+                )}
+              >
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                   <div className="relative">
                     <ToolButton
@@ -667,28 +1014,36 @@ export const ChatPanel = ({
                     </ToolButton>
                     {attachMenuOpen ? (
                       <div className="absolute bottom-10 left-0 z-50 w-40 overflow-hidden rounded-lg border border-border bg-popover p-1 text-xs shadow-xl shadow-black/20">
-                        <AttachItem icon={<FileIcon className="h-3.5 w-3.5" />} label="Upload file" />
-                        <AttachItem icon={<ImageIcon className="h-3.5 w-3.5" />} label="Upload photo" />
+                        <AttachItem
+                          icon={<FileIcon className="h-3.5 w-3.5" />}
+                          label="Upload file"
+                        />
+                        <AttachItem
+                          icon={<ImageIcon className="h-3.5 w-3.5" />}
+                          label="Upload photo"
+                        />
                       </div>
                     ) : null}
                   </div>
 
-                  <div className="flex items-center rounded-full border border-border">
+                  <div className="flex items-center rounded-lg border border-border">
                     <ToolButton
                       ariaLabel="DeepSearch"
                       active={deepSearchEnabled}
                       disabled={isStreaming}
-                      className="rounded-l-full rounded-r-none border-0"
+                      className="rounded-l-lg rounded-r-none border-0"
                       onClick={() => setDeepSearchEnabled((active) => !active)}
                     >
                       <SearchIcon className="h-3.5 w-3.5" />
-                      <span className={compact ? 'hidden sm:inline' : ''}>DeepSearch</span>
+                      <span className={compact ? "hidden sm:inline" : ""}>
+                        DeepSearch
+                      </span>
                     </ToolButton>
                     <div className="h-6 w-px bg-border" />
                     <ToolButton
                       ariaLabel="DeepSearch options"
                       disabled={isStreaming}
-                      className="rounded-l-none rounded-r-full border-0 px-2"
+                      className="rounded-l-none rounded-r-lg border-0 px-2"
                     >
                       <ChevronDownIcon className="h-3.5 w-3.5" />
                     </ToolButton>
@@ -702,7 +1057,9 @@ export const ChatPanel = ({
                   >
                     <LightbulbIcon className="h-3.5 w-3.5" />
                     <span>Think</span>
-                    <span className="text-[10px] text-muted-foreground">+{THINK_CREDIT_SURCHARGE}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      +{THINK_CREDIT_SURCHARGE}
+                    </span>
                   </ToolButton>
                 </div>
 
@@ -717,8 +1074,8 @@ export const ChatPanel = ({
                       disabled={isStreaming}
                       onOpenChange={setModelMenuOpen}
                       onModelChange={(model) => {
-                        setSelectedModelId(model.id)
-                        setModelMenuOpen(false)
+                        setSelectedModelId(model.id);
+                        setModelMenuOpen(false);
                       }}
                     />
                   ) : null}
@@ -735,67 +1092,108 @@ export const ChatPanel = ({
                     onClick={handleSend}
                     disabled={isStreaming || !input.trim() || !canSend}
                     aria-label="Send message"
-                    className="grid h-8 w-8 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="grid h-8 w-8 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isStreaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {isStreaming ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
                   </button>
                 </div>
               </div>
             </div>
             <div className="flex items-center justify-between px-1 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
               <span className="truncate">{modelLabel}</span>
-              <span>{selectedCreditCost} credit{selectedCreditCost === 1 ? '' : 's'}</span>
+              <span>
+                {selectedCreditCost} credit{selectedCreditCost === 1 ? "" : "s"}
+              </span>
             </div>
           </div>
         </div>
       </div>
+
+      {activeCitation ? (
+        <CitationDrawer
+          citation={activeCitation}
+          onClose={() => setActiveCitation(null)}
+          onOpenSource={() => handleCitationNavigate(activeCitation)}
+        />
+      ) : null}
     </div>
-  )
+  );
 
   if (embedded) {
     return (
-      <section className={cn('flex h-full flex-col overflow-hidden bg-background', className)}>
+      <section
+        className={cn(
+          "flex h-full flex-col overflow-hidden bg-background",
+          className,
+        )}
+      >
         {chatContent}
       </section>
-    )
+    );
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex h-[600px] w-[min(520px,calc(100vw-48px))] flex-col overflow-hidden rounded-[28px] border border-border bg-background shadow-xl">
+    <div className="fixed bottom-6 right-6 z-50 flex h-[600px] w-[min(520px,calc(100vw-48px))] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-xl">
       {chatContent}
     </div>
-  )
-}
+  );
+};
 
 function ChatMessageBubble({
   message,
   compact,
   layout,
+  onCitationClick,
+  onRetry,
 }: {
-  message: ChatMessage
-  compact: boolean
-  layout: 'default' | 'full'
+  message: ChatMessage;
+  compact: boolean;
+  layout: "default" | "full";
+  onCitationClick: (citation: ChatCitation) => void;
+  onRetry: (message: ChatMessage) => void;
 }) {
-  const isUser = message.role === 'user'
-  const isFullLayout = layout === 'full'
+  const isUser = message.role === "user";
+  const isFullLayout = layout === "full";
 
   return (
-    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start', isFullLayout && 'w-full')}>
+    <div
+      className={cn(
+        "flex",
+        isUser ? "justify-end" : "justify-start",
+        isFullLayout && "w-full",
+      )}
+    >
       <div
         className={cn(
           isFullLayout && isUser
-            ? 'max-w-[min(92%,720px)] sm:max-w-[min(72%,820px)] lg:max-w-[min(48%,860px)]'
+            ? "max-w-[min(92%,720px)] sm:max-w-[min(72%,820px)] lg:max-w-[min(48%,860px)]"
             : isFullLayout
-              ? 'w-full'
-              : 'max-w-[88%]',
+              ? "w-full"
+              : "max-w-[88%]",
           isUser
-            ? 'rounded-[22px] rounded-br-sm border border-border bg-background px-3.5 py-2.5 text-foreground'
-            : 'text-foreground',
-          compact && isUser && 'px-3.5 py-2.5',
-          isFullLayout && isUser && 'px-4 py-3',
+            ? "rounded-lg rounded-br-sm border border-border bg-secondary/50 px-3.5 py-2.5 text-foreground"
+            : "text-foreground",
+          compact && isUser && "px-3.5 py-2.5",
+          isFullLayout && isUser && "px-4 py-3",
         )}
       >
-        {!message.content ? (
+        {message.status === "failed" && !message.content ? (
+          <div className="rounded-lg border border-border bg-secondary/35 px-3.5 py-3 text-[12px] text-muted-foreground">
+            <p>{message.error?.detail || "The response could not be completed."}</p>
+            <button
+              type="button"
+              onClick={() => onRetry(message)}
+              className="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-[10px] font-medium text-foreground transition-colors hover:bg-secondary"
+            >
+              <RotateCcwIcon className="size-3" />
+              Retry
+            </button>
+          </div>
+        ) : !message.content ? (
           <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
             {message.reasoning ? (
               <ThinkingIndicator className="px-0 py-0" />
@@ -807,63 +1205,219 @@ function ChatMessageBubble({
             )}
           </div>
         ) : isUser ? (
-          <p className={cn('whitespace-pre-wrap text-[13px] leading-6', isFullLayout && 'text-sm leading-7')}>
+          <p
+            className={cn(
+              "whitespace-pre-wrap text-[13px] leading-6",
+              isFullLayout && "text-sm leading-7",
+            )}
+          >
             {message.content}
           </p>
         ) : (
           <div
             className={cn(
-              'prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border',
-              isFullLayout && 'chat-full-prose text-sm leading-7 prose-p:leading-7 prose-li:leading-7 prose-pre:my-5',
+              "prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border",
+              isFullLayout &&
+                "chat-full-prose text-sm leading-7 prose-p:leading-7 prose-li:leading-7 prose-pre:my-5",
             )}
           >
-            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>
-              {normalizeMathDelimiters(message.content)}
+            <ReactMarkdown
+              remarkPlugins={REMARK_PLUGINS}
+              rehypePlugins={REHYPE_PLUGINS}
+              components={{
+                a: ({ href, children, ...props }) => {
+                  if (href?.startsWith("citation:")) {
+                    const label = href.slice("citation:".length);
+                    const citation = message.citations?.find(
+                      (item) => item.sourceLabel === label,
+                    );
+                    return (
+                      <button
+                        type="button"
+                        disabled={!citation || citation.sourceRemoved}
+                        onClick={() => citation && onCitationClick(citation)}
+                        className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[9px] font-semibold no-underline transition-colors hover:bg-secondary disabled:cursor-default disabled:opacity-50"
+                      >
+                        <BookOpenIcon className="size-2.5" />
+                        {children}
+                      </button>
+                    );
+                  }
+                  return (
+                    <a href={href} {...props}>
+                      {children}
+                    </a>
+                  );
+                },
+              }}
+            >
+              {normalizeMathDelimiters(
+                citationMarkdown(message.content, message.citations ?? []),
+              )}
             </ReactMarkdown>
+            {message.citations?.length || message.fallbackUsed ? (
+              <div className="not-prose mt-4 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                {message.citations?.length ? (
+                  <span>
+                    {message.citations.length} verified source
+                    {message.citations.length === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+                {message.fallbackUsed ? <span>Provider fallback used</span> : null}
+              </div>
+            ) : null}
           </div>
         )}
       </div>
     </div>
-  )
+  );
+}
+
+function citationMarkdown(content: string, citations: ChatCitation[]) {
+  const labels = new Set(citations.map((citation) => citation.sourceLabel));
+  return content.replace(/\[\[(S\d+)\]\]/g, (marker, label: string) =>
+    labels.has(label) ? `[${label}](citation:${label})` : marker,
+  );
+}
+
+function mapServerMessage(message: ConversationMessageRecord): ChatMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    reasoning: message.reasoning,
+    status: message.status,
+    citations: message.citations,
+    usage: message.usage,
+    provider: message.provider,
+    modelId: message.modelId,
+    fallbackUsed: message.fallbackUsed,
+    error: message.error,
+  };
+}
+
+function CitationDrawer({
+  citation,
+  onClose,
+  onOpenSource,
+}: {
+  citation: ChatCitation;
+  onClose: () => void;
+  onOpenSource: () => void;
+}) {
+  const location = citation.pageStart
+    ? citation.pageEnd && citation.pageEnd !== citation.pageStart
+      ? `Pages ${citation.pageStart}-${citation.pageEnd}`
+      : `Page ${citation.pageStart}`
+    : citation.startTime !== null
+      ? `${formatTimestamp(citation.startTime)}-${formatTimestamp(citation.endTime ?? citation.startTime)}`
+      : "Source excerpt";
+
+  return (
+    <aside className="absolute inset-y-0 right-0 z-[70] flex w-[min(390px,92vw)] flex-col border-l border-border bg-background shadow-2xl shadow-black/50">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+        <div className="min-w-0">
+          <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            Verified source · {citation.sourceLabel}
+          </div>
+          <p className="mt-1 truncate text-[11px] text-foreground">
+            {citation.fileName || "Document"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close source"
+          className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+          {location}
+        </div>
+        {citation.sourceRemoved ? (
+          <p className="mt-4 rounded-lg border border-border bg-secondary/35 p-3 text-xs leading-5 text-muted-foreground">
+            This source was removed from the library. Its excerpt is no longer retained.
+          </p>
+        ) : (
+          <blockquote className="mt-4 border-l border-foreground/30 pl-4 text-[13px] leading-6 text-foreground/90">
+            {citation.excerpt}
+          </blockquote>
+        )}
+      </div>
+      <div className="shrink-0 border-t border-border p-3">
+        <Button
+          type="button"
+          size="sm"
+          disabled={citation.sourceRemoved || !citation.fileId}
+          onClick={onOpenSource}
+          className="w-full"
+        >
+          <ExternalLinkIcon className="size-3.5" />
+          Open source
+        </Button>
+      </div>
+    </aside>
+  );
+}
+
+function formatTimestamp(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.floor(seconds % 60);
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
 function ContextRemaining({
   estimate,
 }: {
-  estimate: ReturnType<typeof estimateContextUsage>
+  estimate: ReturnType<typeof estimateContextUsage>;
 }) {
   const status =
-    estimate.remainingPercent < 8 ? 'critical' : estimate.remainingPercent < 20 ? 'warning' : 'normal'
+    estimate.remainingPercent < 8
+      ? "critical"
+      : estimate.remainingPercent < 20
+        ? "warning"
+        : "normal";
 
   return (
     <div
       className={cn(
-        'inline-flex h-8 items-center gap-2 rounded-full border bg-background/70 px-2.5 text-[10px] text-muted-foreground',
-        status === 'warning' && 'border-foreground/25 text-foreground',
-        status === 'critical' && 'border-destructive/45 bg-destructive/10 text-destructive',
+        "inline-flex h-8 items-center gap-2 rounded-lg border bg-background px-2.5 text-[10px] text-muted-foreground",
+        status === "warning" && "border-foreground/25 text-foreground",
+        status === "critical" &&
+          "border-destructive/45 bg-destructive/10 text-destructive",
       )}
       title={`Approximate context remaining: ${formatTokenCount(estimate.remaining)} of ${formatTokenCount(estimate.contextWindow)} tokens`}
       aria-label={`Approximate context remaining ${estimate.remainingPercent} percent`}
     >
       <CircleGauge className="h-3.5 w-3.5 shrink-0" />
-      <span className="hidden font-mono uppercase tracking-[0.18em] sm:inline">Context</span>
-      <span className={cn('font-medium', status === 'normal' && 'text-foreground')}>
+      <span className="hidden font-mono uppercase tracking-[0.18em] sm:inline">
+        Context
+      </span>
+      <span
+        className={cn("font-medium", status === "normal" && "text-foreground")}
+      >
         {estimate.remainingPercent}%
       </span>
       <span className="hidden text-muted-foreground lg:inline">
         {formatTokenCount(estimate.remaining)} left
       </span>
-      <span className="h-1.5 w-10 overflow-hidden rounded-full bg-secondary sm:w-14" aria-hidden="true">
+      <span
+        className="h-1.5 w-10 overflow-hidden rounded-full bg-secondary sm:w-14"
+        aria-hidden="true"
+      >
         <span
           className={cn(
-            'block h-full rounded-full bg-foreground',
-            status === 'critical' && 'bg-destructive',
+            "block h-full rounded-full bg-foreground",
+            status === "critical" && "bg-destructive",
           )}
           style={{ width: `${estimate.remainingPercent}%` }}
         />
       </span>
     </div>
-  )
+  );
 }
 
 function ToolButton({
@@ -874,12 +1428,12 @@ function ToolButton({
   ariaLabel,
   onClick,
 }: {
-  children: ReactNode
-  active?: boolean
-  disabled?: boolean
-  className?: string
-  ariaLabel: string
-  onClick?: () => void
+  children: ReactNode;
+  active?: boolean;
+  disabled?: boolean;
+  className?: string;
+  ariaLabel: string;
+  onClick?: () => void;
 }) {
   return (
     <button
@@ -888,15 +1442,16 @@ function ToolButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50',
-        active && 'bg-foreground text-background hover:bg-foreground/90 hover:text-background',
-        active && '[&_span]:text-background/70',
+        "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50",
+        active &&
+          "bg-foreground text-background hover:bg-foreground/90 hover:text-background",
+        active && "[&_span]:text-background/70",
         className,
       )}
     >
       {children}
     </button>
-  )
+  );
 }
 
 function AttachItem({ icon, label }: { icon: ReactNode; label: string }) {
@@ -908,7 +1463,7 @@ function AttachItem({ icon, label }: { icon: ReactNode; label: string }) {
       {icon}
       {label}
     </button>
-  )
+  );
 }
 
 function ModelSelect({
@@ -921,90 +1476,108 @@ function ModelSelect({
   onOpenChange,
   onModelChange,
 }: {
-  models: ModelOption[]
-  selectedModelId: string
-  selectedCreditCost: number
-  thinkEnabled: boolean
-  open: boolean
-  disabled?: boolean
-  onOpenChange: (open: boolean) => void
-  onModelChange: (model: ModelOption) => void
+  models: ModelOption[];
+  selectedModelId: string;
+  selectedCreditCost: number;
+  thinkEnabled: boolean;
+  open: boolean;
+  disabled?: boolean;
+  onOpenChange: (open: boolean) => void;
+  onModelChange: (model: ModelOption) => void;
 }) {
-  const selected = models.find((model) => model.id === selectedModelId) || models[0]
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
-  const menuRef = useRef<HTMLDivElement | null>(null)
+  const selected =
+    models.find((model) => model.id === selectedModelId) || models[0];
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
-    left: number
-    top: number
-    width: number
-    maxHeight: number
-  } | null>(null)
+    left: number;
+    top: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
 
   const updatePosition = useCallback(() => {
-    const trigger = triggerRef.current
-    if (!trigger) return
+    const trigger = triggerRef.current;
+    if (!trigger) return;
 
-    const rect = trigger.getBoundingClientRect()
-    const viewportPadding = 12
-    const gap = 8
-    const preferredWidth = 320
-    const width = Math.min(preferredWidth, window.innerWidth - viewportPadding * 2)
-    const estimatedHeight = Math.min(360, 74 + models.length * 66)
-    const spaceAbove = rect.top - viewportPadding - gap
-    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding - gap
-    const openAbove = spaceAbove >= Math.min(estimatedHeight, 240) || spaceAbove > spaceBelow
-    const maxHeight = Math.max(180, Math.min(360, openAbove ? spaceAbove : spaceBelow))
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 8;
+    const preferredWidth = 320;
+    const width = Math.min(
+      preferredWidth,
+      window.innerWidth - viewportPadding * 2,
+    );
+    const estimatedHeight = Math.min(360, 74 + models.length * 66);
+    const spaceAbove = rect.top - viewportPadding - gap;
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding - gap;
+    const openAbove =
+      spaceAbove >= Math.min(estimatedHeight, 240) || spaceAbove > spaceBelow;
+    const maxHeight = Math.max(
+      180,
+      Math.min(360, openAbove ? spaceAbove : spaceBelow),
+    );
     const left = Math.min(
       Math.max(viewportPadding, rect.right - width),
       window.innerWidth - width - viewportPadding,
-    )
+    );
     const top = openAbove
-      ? Math.max(viewportPadding, rect.top - gap - Math.min(estimatedHeight, maxHeight))
-      : Math.min(window.innerHeight - viewportPadding - maxHeight, rect.bottom + gap)
+      ? Math.max(
+          viewportPadding,
+          rect.top - gap - Math.min(estimatedHeight, maxHeight),
+        )
+      : Math.min(
+          window.innerHeight - viewportPadding - maxHeight,
+          rect.bottom + gap,
+        );
 
-    setMenuPosition({ left, top, width, maxHeight })
-  }, [models.length])
+    setMenuPosition({ left, top, width, maxHeight });
+  }, [models.length]);
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
 
-    updatePosition()
+    updatePosition();
 
     const onPointerDown = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node
-      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
-      onOpenChange(false)
-    }
+      const target = event.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      )
+        return;
+      onOpenChange(false);
+    };
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false)
-    }
+      if (event.key === "Escape") onOpenChange(false);
+    };
 
     const onScroll = (event: Event) => {
-      const target = event.target as Node
-      if (menuRef.current?.contains(target)) return
-      onOpenChange(false)
-    }
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      onOpenChange(false);
+    };
 
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', onScroll, true)
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('touchstart', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", onScroll, true);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
 
     return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', onScroll, true)
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('touchstart', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onOpenChange, open, updatePosition])
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onOpenChange, open, updatePosition]);
 
-  if (!selected) return null
+  if (!selected) return null;
 
   const modelMenu =
-    open && typeof document !== 'undefined' && menuPosition
+    open && typeof document !== "undefined" && menuPosition
       ? createPortal(
           <div
             ref={menuRef}
@@ -1014,7 +1587,7 @@ function ModelSelect({
               width: menuPosition.width,
               maxHeight: menuPosition.maxHeight,
             }}
-            className="fixed z-[1000] overflow-y-auto rounded-2xl border border-border bg-background p-1.5 shadow-2xl shadow-black/50"
+            className="fixed z-[1000] overflow-y-auto rounded-lg border border-border bg-background p-1.5 shadow-2xl shadow-black/50"
           >
             <div className="flex items-center justify-between px-2.5 py-2">
               <span className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
@@ -1024,26 +1597,33 @@ function ModelSelect({
             </div>
             <div className="space-y-1">
               {models.map((model) => {
-                const active = model.id === selected.id
-                const creditCost = model.creditCost + (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0)
+                const active = model.id === selected.id;
+                const creditCost =
+                  model.creditCost +
+                  (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
                 return (
                   <button
                     key={model.id}
                     type="button"
                     onClick={() => onModelChange(model)}
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-xl px-2.5 py-2.5 text-left transition-colors',
+                      "flex w-full items-center gap-2 rounded-lg px-2.5 py-2.5 text-left transition-colors",
                       active
-                        ? 'bg-secondary text-foreground'
-                        : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
                     )}
                   >
-                    <ProviderMark provider={model.provider} providerLabel={model.providerLabel} />
+                    <ProviderMark
+                      provider={model.provider}
+                      providerLabel={model.providerLabel}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[12px] font-medium">{model.name}</span>
+                        <span className="truncate text-[12px] font-medium">
+                          {model.name}
+                        </span>
                         {model.badge ? (
-                          <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                             {model.badge}
                           </span>
                         ) : null}
@@ -1052,23 +1632,23 @@ function ModelSelect({
                         {model.description}
                       </span>
                       <span className="mt-1 block font-mono text-[8px] uppercase tracking-[0.22em] text-muted-foreground/80">
-                        {model.providerLabel || 'Provider'}
+                        {model.providerLabel || "Provider"}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px]">
+                      <span className="rounded border border-border px-1.5 py-0.5 text-[9px]">
                         {active ? selectedCreditCost : creditCost}
                       </span>
                       {active ? <CheckIcon className="h-3.5 w-3.5" /> : null}
                     </span>
                   </button>
-                )
+                );
               })}
             </div>
           </div>,
           document.body,
         )
-      : null
+      : null;
 
   return (
     <>
@@ -1077,18 +1657,27 @@ function ModelSelect({
         type="button"
         disabled={disabled}
         onClick={() => onOpenChange(!open)}
-        className="inline-flex h-8 min-w-[132px] max-w-[190px] items-center justify-between gap-2 rounded-full border border-border bg-background/70 px-2.5 text-left text-[11px] text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-8 min-w-[132px] max-w-[190px] items-center justify-between gap-2 rounded-lg border border-border bg-background px-2.5 text-left text-[11px] text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="flex min-w-0 items-center gap-1.5">
-          <ProviderMark provider={selected.provider} providerLabel={selected.providerLabel} compact />
+          <ProviderMark
+            provider={selected.provider}
+            providerLabel={selected.providerLabel}
+            compact
+          />
           <span className="min-w-0 truncate">{selected.name}</span>
         </span>
-        <ChevronDownIcon className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        <ChevronDownIcon
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
       </button>
 
       {modelMenu}
     </>
-  )
+  );
 }
 
 function ProviderMark({
@@ -1096,22 +1685,27 @@ function ProviderMark({
   providerLabel,
   compact = false,
 }: {
-  provider?: string
-  providerLabel?: string
-  compact?: boolean
+  provider?: string;
+  providerLabel?: string;
+  compact?: boolean;
 }) {
-  const text = provider === 'openrouter' ? 'OR' : provider === 'cerebras' ? 'C' : (providerLabel || 'AI').slice(0, 2).toUpperCase()
+  const text =
+    provider === "openrouter"
+      ? "OR"
+      : provider === "cerebras"
+        ? "C"
+        : (providerLabel || "AI").slice(0, 2).toUpperCase();
 
   return (
     <span
       className={cn(
-        'grid shrink-0 place-items-center rounded-full border border-border bg-background font-mono font-semibold uppercase text-muted-foreground',
-        compact ? 'h-4 w-4 text-[7px]' : 'h-7 w-7 text-[9px]',
+        "grid shrink-0 place-items-center rounded-md border border-border bg-background font-mono font-semibold uppercase text-muted-foreground",
+        compact ? "h-4 w-4 text-[7px]" : "h-7 w-7 text-[9px]",
       )}
-      title={providerLabel || provider || 'Provider'}
+      title={providerLabel || provider || "Provider"}
       aria-hidden="true"
     >
       {text}
     </span>
-  )
+  );
 }

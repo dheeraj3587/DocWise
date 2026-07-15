@@ -9,6 +9,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 import httpx
+import logging
 
 from core.config import settings
 
@@ -18,6 +19,7 @@ api_key_security = APIKeyHeader(name="X-API-Key", auto_error=False)
 _jwks_cache: Optional[dict] = None
 _jwks_cache_time: float = 0.0
 _JWKS_CACHE_TTL_SECONDS: int = 3600  # Refresh JWKS every hour
+logger = logging.getLogger(__name__)
 
 
 def _verify_api_key(api_key: Optional[str]) -> Optional[dict]:
@@ -60,12 +62,21 @@ async def _get_jwks() -> dict:
             detail="Authentication service not configured",
         )
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(settings.CLERK_JWKS_URL)
-        resp.raise_for_status()
-        _jwks_cache = resp.json()
-        _jwks_cache_time = now
-        return _jwks_cache
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(settings.CLERK_JWKS_URL)
+            resp.raise_for_status()
+            _jwks_cache = resp.json()
+            _jwks_cache_time = now
+            return _jwks_cache
+    except Exception:
+        if _jwks_cache is not None:
+            logger.warning("Clerk JWKS refresh failed; using last-known-good keys")
+            return _jwks_cache
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable",
+        )
 
 
 def clear_jwks_cache():

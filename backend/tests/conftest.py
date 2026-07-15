@@ -33,6 +33,7 @@ os.environ["CLERK_JWKS_URL"] = "https://test.clerk.dev/.well-known/jwks.json"
 os.environ["CLERK_ISSUER"] = "https://test.clerk.dev"
 os.environ["FAISS_INDEX_PATH"] = "./test_faiss_indices"
 os.environ["API_KEYS"] = '["test-api-key"]'
+os.environ["CORS_ORIGINS"] = '["http://localhost:3000"]'
 
 from models.database import Base
 from core.config import settings
@@ -92,6 +93,7 @@ def mock_storage():
     """Mock MinIO storage service."""
     mock = MagicMock()
     mock.upload_file = MagicMock(return_value="test/key/file.pdf")
+    mock.upload_stream = MagicMock(return_value="test/key/file.pdf")
     mock.get_presigned_url = MagicMock(return_value="https://minio.local/test-url")
     mock.download_file = MagicMock(return_value=b"fake-file-bytes")
     mock.delete_file = MagicMock()
@@ -104,20 +106,18 @@ def mock_storage():
 
 @pytest.fixture
 def mock_celery():
-    """Mock Celery task dispatch."""
-    with patch("routers.files.process_pdf") as mock_pdf, \
-         patch("routers.files.process_media") as mock_media:
-        mock_pdf.delay = MagicMock()
-        mock_media.delay = MagicMock()
-        yield {"pdf": mock_pdf, "media": mock_media}
+    """Mock the durable outbox wake-up dispatched after a commit."""
+    with patch("routers.files.dispatch_outbox") as mock_dispatch:
+        mock_dispatch.delay = MagicMock()
+        yield {"outbox": mock_dispatch}
 
 
 @pytest.fixture
 def mock_embedding_service():
     """Mock the embedding service at the usage sites (routers)."""
     mock = MagicMock()
-    mock.embed_texts = MagicMock(return_value=[[0.1] * 768])
-    mock.embed_query = MagicMock(return_value=[0.1] * 768)
+    mock.embed_texts = MagicMock(return_value=[[0.1] * 384])
+    mock.embed_query = MagicMock(return_value=[0.1] * 384)
     mock.ingest_document = MagicMock()
     mock.search_similar = MagicMock(
         return_value=[
@@ -231,6 +231,7 @@ async def create_owned_file():
                 file_type=file_type,
                 storage_key=f"{file_type}/{fid}/{file_name}",
                 created_by=MOCK_USER["email"],
+                owner_sub=MOCK_USER["sub"],
                 status="ready",
             )
             defaults.update(kwargs)

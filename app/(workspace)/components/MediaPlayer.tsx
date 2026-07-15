@@ -16,11 +16,12 @@ interface MediaPlayerProps {
     fileUrl: string
     fileType: 'audio' | 'video'
     timestamps?: Timestamp[]
+    seekToTime?: number | null
 }
 
 const EMPTY_TIMESTAMPS: Timestamp[] = []
 
-export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS }: MediaPlayerProps) => {
+export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, seekToTime }: MediaPlayerProps) => {
     const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement>(null)
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -35,6 +36,18 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS }
             setIsPlaying(true)
         }
     }, [])
+
+    useEffect(() => {
+        if (seekToTime == null) return
+        const media = mediaRef.current
+        if (!media) return
+
+        media.currentTime = seekToTime
+        void media.play().then(
+            () => setIsPlaying(true),
+            () => setIsPlaying(false),
+        )
+    }, [seekToTime])
 
     const togglePlay = useCallback(() => {
         if (mediaRef.current) {

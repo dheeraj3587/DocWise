@@ -1,153 +1,170 @@
 "use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import {
-  Upload,
-  Menu,
-  X,
   LayoutDashboard,
+  Menu,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  Upload,
+  X,
 } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { useState } from "react";
+
+import { BrandMark } from "@/components/docwise/brand-mark";
+import { IconButton } from "@/components/docwise/icon-button";
+import { SectionLabel } from "@/components/docwise/section-label";
 import { Button } from "@/components/ui/button";
-import { FileUpload } from "./file-upload";
-import { usePathname, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { Progress } from "@/components/ui/progress";
+import { type FileRecord } from "@/lib/api-client";
 import { useApiQuery } from "@/lib/hooks";
-import { FileRecord } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
+import { FileUpload } from "./file-upload";
 
-export const Sidebar = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarVisible, setSidebarVisible] = useState(true);
-  const path = usePathname();
-  const router = useRouter();
+const navigation = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+];
 
+export function Sidebar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
   const { user } = useUser();
   const email = user?.primaryEmailAddress?.emailAddress;
-
-  const { data: getAllFiles } = useApiQuery<FileRecord[]>(
+  const { data: files } = useApiQuery<FileRecord[]>(
     email ? `/api/files?user_email=${encodeURIComponent(email)}` : null,
     [email],
   );
-
-  const progressValue =
-    getAllFiles && getAllFiles.length ? (getAllFiles.length / 5) * 100 : 0;
-
-  const openChat = () => {
-    router.push("/chat");
-    setSidebarOpen(false);
-  };
-
-  if (!sidebarVisible) {
-    return (
-      <button
-        type="button"
-        onClick={() => setSidebarVisible(true)}
-        className="fixed left-4 top-24 z-50 grid size-9 place-items-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
-        aria-label="Show side panel"
-      >
-        <PanelLeftOpen className="size-4" />
-      </button>
-    );
-  }
+  const documentCount = files?.length ?? 0;
+  const progressValue = Math.min(100, (documentCount / 5) * 100);
 
   return (
     <>
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="fixed left-4 top-4 z-50 grid size-9 place-items-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:text-foreground lg:hidden"
+      <IconButton
+        onClick={() => setMobileOpen((open) => !open)}
+        className="fixed left-3 top-3 z-50 bg-background lg:hidden"
+        aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+        title={mobileOpen ? "Close navigation" : "Open navigation"}
       >
-        {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
+        {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+      </IconButton>
 
-      {sidebarOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-background/70 backdrop-blur-sm z-30"
-          onClick={() => setSidebarOpen(false)}
+      {mobileOpen ? (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileOpen(false)}
         />
-      )}
+      ) : null}
 
       <aside
-        className={`
-          fixed lg:static inset-y-0 left-0 z-40
-          w-72
-          bg-background
-          border-r border-border
-          transform transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-          flex flex-col
-        `}
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border bg-background transition-[width,transform] duration-200 lg:static lg:translate-x-0",
+          collapsed ? "lg:w-16" : "lg:w-60",
+          "w-60",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        )}
       >
         <div
-          onClick={() => router.push("/")}
-          className="flex h-[73px] cursor-pointer items-center justify-between border-b border-border px-6"
+          className={cn(
+            "flex h-14 shrink-0 items-center border-b border-border px-3",
+            collapsed ? "lg:justify-center" : "justify-between",
+          )}
         >
-          <div className="flex items-center gap-2 font-mono text-sm">
-            <span className="inline-block size-2 rounded-full bg-foreground" />
-            <span className="tracking-[0.2em] uppercase">DocWise</span>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSidebarVisible(false);
-              setSidebarOpen(false);
-            }}
-            className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Hide side panel"
+          <BrandMark compact={collapsed} className="min-w-0" />
+          <IconButton
+            onClick={() => setCollapsed((value) => !value)}
+            className={cn("size-8", collapsed && "lg:hidden")}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            title={collapsed ? "Expand navigation" : "Collapse navigation"}
           >
             <PanelLeftClose className="size-4" />
-          </button>
+          </IconButton>
         </div>
 
-        <nav className="flex-1 space-y-2 px-4 py-6">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${path === "/dashboard"
-                ? "border-border bg-background/40 text-foreground"
-                : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-          >
-            <LayoutDashboard size={18} />
-            <span>Dashboard</span>
-          </button>
-          <button
-            type="button"
-            onClick={openChat}
-            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${path === "/chat"
-                ? "border-border bg-background/40 text-foreground"
-                : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-          >
-            <MessageSquare size={18} />
-            <span>Chat</span>
-          </button>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-4">
+          <SectionLabel className={cn("mb-2 px-2", collapsed && "lg:hidden")}>
+            Workspace
+          </SectionLabel>
+          <nav className="space-y-1" aria-label="Primary navigation">
+            {navigation.map((item) => {
+              const active = pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  title={collapsed ? item.label : undefined}
+                  className={cn(
+                    "relative flex h-10 items-center gap-3 rounded-lg px-3 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    active
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                    collapsed && "lg:justify-center lg:px-0",
+                  )}
+                >
+                  {active ? (
+                    <span className="absolute inset-y-2 left-0 w-px bg-foreground" />
+                  ) : null}
+                  <Icon className="size-4 shrink-0" strokeWidth={1.75} />
+                  <span className={cn(collapsed && "lg:hidden")}>
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
 
-          <FileUpload>
-            <Button
-              className="mt-3 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium"
-            >
-              <Upload size={18} />
-              <span>Upload File</span>
-            </Button>
-          </FileUpload>
-        </nav>
-
-        <div className="space-y-4 border-t border-border p-6">
-          <div className="rounded-lg border border-border bg-background/40 p-4">
-            <div className="flex-between mb-3">
-              <span className="text-sm font-medium text-muted-foreground">
-                Storage
-              </span>
-              <span className="text-sm font-semibold text-foreground">
-                {getAllFiles?.length || 0} documents
-              </span>
-            </div>
-            <Progress value={progressValue} className="h-2" />
+          <div className="mt-4 border-t border-border pt-4">
+            <FileUpload>
+              <Button
+                size="lg"
+                className={cn(
+                  "w-full justify-start px-3",
+                  collapsed && "lg:justify-center lg:px-0",
+                )}
+                title={collapsed ? "Upload file" : undefined}
+              >
+                <Upload className="size-4" />
+                <span className={cn(collapsed && "lg:hidden")}>
+                  Upload file
+                </span>
+              </Button>
+            </FileUpload>
           </div>
+        </div>
+
+        <div className="border-t border-border p-3">
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              className="hidden h-10 w-full place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:grid"
+              aria-label="Expand navigation"
+              title="Expand navigation"
+            >
+              <PanelLeftOpen className="size-4" />
+            </button>
+          ) : (
+            <div className="px-1 py-2">
+              <div className="mb-2 flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground">Daily uploads</span>
+                <span className="font-mono text-foreground">
+                  {documentCount}/5
+                </span>
+              </div>
+              <Progress value={progressValue} className="h-1" />
+            </div>
+          )}
         </div>
       </aside>
     </>
   );
-};
+}

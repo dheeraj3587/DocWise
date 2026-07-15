@@ -37,6 +37,9 @@ class Settings(BaseSettings):
 
     # Local embeddings - free document indexing/search
     LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_VERSION: str = "bge-small-en-v1.5-v1"
+    LEGACY_FAISS_DUAL_WRITE: bool = True
 
     # Azure OpenAI - Whisper (transcription)
     AZURE_OPENAI_WHISPER_API_KEY: str = ""
@@ -55,6 +58,7 @@ class Settings(BaseSettings):
     CACHE_TTL_CHAT_SECONDS: int = 1800
     CACHE_TTL_SUMMARY_SECONDS: int = 1800
     CACHE_TTL_SEARCH_SECONDS: int = 600
+    STREAM_EVENT_TTL_SECONDS: int = 900
 
     # API key auth (machine-to-machine access)
     API_KEYS: List[str] = []
@@ -75,6 +79,19 @@ class Settings(BaseSettings):
     CHAT_FAST_CREDIT_COST: int = 1
     CHAT_DEEP_CREDIT_COST: int = 3
 
+    # Conversation context and provider resilience
+    CHAT_SUMMARY_MESSAGE_THRESHOLD: int = 12
+    CHAT_SUMMARY_CONTEXT_PERCENT: int = 25
+    CHAT_PROVIDER_CONNECT_TIMEOUT_SECONDS: float = 10.0
+    CHAT_PROVIDER_READ_TIMEOUT_SECONDS: float = 120.0
+    CHAT_PROVIDER_TOTAL_TIMEOUT_SECONDS: float = 180.0
+    CHAT_PROVIDER_MAX_RETRIES: int = 1
+    CHAT_CIRCUIT_FAILURE_THRESHOLD: int = 5
+    CHAT_CIRCUIT_RESET_SECONDS: int = 30
+    CHAT_HEARTBEAT_SECONDS: int = 15
+    CHAT_RETRIEVAL_LIMIT: int = 10
+    CHAT_RETRIEVAL_CANDIDATES: int = 30
+
     # Upload limits
     MAX_UPLOAD_SIZE_MB: int = 50
     MAX_FILES_PER_USER_PER_DAY: int = 5
@@ -92,6 +109,10 @@ class Settings(BaseSettings):
     # Celery
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
+    PROCESSING_STALE_AFTER_SECONDS: int = 600
+
+    # Schema lifecycle
+    REQUIRED_SCHEMA_REVISION: str = "0001_project_grade_backend"
 
     class Config:
         env_file = ".env"
