@@ -52,8 +52,25 @@ celery_app.conf.update(
 )
 
 
+_worker_loop: asyncio.AbstractEventLoop | None = None
+_worker_loop_pid: int | None = None
+
+
 def _run(coro):
-    return asyncio.run(coro)
+    """Run async task code on one event loop per Celery worker process."""
+    global _worker_loop, _worker_loop_pid
+
+    process_id = os.getpid()
+    if (
+        _worker_loop is None
+        or _worker_loop.is_closed()
+        or _worker_loop_pid != process_id
+    ):
+        _worker_loop = asyncio.new_event_loop()
+        _worker_loop_pid = process_id
+        asyncio.set_event_loop(_worker_loop)
+
+    return _worker_loop.run_until_complete(coro)
 
 
 @celery_app.task(name="tasks.worker_heartbeat")
@@ -107,7 +124,6 @@ async def _process_pdf_async(
     final_attempt: bool = True,
 ):
     from core.cache import cache_service
-    from models.conversation import ProcessingJob
     from models.database import async_session
     from models.file import File
     from services.document_index_service import document_index_service

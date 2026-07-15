@@ -1,5 +1,7 @@
 """Tests for tasks.celery_worker — background processing tasks."""
 
+import asyncio
+import os
 import uuid
 from unittest.mock import patch, MagicMock, AsyncMock
 
@@ -147,3 +149,27 @@ class TestProcessMediaAsync:
             from tasks.celery_worker import _process_media_async
             await _process_media_async(file_id, "media/test.mp3", "test.mp3")
             mock_index.replace_chunks.assert_awaited_once()
+
+
+def test_worker_runner_reuses_one_event_loop_per_process():
+    import tasks.celery_worker as worker
+
+    previous_loop = worker._worker_loop
+    previous_pid = worker._worker_loop_pid
+    worker._worker_loop = None
+    worker._worker_loop_pid = None
+
+    async def running_loop_id():
+        return id(asyncio.get_running_loop())
+
+    try:
+        first_loop = worker._run(running_loop_id())
+        second_loop = worker._run(running_loop_id())
+
+        assert first_loop == second_loop
+        assert worker._worker_loop_pid == os.getpid()
+    finally:
+        if worker._worker_loop is not None:
+            worker._worker_loop.close()
+        worker._worker_loop = previous_loop
+        worker._worker_loop_pid = previous_pid
