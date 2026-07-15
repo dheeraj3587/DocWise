@@ -294,6 +294,25 @@ jobs:
             export WORKER_IMAGE="${{ env.REGISTRY }}/${IMAGE_OWNER}/docwise-worker:${IMAGE_TAG}"
             export FRONTEND_IMAGE="${{ env.REGISTRY }}/${IMAGE_OWNER}/docwise-frontend:${IMAGE_TAG}"
 
+            echo "==> Persisting SHA-pinned Compose images..."
+            if [ ! -f .env ]; then
+              echo "::error::Production .env is missing at $APP_DIR/.env"
+              exit 1
+            fi
+            persist_compose_image() {
+              key="$1"
+              value="$2"
+              tmp="$(mktemp "$APP_DIR/.env.images.XXXXXX")"
+              awk -F= -v key="$key" '$1 != key { print }' .env > "$tmp"
+              printf '%s=%s\n' "$key" "$value" >> "$tmp"
+              chmod --reference=.env "$tmp"
+              chown --reference=.env "$tmp"
+              mv "$tmp" .env
+            }
+            persist_compose_image BACKEND_IMAGE "$BACKEND_IMAGE"
+            persist_compose_image WORKER_IMAGE "$WORKER_IMAGE"
+            persist_compose_image FRONTEND_IMAGE "$FRONTEND_IMAGE"
+
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
             timeout 5m docker compose pull backend worker frontend
 
