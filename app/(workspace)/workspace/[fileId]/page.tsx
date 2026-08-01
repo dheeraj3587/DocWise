@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useApiQuery } from "@/lib/hooks";
 import { FileRecord } from "@/lib/api-client";
 import { WorkspaceHeader } from "../../components/workspace-header";
-fixxxyyfixtttnhhhyyyyyyyyimport { PdfViewer } from "../../components/PdfViewer";
+import { PdfViewer } from "../../components/PdfViewer";
 import { MediaPlayer } from "../../components/MediaPlayer";
 import { ChatPanel } from "../../components/ChatPanel";
 import {
