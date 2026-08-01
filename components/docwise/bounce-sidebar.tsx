@@ -169,7 +169,7 @@ export function BounceSidebar({
               ) : null}
             </span>
             {meta ? (
-              <span className="mono-label shrink-0 pt-1 text-[9px]">
+              <span className="mono-label shrink-0 pt-1 text-[10px]">
                 {meta}
               </span>
             ) : null}

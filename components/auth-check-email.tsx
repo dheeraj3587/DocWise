@@ -7,6 +7,7 @@ import {
   CheckCircle2Icon,
   MailIcon,
 } from "lucide-react";
+import { StatusBadge } from "@/components/docwise/status-badge";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./auth-shell";
 
@@ -69,11 +70,11 @@ export function AuthCheckEmailContent({
 
   return (
       <div className="w-full max-w-lg">
-        <div className="inline-flex size-11 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+        <div className="grid size-11 place-items-center rounded-lg border border-border bg-secondary text-success">
           <CheckCircle2Icon className="size-5" />
         </div>
 
-        <div className="mt-5 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+        <div className="mt-5 font-mono text-eyebrow text-muted-foreground uppercase tracking-label">
           Magic link sent
         </div>
         <h1 className="mt-2 font-heading text-3xl leading-tight">
@@ -106,13 +107,13 @@ export function AuthCheckEmailContent({
         </div>
 
         {resendCount > 0 ? (
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[10px] text-emerald-700 uppercase tracking-[0.25em] dark:text-emerald-400">
+          <StatusBadge className="mt-3" tone="success">
             <CheckCircle2Icon className="size-3" />
             Sent again · {resendCount}
-          </div>
+          </StatusBadge>
         ) : null}
 
-        <div className="mt-8 border-border/60 border-t pt-5">
+        <div className="mt-8 border-border border-t pt-5">
           <a
             href="#"
             onClick={(e) => {

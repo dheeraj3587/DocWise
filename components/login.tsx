@@ -29,11 +29,11 @@ function LoginForm() {
     <>
       <div className="absolute top-6 left-6 flex items-center gap-2 font-mono text-sm lg:hidden">
         <span className="inline-block h-2 w-2 rounded-full bg-foreground" />
-        <span className="tracking-[0.2em] uppercase">DocWise</span>
+        <span className="tracking-brand uppercase">DocWise</span>
       </div>
 
       <div className="w-full max-w-lg">
-        <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+        <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-label">
           Welcome back
         </div>
         <h1 className="mt-2 font-heading text-3xl leading-tight">
@@ -64,7 +64,7 @@ function OrSeparator() {
   return (
     <div className="my-6 flex items-center gap-3">
       <Separator className="flex-1" />
-      <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.3em]">
+      <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-label">
         or
       </span>
       <Separator className="flex-1" />
@@ -231,7 +231,7 @@ function ClerkMagicLinkForm() {
 
 function DisabledMagicLinkForm() {
   return (
-    <div className="mt-8 rounded-lg border border-border/70 bg-background/40 px-3 py-2 text-muted-foreground text-sm">
+    <div className="mt-8 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-muted-foreground text-sm">
       Clerk is not configured for this environment.
     </div>
   );

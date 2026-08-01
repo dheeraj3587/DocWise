@@ -20,7 +20,7 @@ export default function DashboardLoading() {
           <Skeleton className="h-3 w-28" />
           <Skeleton className="mt-3 h-10 w-72 max-w-full" />
           <Skeleton className="mt-3 h-4 w-[min(520px,100%)]" />
-          <Skeleton className="mt-7 h-12 w-[min(660px,100%)] rounded-lg border border-border bg-background/40" />
+          <Skeleton className="mt-7 h-12 w-[min(660px,100%)] rounded-lg border border-border bg-secondary/40" />
         </section>
 
         <section className="mx-auto w-full max-w-[1560px] border-t border-border px-5 pb-14 pt-10 sm:px-8 lg:px-10">

@@ -58,7 +58,7 @@ export default function HomeClient() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
-      <header className="sticky top-0 z-50 border-b border-border/80 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/72">
+      <header className="docwise-rail sticky top-0 z-50 border-b">
         <nav className="mx-auto flex h-14 w-full max-w-[1480px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <BrandMark href="/" />
 
@@ -156,17 +156,17 @@ export default function HomeClient() {
               </Button>
             </div>
 
-            <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border/80 pt-5">
+            <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border pt-5">
               {SOURCE_LABELS.map(({ icon: Icon, label }) => (
                 <span
                   key={label}
-                  className="inline-flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground"
+                  className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-label text-muted-foreground"
                 >
                   <Icon className="size-3.5" />
                   {label}
                 </span>
               ))}
-              <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+              <span className="font-mono text-[10px] uppercase tracking-label text-muted-foreground">
                 One workspace
               </span>
             </div>
@@ -319,7 +319,7 @@ export default function HomeClient() {
               Context
             </a>
           </div>
-          <span className="inline-flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+          <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-label text-muted-foreground">
             <MessageSquareText className="size-3.5" />
             Read · Ask · Verify
           </span>

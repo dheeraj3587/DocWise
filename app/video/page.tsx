@@ -28,7 +28,7 @@ export default function VideoPage() {
       </header>
 
       <main className="min-h-0 flex-1 p-3 sm:p-5">
-        <div className="mx-auto h-full w-full max-w-7xl overflow-hidden rounded-lg border border-border bg-[#101010]">
+        <div className="mx-auto h-full w-full max-w-7xl overflow-hidden rounded-lg border border-border bg-stage">
           {videoError ? (
             <EmptyState
               icon={VideoOff}

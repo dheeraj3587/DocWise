@@ -180,7 +180,7 @@ function OnboardingFlow() {
 
 function Stepper({ step }: { step: number }) {
   return (
-    <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.3em]">
+    <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground uppercase tracking-label">
       <span>
         Step {String(step + 1).padStart(2, "0")} / {STEPS.length}
       </span>
@@ -236,7 +236,7 @@ function ProfileStep({
 
   return (
     <>
-      <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+      <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-label">
         Your name
       </div>
       <h1 className="mt-2 font-heading text-3xl leading-tight">
@@ -300,7 +300,7 @@ function ProfileStep({
 
       <div className="my-6 flex items-center gap-3">
         <div className="h-px flex-1 bg-border" />
-        <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.3em]">
+        <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-label">
           or
         </span>
         <div className="h-px flex-1 bg-border" />
@@ -342,7 +342,7 @@ function ProfileStep({
       </p>
 
       {message ? (
-        <div className="mt-4 rounded-lg border border-border/70 bg-background/40 px-3 py-2 text-muted-foreground text-sm">
+        <div className="mt-4 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-muted-foreground text-sm">
           {message}
         </div>
       ) : null}
@@ -374,7 +374,7 @@ function InviteStep({
 }) {
   return (
     <>
-      <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+      <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-label">
         Bring people with you
       </div>
       <h1 className="mt-2 font-heading text-3xl leading-tight">
@@ -403,13 +403,13 @@ function InviteStep({
           {invitees.map((email) => (
             <li
               key={email}
-              className="flex items-center justify-between rounded-md border border-border/70 bg-background/40 px-3 py-2 text-sm"
+              className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm"
             >
               <span className="truncate text-foreground/85">{email}</span>
               <button
                 type="button"
                 onClick={() => onRemove(email)}
-                className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.2em] transition-colors hover:text-foreground"
+                className="font-mono text-[10px] text-muted-foreground uppercase tracking-brand transition-colors hover:text-foreground"
               >
                 Remove
               </button>
@@ -417,7 +417,7 @@ function InviteStep({
           ))}
         </ul>
       ) : (
-        <div className="mt-5 rounded-md border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground text-xs">
+        <div className="mt-5 rounded-md border border-dashed border-border bg-background/30 px-3 py-6 text-center text-muted-foreground text-xs">
           No invites yet. Add a few or skip — totally fine.
         </div>
       )}
@@ -439,7 +439,7 @@ function InviteStep({
 function ReadyStep({ name, count }: { name: string; count: number }) {
   return (
     <>
-      <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+      <div className="mt-8 font-mono text-[11px] text-muted-foreground uppercase tracking-label">
         You&apos;re set
       </div>
       <h1 className="mt-2 font-heading text-3xl leading-tight">
@@ -466,8 +466,8 @@ function ReadyStep({ name, count }: { name: string; count: number }) {
 
 function FactCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border/70 bg-background/40 px-3 py-3">
-      <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+    <div className="rounded-md border border-border bg-secondary/40 px-3 py-3">
+      <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-label">
         {label}
       </div>
       <div className="mt-1 truncate font-heading text-sm">{value}</div>

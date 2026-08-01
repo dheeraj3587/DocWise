@@ -17,21 +17,21 @@ export function ErrorRetryToast({
   onClose?: () => void;
 }) {
   return (
-    <div className="w-96 rounded-lg border border-destructive/40 bg-background shadow-lg">
+    <div className="w-96 rounded-lg border border-destructive/40 bg-popover shadow-[var(--shadow-float)]">
       <div className="flex items-start gap-3 p-3.5">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+        <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-destructive/30 bg-destructive/10 text-destructive">
           <AlertCircleIcon className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{title}</span>
+            <span className="font-heading text-sm text-foreground">{title}</span>
             {code ? (
-              <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-mono text-[9px] text-destructive uppercase tracking-[0.2em]">
+              <span className="rounded-sm border border-destructive/30 bg-destructive/10 px-1.5 py-0.5 font-mono text-[10px] text-destructive uppercase tracking-brand">
                 {code}
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
+          <p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
             {description}
           </p>
         </div>
@@ -39,12 +39,12 @@ export function ErrorRetryToast({
           type="button"
           aria-label="Close"
           onClick={onClose}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
+          className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground"
         >
           <XIcon className="size-3.5" />
         </button>
       </div>
-      <div className="flex items-center justify-end gap-2 border-t border-border/60 px-3 py-2">
+      <div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
         <Button size="sm" variant="ghost" type="button" onClick={onClose}>
           Dismiss
         </Button>
@@ -75,7 +75,7 @@ export function ToastsErrorRetryShowcasePage() {
 function FakeAppBackdrop() {
   return (
     <div className="absolute inset-0 grid grid-cols-[200px_1fr] opacity-50">
-      <div className="border-r border-border/40 bg-foreground/[0.02] p-4 space-y-2">
+      <div className="border-r border-border bg-foreground/[0.02] p-4 space-y-2">
         <div className="h-3 w-24 rounded bg-foreground/10" />
         <div className="h-2 w-32 rounded bg-foreground/10" />
         <div className="h-2 w-28 rounded bg-foreground/10" />
@@ -83,7 +83,7 @@ function FakeAppBackdrop() {
       <div className="p-10 space-y-3">
         <div className="h-4 w-48 rounded bg-foreground/15" />
         <div className="h-2 w-72 rounded bg-foreground/10" />
-        <div className="h-40 rounded-xl border border-border/40 bg-foreground/[0.02]" />
+        <div className="h-40 rounded-lg border border-border bg-foreground/[0.02]" />
       </div>
     </div>
   );

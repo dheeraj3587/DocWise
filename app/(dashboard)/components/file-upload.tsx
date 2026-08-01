@@ -11,6 +11,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
+import { Meter } from "@/components/docwise/meter";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { getFileProgress, getUploadCount, uploadFile } from "@/lib/api-client";
 import type { ProgressToastJob } from "@/components/toasts-progress";
 import {
@@ -238,21 +240,18 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         showCloseButton={false}
-        className="w-[calc(100%-2rem)] max-w-xl gap-0 rounded-lg border border-border bg-background p-0 shadow-2xl"
+        className="w-[calc(100%-2rem)] max-w-xl gap-0 rounded-lg border border-border bg-popover p-0"
       >
-        <div className="flex items-center justify-between border-border/60 border-b px-5 py-3.5">
+        <div className="flex items-center justify-between border-border border-b px-5 py-3.5">
           <div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.26em] text-muted-foreground">
-              Add sources
-            </div>
-            <DialogTitle className="mt-1 font-heading text-base">
-              Upload documents
-            </DialogTitle>
+            <div className="mono-label">Add sources</div>
+            <DialogTitle className="mt-1.5">Upload documents</DialogTitle>
           </div>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded-md p-1 text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
+            className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground"
+            aria-label="Close upload dialog"
           >
             <XIcon className="size-4" />
           </button>
@@ -290,20 +289,11 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
 
           {files.length ? (
             <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
-                  {done} of {Math.max(total, 1)} complete
-                </div>
-                <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
-                  {overall}%
-                </div>
-              </div>
-              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full bg-foreground transition-[width] duration-200"
-                  style={{ width: `${overall}%` }}
-                />
-              </div>
+              <Meter
+                label={`${done} of ${Math.max(total, 1)} complete`}
+                caption={`${overall}%`}
+                value={overall}
+              />
 
               <ul className="mt-4 flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
                 {files.map((f) => (
@@ -311,7 +301,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                     key={f.name}
                     className="flex items-center gap-3 rounded-lg border border-border bg-secondary/35 px-3 py-2.5"
                   >
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground/[0.06]">
+                    <div className="grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-secondary">
                       <FileGlyph kind={f.kind} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -321,16 +311,13 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                           {f.size}
                         </span>
                       </div>
-                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="docwise-meter mt-1.5">
                         <div
-                          className={
-                            "h-full " +
-                            (f.state === "done"
-                              ? "bg-emerald-500"
-                              : f.state === "failed"
-                                ? "bg-destructive"
-                                : "bg-foreground")
-                          }
+                          className={cn(
+                            "docwise-meter-fill",
+                            f.state === "done" && "bg-success",
+                            f.state === "failed" && "bg-destructive",
+                          )}
                           style={{ width: `${f.progress}%` }}
                         />
                       </div>
@@ -343,10 +330,10 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                           current.filter((item) => item.name !== f.name),
                         )
                       }
-                      className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground disabled:pointer-events-none"
+                      className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground disabled:pointer-events-none"
                     >
                       {f.state === "done" ? (
-                        <CheckIcon className="size-3.5 text-emerald-600" />
+                        <CheckIcon className="size-3.5 text-success" />
                       ) : f.state === "failed" ? (
                         <XIcon className="size-3.5 text-destructive" />
                       ) : f.state === "paused" ? (
@@ -359,7 +346,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                 ))}
               </ul>
               {remaining !== null ? (
-                <div className="mt-3 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+                <div className="mono-label mt-3">
                   {remaining} upload{remaining === 1 ? "" : "s"} remaining today
                 </div>
               ) : null}
@@ -370,7 +357,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
           ) : null}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-border/60 border-t px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-border border-t px-5 py-3">
           <Button
             variant="ghost"
             type="button"

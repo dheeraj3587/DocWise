@@ -12,12 +12,12 @@ export function ConversationPreview() {
             <p className="truncate text-xs font-medium text-foreground">
               attention-is-all-you-need.pdf
             </p>
-            <p className="font-mono text-[8px] uppercase text-muted-foreground">
+            <p className="font-mono text-[10px] uppercase text-muted-foreground">
               Conversation · 2 turns
             </p>
           </div>
         </div>
-        <span className="hidden font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground sm:inline">
+        <span className="hidden font-mono text-[10px] uppercase tracking-label text-muted-foreground sm:inline">
           Document context
         </span>
       </div>
@@ -33,7 +33,7 @@ export function ConversationPreview() {
             keeps softmax from becoming too sharp and helps preserve useful
             gradients during training.
           </p>
-          <span className="mt-3 inline-flex items-center gap-2 rounded-md border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-foreground">
+          <span className="mt-3 inline-flex items-center gap-2 rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-brand text-foreground">
             <Quote className="size-3" />
             Page 5 · §3.2.1
           </span>

@@ -1,8 +1,9 @@
+import { Loader } from "@/components/motion/loader";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const WorkspaceSkeleton = () => {
   return (
-    <div className="dark flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-3">
         <div className="flex min-w-0 items-center gap-3">
           <Skeleton className="size-9 rounded-lg" />
@@ -52,14 +53,19 @@ export const WorkspaceSkeleton = () => {
               <Skeleton className="mt-2 h-3 w-44" />
             </div>
             <div className="flex flex-1 items-center justify-center p-4">
-              <div className="w-full max-w-sm text-center">
-                <Skeleton className="mx-auto size-10 rounded-lg" />
-                <Skeleton className="mx-auto mt-4 h-4 w-36" />
-                <Skeleton className="mx-auto mt-2 h-3 w-52" />
+              <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
+                <Loader
+                  variant="helix"
+                  size={40}
+                  speed={1.6}
+                  label="Preparing workspace"
+                  className="text-muted-foreground"
+                />
+                <p className="mono-label">Preparing workspace</p>
               </div>
             </div>
             <div className="p-4">
-              <Skeleton className="h-28 w-full rounded-lg border border-border bg-background/40" />
+              <Skeleton className="h-28 w-full rounded-lg border border-border bg-secondary/40" />
               <div className="mt-3 flex items-center justify-between">
                 <Skeleton className="h-2.5 w-24" />
                 <Skeleton className="h-2.5 w-16" />

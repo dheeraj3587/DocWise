@@ -11,9 +11,7 @@ export function Empty404ShowcasePage() {
     <div className="relative min-h-svh overflow-hidden bg-background">
       <Grid />
       <div className="relative mx-auto flex min-h-svh max-w-3xl flex-col items-center justify-center px-6 text-center">
-        <div className="mb-6 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.4em]">
-          Status · 404
-        </div>
+        <div className="mono-label mb-6">Status · 404</div>
 
         <BigNumerals />
 
@@ -42,18 +40,8 @@ export function Empty404ShowcasePage() {
 
 function BigNumerals() {
   return (
-    <div className="relative font-heading font-bold text-[clamp(8rem,22vw,16rem)] leading-none tracking-tighter">
-      <span className="bg-gradient-to-b from-foreground to-foreground/30 bg-clip-text text-transparent">
-        404
-      </span>
-      <div
-        aria-hidden
-        className="-bottom-2 pointer-events-none absolute inset-x-0 h-1/2"
-        style={{
-          background:
-            "radial-gradient(60% 100% at 50% 100%, color-mix(in srgb, var(--background) 80%, transparent) 50%, transparent 100%)",
-        }}
-      />
+    <div className="font-heading text-[clamp(8rem,22vw,16rem)] leading-none tracking-tighter text-foreground">
+      404
     </div>
   );
 }

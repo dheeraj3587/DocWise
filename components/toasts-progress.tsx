@@ -24,11 +24,11 @@ export function ProgressToast({
   const done = jobs.filter((j) => j.progress >= 100).length;
 
   return (
-    <div className="w-96 rounded-xl border border-border/70 bg-background shadow-lg">
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 px-3.5 py-2.5">
+    <div className="w-96 rounded-lg border border-border bg-popover shadow-[var(--shadow-float)]">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="size-2 animate-pulse rounded-full bg-primary" />
-          <span className="font-medium text-sm">
+          <span className="size-1.5 animate-pulse rounded-full bg-foreground" />
+          <span className="font-heading text-sm text-foreground">
             {title ?? `Uploading ${done} of ${total}`}
           </span>
         </div>
@@ -36,15 +36,15 @@ export function ProgressToast({
           type="button"
           aria-label="Close"
           onClick={onClose}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
+          className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground"
         >
           <XIcon className="size-3.5" />
         </button>
       </div>
-      <ul className="divide-y divide-border/40">
+      <ul className="divide-y divide-border">
         {jobs.map((j) => (
           <li key={j.id} className="flex items-center gap-3 px-3.5 py-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground/[0.05]">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-secondary">
               {j.kind === "image" ? (
                 <ImageIcon className="size-3.5 opacity-70" />
               ) : j.kind === "doc" ? (
@@ -60,9 +60,9 @@ export function ProgressToast({
                   {Math.round(j.progress)}%
                 </span>
               </div>
-              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-foreground/[0.06]">
+              <div className="docwise-meter mt-1.5">
                 <div
-                  className="h-full rounded-full bg-foreground/70 transition-[width]"
+                  className="docwise-meter-fill"
                   style={{ width: `${j.progress}%` }}
                 />
               </div>
@@ -72,7 +72,7 @@ export function ProgressToast({
                   <button
                     type="button"
                     onClick={j.onAction}
-                    className="font-mono text-[10px] uppercase tracking-[0.2em] transition-colors hover:text-foreground"
+                    className="font-mono text-[10px] uppercase tracking-brand transition-colors hover:text-foreground"
                   >
                     {j.actionLabel}
                   </button>
@@ -119,12 +119,12 @@ function FakeAppBackdrop() {
     <div className="absolute inset-0 p-10 opacity-50 space-y-3">
       <div className="h-4 w-48 rounded bg-foreground/15" />
       <div className="h-2 w-72 rounded bg-foreground/10" />
-      <div className="h-40 rounded-xl border border-border/40 bg-foreground/[0.02]" />
+      <div className="h-40 rounded-lg border border-border bg-foreground/[0.02]" />
       <div className="grid grid-cols-3 gap-3">
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-32 rounded-xl border border-border/40 bg-foreground/[0.02]"
+            className="h-32 rounded-lg border border-border bg-foreground/[0.02]"
           />
         ))}
       </div>

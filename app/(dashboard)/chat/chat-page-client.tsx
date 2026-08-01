@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatPanel } from "@/app/(workspace)/components/ChatPanel";
 import { BrandMark } from "@/components/docwise/brand-mark";
 import { IconButton } from "@/components/docwise/icon-button";
+import { Loader } from "@/components/motion/loader";
 import {
   chatApi,
   type ConversationRecord,
@@ -183,11 +184,26 @@ export function ChatPageClient() {
             <BrandMark compact className="hidden lg:inline-flex" />
             <div className="hidden h-7 w-px bg-border lg:block" />
             <div className="min-w-0">
-              <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
+              <div className="mono-label font-semibold leading-none">
                 Context
               </div>
-              <p className="mt-1 max-w-[min(34vw,480px)] truncate text-[11px] text-muted-foreground">
-                {isLoading ? "Loading your library..." : subtitle}
+              <p className="mt-1 flex max-w-[min(34vw,480px)] items-center gap-1.5 text-[11px] text-muted-foreground">
+                {isLoading ? (
+                  <>
+                    <Loader
+                      variant="ascii-braille"
+                      size={11}
+                      speed={0.9}
+                      label="Loading your library"
+                      className="shrink-0"
+                    />
+                    <span className="min-w-0 truncate">
+                      Loading your library...
+                    </span>
+                  </>
+                ) : (
+                  <span className="min-w-0 truncate">{subtitle}</span>
+                )}
               </p>
             </div>
 
@@ -298,9 +314,7 @@ function ConversationSidebar({
           New chat
         </button>
       </div>
-      <div className="px-4 pb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
-        Conversations
-      </div>
+      <div className="mono-label px-4 pb-2 font-semibold">Conversations</div>
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {conversations.length ? (
           <div className="space-y-1">
@@ -392,8 +406,8 @@ function DocumentPicker({
         <span className="truncate">{label}</span>
       </button>
       {open ? (
-        <div className="absolute left-0 top-10 z-[90] w-[min(330px,82vw)] overflow-hidden rounded-lg border border-border bg-background shadow-2xl shadow-black/50">
-          <div className="border-b border-border px-3 py-2.5 font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+        <div className="absolute left-0 top-10 z-[90] w-[min(330px,82vw)] overflow-hidden rounded-lg border border-border bg-popover shadow-[var(--shadow-float)]">
+          <div className="mono-label border-b border-border px-3 py-2.5">
             Use as context
           </div>
           <div className="custom-scrollbar max-h-72 overflow-y-auto p-1.5">

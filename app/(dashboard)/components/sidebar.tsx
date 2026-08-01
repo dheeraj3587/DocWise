@@ -16,9 +16,9 @@ import {
 
 import { BrandMark } from "@/components/docwise/brand-mark";
 import { IconButton } from "@/components/docwise/icon-button";
+import { Meter } from "@/components/docwise/meter";
 import { SectionLabel } from "@/components/docwise/section-label";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { type FileRecord } from "@/lib/api-client";
 import { useApiQuery } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,7 @@ export function Sidebar() {
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-foreground/24 lg:hidden dark:bg-background/72"
           onClick={() => setMobileOpen(false)}
         />
       ) : null}
@@ -153,15 +153,13 @@ export function Sidebar() {
               <PanelLeftOpen className="size-4" />
             </button>
           ) : (
-            <div className="px-1 py-2">
-              <div className="mb-2 flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Daily uploads</span>
-                <span className="font-mono text-foreground">
-                  {documentCount}/5
-                </span>
-              </div>
-              <Progress value={progressValue} className="h-1" />
-            </div>
+            <Meter
+              className="px-1 py-2"
+              label="Daily uploads"
+              caption={`${documentCount}/5`}
+              value={progressValue}
+              warnAtLimit
+            />
           )}
         </div>
       </aside>

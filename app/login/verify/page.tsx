@@ -7,6 +7,7 @@ import {
   EmailLinkErrorCodeStatus,
   isEmailLinkError,
 } from "@clerk/nextjs/errors";
+import { Loader } from "@/components/motion/loader";
 
 type VerificationStatus = "loading" | "verified" | "failed" | "expired" | "client_mismatch";
 
@@ -52,7 +53,7 @@ function ClerkLoginVerifyPage() {
   }, [handleEmailLinkVerification, loaded]);
 
   if (status === "loading") {
-    return <VerifyShell message="Checking your sign-in link..." />;
+    return <VerifyShell message="Checking your sign-in link..." loading />;
   }
 
   if (status === "verified") {
@@ -73,17 +74,36 @@ function ClerkLoginVerifyPage() {
 function VerifyShell({
   message,
   showBackLink = false,
+  loading = false,
 }: {
   message: string;
   showBackLink?: boolean;
+  loading?: boolean;
 }) {
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-6 text-foreground">
-      <div className="w-full max-w-md rounded-lg border border-border/70 bg-background/60 p-6 text-sm shadow-sm">
-        <h1 className="font-heading text-2xl">Verify your email</h1>
-        <p className="mt-3 text-muted-foreground">{message}</p>
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="mono-label">Magic link</div>
+          {loading ? (
+            <Loader
+              variant="dither"
+              size={20}
+              speed={1.3}
+              label="Checking your sign-in link"
+              className="text-muted-foreground"
+            />
+          ) : null}
+        </div>
+        <h1 className="mt-2 font-heading text-2xl leading-tight">
+          Verify your email
+        </h1>
+        <p className="mt-3 text-muted-foreground leading-relaxed">{message}</p>
         {showBackLink ? (
-          <Link href="/login" className="mt-5 inline-flex font-medium underline-offset-4 hover:underline">
+          <Link
+            href="/login"
+            className="mt-5 inline-flex font-medium text-foreground underline-offset-4 hover:underline"
+          >
             Back to login
           </Link>
         ) : null}

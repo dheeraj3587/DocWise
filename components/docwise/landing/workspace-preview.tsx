@@ -60,7 +60,7 @@ export function WorkspacePreview() {
           </p>
         </div>
         <div
-          className="inline-flex w-fit items-center rounded-lg border border-border bg-background p-1"
+          className="docwise-segment w-fit"
           role="tablist"
           aria-label="Workspace preview mode"
         >
@@ -91,68 +91,64 @@ export function WorkspacePreview() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-[#070708] text-[#ededed] shadow-[0_30px_90px_-44px_rgba(0,0,0,0.82)]">
-        <div className="flex h-12 items-center justify-between border-b border-white/10 px-3 sm:px-4">
+      {/* Scoped `dark` keeps this product shot dark in either theme while still
+          resolving every colour through the token system. */}
+      <div className="dark overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-[var(--shadow-float)]">
+        <div className="flex h-12 items-center justify-between border-b border-border px-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
-              className="grid size-7 place-items-center rounded-md border border-white/10 text-white/60"
+              className="grid size-7 place-items-center rounded-lg border border-border text-muted-foreground"
               aria-label="Toggle document outline"
             >
               <PanelLeft className="size-3.5" />
             </button>
             <div className="min-w-0">
-              <p className="truncate text-[11px] font-medium text-white/90 sm:text-xs">
+              <p className="truncate text-[11px] font-medium text-foreground sm:text-xs">
                 attention-is-all-you-need.pdf
               </p>
-              <p className="mt-0.5 font-mono text-[8px] uppercase text-white/40">
-                Ready · 15 pages
-              </p>
+              <p className="mono-label mt-1">Ready · 15 pages</p>
             </div>
           </div>
           <div className="hidden items-center gap-2 sm:flex">
-            <span className="rounded-md border border-white/10 px-2 py-1 font-mono text-[8px] uppercase text-white/45">
-              Page 5 / 15
-            </span>
-            <span className="grid size-7 place-items-center rounded-md border border-white/10 text-white/60">
+            <span className="docwise-chip">Page 5 / 15</span>
+            <span className="grid size-7 place-items-center rounded-lg border border-border text-muted-foreground">
               <Search className="size-3.5" />
             </span>
           </div>
         </div>
 
         <div className="grid min-h-[520px] lg:grid-cols-[210px_minmax(360px,1fr)_minmax(330px,0.72fr)]">
-          <aside className="hidden border-r border-white/10 bg-[#080809] p-3 lg:block">
-            <p className="px-2 py-2 font-mono text-[9px] uppercase tracking-[0.22em] text-white/38">
-              In this document
-            </p>
+          <aside className="hidden border-r border-border bg-card p-3 lg:block">
+            <p className="mono-label px-2 py-2">In this document</p>
             <div className="mt-2 space-y-1">
               {TOPICS.map((topic, index) => (
                 <button
                   key={topic.label}
                   type="button"
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left text-[11px]",
+                    "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-[11px] transition-colors duration-[180ms]",
                     index === 2
-                      ? "bg-white/[0.08] text-white"
-                      : "text-white/45 hover:bg-white/[0.05] hover:text-white/80",
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
                   )}
                 >
-                  <span className="font-mono text-[8px] text-white/30">
+                  <span className="font-mono text-[10px] text-muted-foreground">
                     {topic.page}
                   </span>
                   <span className="truncate">{topic.label}</span>
                 </button>
               ))}
             </div>
-            <div className="mt-8 border-t border-white/10 px-2 pt-4">
-              <div className="flex items-center gap-2 text-[10px] text-white/45">
+            <div className="mt-8 border-t border-border px-2 pt-4">
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                 <FileText className="size-3.5" />
                 <span>PDF source</span>
               </div>
             </div>
           </aside>
 
-          <section className="relative overflow-hidden bg-[#202021] p-3 sm:p-5">
+          <section className="relative overflow-hidden bg-muted p-3 sm:p-5">
             <motion.div
               animate={
                 mode === "read" && !reduceMotion
@@ -160,23 +156,23 @@ export function WorkspacePreview() {
                   : { scale: 1 }
               }
               transition={{ duration: 0.55 }}
-              className="relative mx-auto min-h-[472px] max-w-[580px] overflow-hidden bg-[#f4f4f0] px-7 py-8 text-[#171719] shadow-[0_14px_38px_rgba(0,0,0,0.28)] sm:px-12 sm:py-10"
+              className="relative mx-auto min-h-[472px] max-w-[580px] overflow-hidden bg-paper px-7 py-8 text-paper-foreground shadow-[0_14px_38px_rgba(0,0,0,0.28)] sm:px-12 sm:py-10"
             >
               <div className="mx-auto max-w-[430px]">
-                <p className="text-center font-serif text-[11px] text-black/55">
+                <p className="text-center font-serif text-[11px] text-paper-foreground/55">
                   Neural Information Processing Systems · 2017
                 </p>
                 <h3 className="mt-6 text-center font-serif text-lg font-semibold">
                   Attention Is All You Need
                 </h3>
-                <p className="mt-2 text-center font-serif text-[9px] text-black/50">
+                <p className="mt-2 text-center font-serif text-[10px] text-paper-foreground/50">
                   Vaswani et al.
                 </p>
 
                 <h4 className="mt-8 font-serif text-[13px] font-semibold">
                   3.2.1 Scaled Dot-Product Attention
                 </h4>
-                <div className="mt-3 space-y-2 font-serif text-[10px] leading-[1.55] text-black/72 sm:text-[11px]">
+                <div className="mt-3 space-y-2 font-serif text-[10px] leading-[1.55] text-paper-foreground/75 sm:text-[11px]">
                   <p>
                     We call our particular attention “Scaled Dot-Product
                     Attention”. The input consists of queries and keys of
@@ -186,8 +182,8 @@ export function WorkspacePreview() {
                     className={cn(
                       "relative -mx-2 border-l-2 px-2 py-1.5 transition-colors",
                       mode === "verify"
-                        ? "border-black bg-black/[0.08]"
-                        : "border-black/20",
+                        ? "border-paper-foreground bg-paper-foreground/8"
+                        : "border-paper-foreground/20",
                     )}
                   >
                     We compute the dot products of the query with all keys,
@@ -213,15 +209,13 @@ export function WorkspacePreview() {
             </motion.div>
           </section>
 
-          <section className="flex min-h-[440px] flex-col border-t border-white/10 bg-[#09090a] lg:border-l lg:border-t-0">
-            <div className="flex h-12 items-center justify-between border-b border-white/10 px-4">
-              <div className="flex items-center gap-2 text-[11px] text-white/75">
+          <section className="flex min-h-[440px] flex-col border-t border-border bg-card lg:border-l lg:border-t-0">
+            <div className="flex h-12 items-center justify-between border-b border-border px-4">
+              <div className="flex items-center gap-2 text-[11px] text-foreground">
                 <MessageSquareText className="size-3.5" />
                 <span>Chat with this file</span>
               </div>
-              <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-white/35">
-                Document context
-              </span>
+              <span className="mono-label">Document context</span>
             </div>
 
             <div className="flex flex-1 flex-col px-4 py-5 sm:px-5">
@@ -234,11 +228,11 @@ export function WorkspacePreview() {
                   transition={{ duration: 0.2 }}
                   className="flex flex-1 flex-col"
                 >
-                  <div className="ml-auto max-w-[88%] rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2.5 text-xs leading-5 text-white/80">
+                  <div className="ml-auto max-w-[88%] rounded-lg border border-border bg-secondary px-3 py-2.5 text-xs leading-5 text-foreground">
                     Why is the dot product scaled before softmax?
                   </div>
 
-                  <div className="mt-5 text-xs leading-6 text-white/72">
+                  <div className="mt-5 text-xs leading-6 text-muted-foreground">
                     <p>
                       The scaling keeps large dot products from pushing softmax
                       into regions with extremely small gradients. Dividing by
@@ -249,10 +243,10 @@ export function WorkspacePreview() {
                       type="button"
                       onClick={() => setMode("verify")}
                       className={cn(
-                        "mt-4 inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-[0.12em] transition-colors",
+                        "mt-4 inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-brand transition-colors duration-[180ms]",
                         mode === "verify"
-                          ? "border-white/30 bg-white text-black"
-                          : "border-white/12 text-white/52 hover:border-white/25 hover:text-white",
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border text-muted-foreground hover:border-foreground/25 hover:text-foreground",
                       )}
                     >
                       <Quote className="size-3" />
@@ -262,15 +256,13 @@ export function WorkspacePreview() {
                   </div>
 
                   <div className="mt-auto pt-7">
-                    <div className="rounded-lg border border-white/10 bg-white/[0.035] p-2">
-                      <div className="min-h-16 px-2 py-2 text-[11px] text-white/30">
+                    <div className="rounded-lg border border-border bg-secondary/50 p-2">
+                      <div className="min-h-16 px-2 py-2 text-[11px] text-muted-foreground">
                         Ask a follow-up about this document…
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="rounded-md border border-white/10 px-2 py-1 font-mono text-[8px] uppercase text-white/40">
-                          Source selected
-                        </span>
-                        <span className="grid size-7 place-items-center rounded-md bg-white text-black">
+                        <span className="docwise-chip">Source selected</span>
+                        <span className="grid size-7 place-items-center rounded-lg bg-foreground text-background">
                           <ChevronRight className="size-3.5" />
                         </span>
                       </div>
@@ -282,7 +274,7 @@ export function WorkspacePreview() {
           </section>
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/10 px-4 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-white/32">
+        <div className="mono-label flex items-center justify-between border-t border-border px-4 py-2.5">
           <span className="inline-flex items-center gap-2">
             <Check className="size-3" />
             Original and answer in one view

@@ -110,18 +110,18 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-background">
             {/* Media Element */}
-            <div className="shrink-0 bg-card/70 flex-center">
+            <div className="flex shrink-0 items-center justify-center bg-stage">
                 {fileType === 'video' ? (
                     <video
                         ref={mediaRef as React.RefObject<HTMLVideoElement>}
                         src={fileUrl}
-                        className="w-full max-h-[50vh] object-contain"
+                        className="max-h-[50vh] w-full object-contain"
                         preload="metadata"
                     />
                 ) : (
-                    <div className="w-full bg-secondary/40 py-16 flex-center">
-                        <div className="grid h-16 w-16 place-items-center rounded-lg border border-border bg-background text-muted-foreground">
-                            <Volume2 className="h-7 w-7" strokeWidth={1.75} />
+                    <div className="flex w-full items-center justify-center py-16">
+                        <div className="grid size-16 place-items-center rounded-lg border border-border bg-card text-muted-foreground">
+                            <Volume2 className="size-7" strokeWidth={1.75} />
                         </div>
                         <audio
                             ref={mediaRef as React.RefObject<HTMLAudioElement>}
@@ -137,7 +137,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
                 <button
                     type="button"
                     aria-label="Seek media"
-                    className="w-full h-2 surface-3 rounded-full cursor-pointer mb-3 overflow-hidden block"
+                    className="docwise-meter mb-3 block w-full cursor-pointer"
                     onClick={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect()
                         const pos = (e.clientX - rect.left) / rect.width
@@ -145,12 +145,12 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
                     }}
                 >
                     <div
-                        className="h-full rounded-full bg-foreground transition-all duration-100"
+                        className="docwise-meter-fill transition-none"
                         style={{ width: `${progressPercent}%` }}
                     />
                 </button>
 
-                <div className="flex-between">
+                <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                         <Button aria-label="Skip back 10 seconds" variant="ghost" size="sm" onClick={() => skip(-10)} className="text-muted-foreground hover:text-foreground">
                             <SkipBack size={16} />
@@ -165,7 +165,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
                             {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                         </Button>
                     </div>
-                    <span className="text-sm text-muted-foreground font-mono">
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
                         {formatTime(currentTime)} / {formatTime(duration)}
                     </span>
                 </div>
@@ -174,7 +174,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
             {/* Timestamps */}
             {timestamps.length > 0 && (
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    <h3 className="text-sm font-semibold text-muted-foreground mb-3">Topics &amp; Timestamps</h3>
+                    <h3 className="mono-label mb-3">Topics &amp; Timestamps</h3>
                     <div className="space-y-2">
                         {timestamps.map((ts, index) => (
                             <button
@@ -187,7 +187,7 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <span className="whitespace-nowrap rounded border border-border bg-secondary px-2 py-1 font-mono text-xs text-muted-foreground">
+                                    <span className="whitespace-nowrap rounded-sm border border-border bg-secondary px-2 py-1 font-mono text-[10px] text-muted-foreground tabular-nums">
                                         {formatTime(ts.start_time)}
                                     </span>
                                     <div className="flex-1 min-w-0">

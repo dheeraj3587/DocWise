@@ -59,8 +59,8 @@ export const WorkspaceHeader = ({
           <span className="truncate text-[14px] text-foreground">
             {fileName}
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-foreground/70" />
+          <span className="mt-0.5 flex items-center gap-1.5">
+            <span className="size-1 rounded-full bg-foreground" />
             <span className="mono-label">Ready</span>
           </span>
         </div>

@@ -55,11 +55,11 @@ export function AuthShell({
             <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-12">
               <div className="pointer-events-auto flex items-center gap-2 font-mono text-sm">
                 <span className="inline-block h-2 w-2 rounded-full bg-foreground" />
-                <span className="tracking-[0.2em] uppercase">DocWise</span>
+                <span className="tracking-brand uppercase">DocWise</span>
               </div>
               {variant === "request-access" ? (
                 <div className="max-w-md">
-                  <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+                  <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-label">
                     Quiet onboarding
                   </div>
                   <p className="mt-3 font-heading text-xl leading-snug md:text-2xl">
@@ -69,7 +69,7 @@ export function AuthShell({
                 </div>
               ) : variant === "onboarding" ? (
                 <div className="max-w-md">
-                  <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+                  <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-label">
                     First steps
                   </div>
                   <p className="mt-3 font-heading text-xl leading-snug md:text-2xl">
@@ -79,7 +79,7 @@ export function AuthShell({
                 </div>
               ) : (
                 <div className="max-w-md">
-                  <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+                  <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-label">
                     Smart study workspace
                   </div>
                   <p className="mt-3 font-heading text-xl leading-snug md:text-2xl">

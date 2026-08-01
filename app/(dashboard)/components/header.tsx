@@ -21,34 +21,32 @@ const Header = ({ name }: { name: string }) => {
   );
 
   return (
-    <header className="h-16 glass-subtle border-b border-border px-4 lg:px-8 flex-between">
-      <div className="flex items-center gap-4">
-        <div className="hidden lg:block">
-          <h1 className="text-lg font-semibold text-foreground">{name}</h1>
-          {name !== "Upgrade" && (
-            <p className="text-xs text-muted-foreground">Manage your documents</p>
-          )}
-        </div>
-        <div className="lg:hidden">
-          <h1 className="text-lg font-semibold text-foreground ml-12">{name}</h1>
-        </div>
+    <header className="docwise-rail flex h-14 shrink-0 items-center border-b pr-4 pl-16 sm:pr-6 lg:pr-8 lg:pl-8">
+      <div className="min-w-0">
+        <h1 className="truncate font-heading text-sm text-foreground sm:text-base">
+          {name}
+        </h1>
+        {name !== "Upgrade" ? (
+          <p className="mono-label mt-1 hidden lg:block">
+            Manage your documents
+          </p>
+        ) : null}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2 pl-4">
         <ThemeToggle />
-        <div className="hidden sm:block text-right">
-          <p className="text-sm font-medium text-foreground">
-            {user?.firstName}
-          </p>
-          <p className="text-xs text-muted-foreground">
+        <div className="hidden min-w-0 text-right sm:block">
+          <p className="truncate text-xs text-foreground">{user?.firstName}</p>
+          <p className="mono-label mt-1">
             {userData?.upgrade === true ? "Pro plan" : "Free plan"}
           </p>
         </div>
         <UserButton
           appearance={{
             elements: {
-              userButtonAvatar: "w-12 h-12",
-              userButtonTrigger: "p-2",
+              userButtonAvatar: "size-7",
+              userButtonTrigger:
+                "rounded-lg border border-border p-0.5 outline-none",
             },
           }}
         />

@@ -7,7 +7,6 @@ import { motion } from "motion/react";
 import {
   ArrowRight,
   FileText,
-  Loader2,
   Music,
   Search,
   Trash2,
@@ -18,6 +17,8 @@ import {
 import { EmptyState } from "@/components/docwise/empty-state";
 import { IconButton } from "@/components/docwise/icon-button";
 import { SectionLabel } from "@/components/docwise/section-label";
+import { StatusBadge } from "@/components/docwise/status-badge";
+import { Loader } from "@/components/motion/loader";
 import { ParticleFieldLazy } from "@/components/particle-field-lazy";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -88,21 +89,22 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-background text-foreground">
-      <header className="flex h-14 shrink-0 items-center border-b border-border px-4 pl-16 sm:px-6 lg:px-8">
-        <p className="truncate font-heading text-sm sm:text-base">
+      <header className="docwise-rail flex h-14 shrink-0 items-center border-b pr-4 pl-16 sm:pr-6 lg:pr-8 lg:pl-8">
+        <p className="truncate font-heading text-sm text-foreground sm:text-base">
           Welcome, {firstName}
         </p>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 pl-4">
           <ThemeToggle />
-          <div className="hidden text-right sm:block">
-            <p className="text-xs text-foreground">{firstName}</p>
-            <p className="mono-label mt-0.5">Free plan</p>
+          <div className="hidden min-w-0 text-right sm:block">
+            <p className="truncate text-xs text-foreground">{firstName}</p>
+            <p className="mono-label mt-1">Free plan</p>
           </div>
           <UserButton
             appearance={{
               elements: {
-                userButtonAvatar: "size-8",
-                userButtonTrigger: "rounded-full border border-border p-0.5",
+                userButtonAvatar: "size-7",
+                userButtonTrigger:
+                  "rounded-lg border border-border p-0.5 outline-none",
               },
             }}
           />
@@ -227,17 +229,21 @@ function getGreeting() {
 function Status({ status }: { status?: string }) {
   if (status === "processing") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <Loader2 className="size-3 animate-spin" />
+      <StatusBadge>
+        <Loader
+          variant="dot-matrix"
+          size={10}
+          speed={1.2}
+          label="Processing document"
+        />
         Processing
-      </span>
+      </StatusBadge>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-      <span className="size-1.5 rounded-full bg-foreground/70" />
+    <StatusBadge tone="active" dot>
       Ready
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -294,7 +300,12 @@ function DocumentCard({
             title="Delete file"
           >
             {deleting ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader
+                variant="dot-matrix"
+                size={14}
+                speed={1.2}
+                label={`Deleting ${doc.fileName}`}
+              />
             ) : (
               <Trash2 className="size-3.5" />
             )}

@@ -921,7 +921,7 @@ export const ChatPanel = ({
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border border-border bg-primary px-4 py-3 text-primary-foreground shadow-lg duration-200 hover:bg-primary/90"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border border-border bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-float)] duration-200 hover:bg-primary/90"
       >
         <MessageCircle className="h-5 w-5" />
         <span className="text-sm font-medium">Chat</span>
@@ -936,7 +936,7 @@ export const ChatPanel = ({
           <div className="mx-auto flex min-h-14 w-full max-w-[1760px] flex-wrap items-center justify-between gap-3 px-[clamp(1rem,3vw,3.25rem)] py-2.5">
             {topBarStart ?? (
               <div className="min-w-0">
-                <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
+                <div className="mono-label font-semibold leading-none">
                   {title}
                 </div>
                 <div className="mt-1 truncate text-[11px] text-muted-foreground">
@@ -969,9 +969,7 @@ export const ChatPanel = ({
       ) : !hideHeader ? (
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
           <div className="min-w-0">
-            <div className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
-              {title}
-            </div>
+            <div className="mono-label font-semibold leading-none">{title}</div>
             <div className="mt-1 truncate text-[11px] text-muted-foreground">
               {subtitle}
             </div>
@@ -1095,7 +1093,7 @@ export const ChatPanel = ({
                       <span className="sr-only">Attach</span>
                     </ToolButton>
                     {attachMenuOpen ? (
-                      <div className="absolute bottom-10 left-0 z-50 w-40 overflow-hidden rounded-lg border border-border bg-popover p-1 text-xs shadow-xl shadow-black/20">
+                      <div className="absolute bottom-10 left-0 z-50 w-40 overflow-hidden rounded-lg border border-border bg-popover p-1 text-xs shadow-[var(--shadow-float)]">
                         <AttachItem
                           icon={<FileIcon className="h-3.5 w-3.5" />}
                           label="Upload file"
@@ -1184,7 +1182,7 @@ export const ChatPanel = ({
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between px-1 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+            <div className="mono-label flex items-center justify-between px-1">
               <span className="truncate">{modelLabel}</span>
               <span>
                 {selectedCreditCost} credit{selectedCreditCost === 1 ? "" : "s"}
@@ -1218,7 +1216,7 @@ export const ChatPanel = ({
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex h-[600px] w-[min(520px,calc(100vw-48px))] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-xl">
+    <div className="fixed bottom-6 right-6 z-50 flex h-[600px] w-[min(520px,calc(100vw-48px))] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-[var(--shadow-float)]">
       {chatContent}
     </div>
   );
@@ -1324,7 +1322,7 @@ function ChatMessageBubble({
                         type="button"
                         disabled={!citation || citation.sourceRemoved}
                         onClick={() => citation && onCitationClick(citation)}
-                        className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[9px] font-semibold no-underline transition-colors hover:bg-secondary disabled:cursor-default disabled:opacity-50"
+                        className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[10px] font-semibold no-underline transition-colors hover:bg-secondary disabled:cursor-default disabled:opacity-50"
                       >
                         {citation?.sourceType === "web" ? (
                           <ExternalLinkIcon className="size-2.5" />
@@ -1348,7 +1346,7 @@ function ChatMessageBubble({
               )}
             </ReactMarkdown>
             {message.citations?.length || message.fallbackUsed ? (
-              <div className="not-prose mt-4 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3 font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="not-prose mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 font-mono text-[10px] uppercase tracking-label text-muted-foreground">
                 {message.citations?.length ? (
                   <span>
                     {message.citations.length} verified source
@@ -1430,7 +1428,7 @@ function AgentTrace({
   const failed = status === "failed";
   return (
     <div className="mb-5 overflow-hidden rounded-lg border border-border bg-secondary/20">
-      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border/70 px-3.5 py-2.5">
+      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border px-3.5 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           {running ? (
             <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
@@ -1439,7 +1437,7 @@ function AgentTrace({
           ) : (
             <CheckIcon className="size-3.5 shrink-0 text-foreground" />
           )}
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.24em] text-foreground">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-label text-foreground">
             Agent trace
           </span>
         </div>
@@ -1460,7 +1458,7 @@ function AgentTrace({
               className="group"
             >
               <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-secondary/45 [&::-webkit-details-marker]:hidden">
-                <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[9px] text-muted-foreground">
+                <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[10px] text-muted-foreground">
                   {String(invocation.sequence).padStart(2, "0")}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -1471,14 +1469,14 @@ function AgentTrace({
                     {toolSummary(invocation)}
                   </span>
                 </span>
-                <span className="flex shrink-0 items-center gap-2 font-mono text-[8px] uppercase tracking-[0.16em] text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-label text-muted-foreground">
                   {invocation.durationMs !== null
                     ? `${invocation.durationMs}ms`
                     : invocation.status}
                   <ChevronDownIcon className="size-3 transition-transform group-open:rotate-180" />
                 </span>
               </summary>
-              <div className="grid gap-3 border-t border-border/60 bg-background/35 px-3.5 py-3 md:grid-cols-2">
+              <div className="grid gap-3 border-t border-border bg-secondary/40 px-3.5 py-3 md:grid-cols-2">
                 <TraceData label="Arguments" value={invocation.arguments} />
                 <TraceData
                   label={invocation.error ? "Failure" : "Result"}
@@ -1486,14 +1484,14 @@ function AgentTrace({
                 />
                 {invocation.sourceLabels.length ? (
                   <div className="md:col-span-2">
-                    <div className="font-mono text-[8px] uppercase tracking-[0.2em] text-muted-foreground">
+                    <div className="font-mono text-[10px] uppercase tracking-brand text-muted-foreground">
                       Evidence
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {invocation.sourceLabels.map((label) => (
                         <span
                           key={label}
-                          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] text-foreground"
+                          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground"
                         >
                           {label}
                         </span>
@@ -1525,10 +1523,10 @@ function TraceData({
 }) {
   return (
     <div className="min-w-0">
-      <div className="font-mono text-[8px] uppercase tracking-[0.2em] text-muted-foreground">
+      <div className="font-mono text-[10px] uppercase tracking-brand text-muted-foreground">
         {label}
       </div>
-      <pre className="mt-1.5 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-background p-2.5 font-mono text-[9px] leading-4 text-foreground/80">
+      <pre className="mt-1.5 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background p-2.5 font-mono text-[10px] leading-4 text-foreground/80">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>
@@ -1578,10 +1576,10 @@ function CitationDrawer({
       : "Source excerpt";
 
   return (
-    <aside className="absolute inset-y-0 right-0 z-[70] flex w-[min(390px,92vw)] flex-col border-l border-border bg-background shadow-2xl shadow-black/50">
+    <aside className="absolute inset-y-0 right-0 z-[70] flex w-[min(390px,92vw)] flex-col border-l border-border bg-background shadow-[var(--shadow-float)]">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="min-w-0">
-          <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          <div className="font-mono text-[10px] font-semibold uppercase tracking-label text-muted-foreground">
             Verified source · {citation.sourceLabel}
           </div>
           <p className="mt-1 truncate text-[11px] text-foreground">
@@ -1600,7 +1598,7 @@ function CitationDrawer({
         </button>
       </div>
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+        <div className="font-mono text-[10px] uppercase tracking-label text-muted-foreground">
           {location}
         </div>
         {citation.sourceRemoved ? (
@@ -1613,7 +1611,7 @@ function CitationDrawer({
           </blockquote>
         )}
         {isWeb && citation.webDomain ? (
-          <p className="mt-4 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="mt-4 font-mono text-[10px] uppercase tracking-brand text-muted-foreground">
             {citation.webDomain}
           </p>
         ) : null}
@@ -1667,7 +1665,7 @@ function ContextRemaining({
       aria-label={`Approximate context remaining ${estimate.remainingPercent} percent`}
     >
       <CircleGauge className="h-3.5 w-3.5 shrink-0" />
-      <span className="hidden font-mono uppercase tracking-[0.18em] sm:inline">
+      <span className="hidden font-mono uppercase tracking-label sm:inline">
         Context
       </span>
       <span
@@ -1678,13 +1676,10 @@ function ContextRemaining({
       <span className="hidden text-muted-foreground lg:inline">
         {formatTokenCount(estimate.remaining)} left
       </span>
-      <span
-        className="h-1.5 w-10 overflow-hidden rounded-full bg-secondary sm:w-14"
-        aria-hidden="true"
-      >
+      <span className="docwise-meter w-10 sm:w-14" aria-hidden="true">
         <span
           className={cn(
-            "block h-full rounded-full bg-foreground",
+            "docwise-meter-fill block",
             status === "critical" && "bg-destructive",
           )}
           style={{ width: `${estimate.remainingPercent}%` }}
@@ -1864,10 +1859,10 @@ function ModelSelect({
               width: menuPosition.width,
               maxHeight: menuPosition.maxHeight,
             }}
-            className="fixed z-[1000] overflow-y-auto rounded-lg border border-border bg-background p-1.5 shadow-2xl shadow-black/50"
+            className="fixed z-[1000] overflow-y-auto rounded-lg border border-border bg-popover p-1.5 shadow-[var(--shadow-float)]"
           >
             <div className="flex items-center justify-between px-2.5 py-2">
-              <span className="font-mono text-[9px] font-semibold uppercase leading-none tracking-[0.28em] text-muted-foreground">
+              <span className="font-mono text-[10px] font-semibold uppercase leading-none tracking-label text-muted-foreground">
                 Model
               </span>
               <span className="text-[10px] text-muted-foreground">credits</span>
@@ -1901,7 +1896,7 @@ function ModelSelect({
                           {model.name}
                         </span>
                         {model.badge ? (
-                          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-label text-muted-foreground">
                             {model.badge}
                           </span>
                         ) : null}
@@ -1909,12 +1904,12 @@ function ModelSelect({
                       <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 opacity-75">
                         {model.description}
                       </span>
-                      <span className="mt-1 block font-mono text-[8px] uppercase tracking-[0.22em] text-muted-foreground/80">
+                      <span className="mt-1 block font-mono text-[10px] uppercase tracking-label text-muted-foreground/80">
                         {model.providerLabel || "Provider"}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="rounded border border-border px-1.5 py-0.5 text-[9px]">
+                      <span className="rounded border border-border px-1.5 py-0.5 text-[10px]">
                         {active ? selectedCreditCost : creditCost}
                       </span>
                       {active ? <CheckIcon className="h-3.5 w-3.5" /> : null}
@@ -1978,7 +1973,7 @@ function ProviderMark({
     <span
       className={cn(
         "grid shrink-0 place-items-center rounded-md border border-border bg-background font-mono font-semibold uppercase text-muted-foreground",
-        compact ? "h-4 w-4 text-[7px]" : "h-7 w-7 text-[9px]",
+        compact ? "h-4 w-4 text-[7px]" : "h-7 w-7 text-[10px]",
       )}
       title={providerLabel || provider || "Provider"}
       aria-hidden="true"
