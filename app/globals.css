@@ -155,11 +155,22 @@
 
   body {
     min-height: 100svh;
+    /* Fallback for Safari < 16, which does not support `overflow: clip`. */
     overflow-x: hidden;
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-geist-sans), sans-serif;
     text-rendering: optimizeLegibility;
+  }
+
+  /* `overflow-x: hidden` forces the computed `overflow-y` to `auto`, which
+     turns body into a scroll container and silently breaks `position: sticky`
+     for every descendant (the landing nav, workspace rails). `clip` suppresses
+     horizontal overflow without establishing a scroll container. */
+  @supports (overflow: clip) {
+    body {
+      overflow-x: clip;
+    }
   }
 
   ::selection {

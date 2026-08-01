@@ -57,7 +57,7 @@ export default function HomeClient() {
   );
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
+    <main className="min-h-screen overflow-x-clip bg-background text-foreground">
       <header className="docwise-rail sticky top-0 z-50 border-b">
         <nav className="mx-auto flex h-14 w-full max-w-[1480px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <BrandMark href="/" />
@@ -103,9 +103,12 @@ export default function HomeClient() {
       </header>
 
       <section className="relative flex min-h-[74svh] items-center overflow-hidden border-b border-border px-4 py-16 sm:min-h-[78svh] sm:px-6 sm:py-20 lg:px-8">
+        {/* Pointer events stay enabled so the field's `mouseForce` actually
+            responds; the hero copy sits above it at z-10 and keeps its own
+            clicks and text selection. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-38 dark:opacity-48"
+          className="absolute inset-0 opacity-38 dark:opacity-48"
         >
           <ParticleFieldLazy
             src="/logo.png"
@@ -114,6 +117,7 @@ export default function HomeClient() {
             dotSize={0.9}
             mouseForce={72}
             mouseRadius={120}
+            fit="contain"
             denseParticles
           />
         </div>

@@ -53,6 +53,15 @@ export type ParticleFieldProps = {
   className?: string;
   /** alignment of the particle cluster inside the canvas */
   align?: "center" | "bottom";
+  /**
+   * How the sampled figure is scaled into the canvas box.
+   * - `cover` (default): fills the box; the figure overflows and is clipped on
+   *   one axis. Correct for full-bleed decorative backdrops.
+   * - `contain`: scales the whole figure to fit inside the box. Use this
+   *   wherever the figure has to read as a complete shape, otherwise a wide or
+   *   short container silently crops it.
+   */
+  fit?: "cover" | "contain";
   /** optional color override when `adaptToTheme` is false; defaults to white */
   color?: string;
   /** sample dark pixels instead of bright ones (for dark-on-light source images) */
@@ -156,6 +165,7 @@ export function ParticleField({
   damping = 0.86,
   className,
   align = "center",
+  fit = "cover",
   color = "rgba(255, 255, 255, 0.92)",
   invert = false,
   adaptToTheme = true,
@@ -176,6 +186,8 @@ export function ParticleField({
   const srcRef = useRef(src);
   srcRef.current = src;
   const applySrcRef = useRef<((nextSrc: string) => void) | null>(null);
+  /** Restarts the render loop; used to force a repaint after a theme flip. */
+  const kickRef = useRef<(() => void) | null>(null);
 
   // Tuning props live in refs so the main effect can stay mounted across
   // prop changes (e.g. onboarding step tweaks threshold + dotSize + src
@@ -198,6 +210,8 @@ export function ParticleField({
   dampingRef.current = damping;
   const alignRef = useRef(align);
   alignRef.current = align;
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
   const invertRef = useRef(invert);
   invertRef.current = invert;
   const denseParticlesRef = useRef(denseParticles);
@@ -245,14 +259,21 @@ export function ParticleField({
       const srcRatio = image.width / image.height;
       const dstRatio = width / height;
 
-      let drawW = width;
-      let drawH = height;
-      if (srcRatio > dstRatio) {
-        drawH = height;
-        drawW = height * srcRatio;
-      } else {
+      // `cover` matches the axis that makes the cluster overflow the box;
+      // `contain` matches the axis that makes it fit. Getting this backwards
+      // silently crops the figure — a 3:2 source in a wide, short container
+      // ends up with a negative offsetY and only its middle band on screen.
+      const matchWidth =
+        fitRef.current === "cover" ? srcRatio <= dstRatio : srcRatio >= dstRatio;
+
+      let drawW: number;
+      let drawH: number;
+      if (matchWidth) {
         drawW = width;
         drawH = width / srcRatio;
+      } else {
+        drawH = height;
+        drawW = height * srcRatio;
       }
 
       drawW *= renderScaleRef.current;
@@ -427,6 +448,17 @@ export function ParticleField({
       }
     };
 
+    // The loop used to run unconditionally for the lifetime of the component,
+    // on every page that mounted a field, whether or not it was on screen.
+    // `visible` / `reduced` gate it instead.
+    const reducedMotionQuery = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    );
+    let reduced = reducedMotionQuery.matches;
+    let visible = true;
+    /** True once a reduced-motion frame has been painted at rest. */
+    let restPainted = false;
+
     const render = () => {
       if (destroyed) return;
       time += 0.016;
@@ -455,56 +487,67 @@ export function ParticleField({
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
 
-        const dxo = p.ox - p.x;
-        const dyo = p.oy - p.y;
-        const s = springV * p.springJitter;
-        p.vx += dxo * s;
-        p.vy += dyo * s;
+        if (reduced) {
+          // Hold the figure at its sampled position: no spring, drift,
+          // twinkle, or pointer response.
+          p.x = p.ox;
+          p.y = p.oy;
+          p.vx = 0;
+          p.vy = 0;
+        } else {
+          const dxo = p.ox - p.x;
+          const dyo = p.oy - p.y;
+          const s = springV * p.springJitter;
+          p.vx += dxo * s;
+          p.vy += dyo * s;
 
-        if (pointerRef.current.active) {
-          const dx = p.x - px;
-          const dy = p.y - py;
-          const d2 = dx * dx + dy * dy;
-          if (d2 < mr2 && d2 > 0.0001) {
-            const d = Math.sqrt(d2);
-            const force = (1 - d / mr) * mouseForceV;
-            p.vx += (dx / d) * force * 0.04;
-            p.vy += (dy / d) * force * 0.04;
+          if (pointerRef.current.active) {
+            const dx = p.x - px;
+            const dy = p.y - py;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < mr2 && d2 > 0.0001) {
+              const d = Math.sqrt(d2);
+              const force = (1 - d / mr) * mouseForceV;
+              p.vx += (dx / d) * force * 0.04;
+              p.vy += (dy / d) * force * 0.04;
+            }
           }
+
+          const drift = Math.sin(time * 0.8 + p.phase) * 0.08;
+          p.vx += drift * 0.05 * typingBoost;
+          p.vy += Math.cos(time * 0.9 + p.phase) * 0.04 * typingBoost;
+
+          if (typing > 1e-4) {
+            p.vx += (Math.random() - 0.5) * typing * 2.8;
+            p.vy += (Math.random() - 0.5) * typing * 2.8;
+            const rdx = p.x - rippleCx;
+            const rdy = p.y - rippleCy;
+            const rd = Math.sqrt(rdx * rdx + rdy * rdy) + 0.5;
+            const ripple = (typing * 22 * dpr) / rd;
+            p.vx += (rdx / rd) * ripple * 0.018;
+            p.vy += (rdy / rd) * ripple * 0.018;
+          }
+
+          p.vx *= dampingV;
+          p.vy *= dampingV;
+          p.x += p.vx;
+          p.y += p.vy;
         }
-
-        const drift = Math.sin(time * 0.8 + p.phase) * 0.08;
-        p.vx += drift * 0.05 * typingBoost;
-        p.vy += Math.cos(time * 0.9 + p.phase) * 0.04 * typingBoost;
-
-        if (typing > 1e-4) {
-          p.vx += (Math.random() - 0.5) * typing * 2.8;
-          p.vy += (Math.random() - 0.5) * typing * 2.8;
-          const rdx = p.x - rippleCx;
-          const rdy = p.y - rippleCy;
-          const rd = Math.sqrt(rdx * rdx + rdy * rdy) + 0.5;
-          const ripple = (typing * 22 * dpr) / rd;
-          p.vx += (rdx / rd) * ripple * 0.018;
-          p.vy += (rdy / rd) * ripple * 0.018;
-        }
-
-        p.vx *= dampingV;
-        p.vy *= dampingV;
-        p.x += p.vx;
-        p.y += p.vy;
 
         const appearTarget = p.fading ? 0 : 1;
-        p.appear += (appearTarget - p.appear) * 0.08;
+        if (reduced) p.appear = appearTarget;
+        else p.appear += (appearTarget - p.appear) * 0.08;
 
         if (p.fading && p.appear < 0.02) {
           // cull from particles[] as part of the render pass
           continue;
         }
 
-        const twinkle =
-          0.85 +
-          Math.sin(time * (1.4 + typing * 2.2) + p.phase) *
-            (0.15 + typing * 0.35);
+        const twinkle = reduced
+          ? 1
+          : 0.85 +
+            Math.sin(time * (1.4 + typing * 2.2) + p.phase) *
+              (0.15 + typing * 0.35);
         ctx.globalAlpha = p.alpha * p.appear * twinkle;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -515,6 +558,25 @@ export function ParticleField({
       }
       if (writeIdx !== particles.length) particles.length = writeIdx;
       ctx.globalAlpha = 1;
+
+      // Reduced motion snaps everything into place in a single frame, so park
+      // the loop instead of re-arming it forever.
+      if (reduced) restPainted = true;
+      if (!visible || (reduced && restPainted)) {
+        rafId = 0;
+        return;
+      }
+      rafId = requestAnimationFrame(render);
+    };
+
+    const stopLoop = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    };
+
+    const startLoop = () => {
+      if (destroyed || rafId || !visible) return;
+      restPainted = false;
       rafId = requestAnimationFrame(render);
     };
 
@@ -536,10 +598,34 @@ export function ParticleField({
         if (resizeTimer) clearTimeout(resizeTimer);
         // Drag-resizing can fire continuously; debounce expensive resampling.
         resizeTimer = setTimeout(() => {
-          if (currentImage) buildFresh(currentImage);
+          if (!currentImage) return;
+          // Morph rather than rebuild: `buildFresh` re-scatters every particle
+          // from a random offset, so resizing the window (or dragging a
+          // workspace panel divider) made the whole figure visibly explode and
+          // re-gather. Morphing springs them to the new sample positions.
+          morphTo(currentImage);
+          startLoop();
         }, 120);
       });
     });
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const nowVisible = entries.some((entry) => entry.isIntersecting);
+        if (nowVisible === visible) return;
+        visible = nowVisible;
+        if (visible) startLoop();
+        else stopLoop();
+      },
+      // Wake slightly before it scrolls in so it has settled on arrival.
+      { rootMargin: "160px" },
+    );
+
+    const onReducedMotionChange = () => {
+      reduced = reducedMotionQuery.matches;
+      startLoop();
+    };
+    reducedMotionQuery.addEventListener("change", onReducedMotionChange);
 
     const loadAndApply = (nextSrc: string, asMorph: boolean) => {
       const token = ++loadToken;
@@ -551,6 +637,9 @@ export function ParticleField({
         currentImage = image;
         if (asMorph) morphTo(image);
         else buildFresh(image);
+        // Needed under reduced motion, where the loop parks itself after one
+        // frame and would otherwise never paint the newly sampled figure.
+        startLoop();
       };
       image.src = nextSrc;
     };
@@ -562,7 +651,9 @@ export function ParticleField({
     // second load (e.g. parallel src-change effect) supersedes the initial
     // load's onload before it had a chance to kick off the RAF.
     ro.observe(wrapper);
-    rafId = requestAnimationFrame(render);
+    io.observe(wrapper);
+    kickRef.current = startLoop;
+    startLoop();
 
     loadAndApply(srcRef.current, false);
 
@@ -575,9 +666,12 @@ export function ParticleField({
       if (resizeRaf) cancelAnimationFrame(resizeRaf);
       if (resizeTimer) clearTimeout(resizeTimer);
       ro.disconnect();
+      io.disconnect();
+      reducedMotionQuery.removeEventListener("change", onReducedMotionChange);
       wrapper.removeEventListener("pointermove", onPointerMove);
       wrapper.removeEventListener("pointerleave", onPointerLeave);
       applySrcRef.current = null;
+      kickRef.current = null;
     };
     // Tuning props (threshold, dotSize, align, etc.) are read from refs,
     // so we intentionally don't include them here — re-running this effect
@@ -594,6 +688,12 @@ export function ParticleField({
     lastAppliedSrcRef.current = src;
     applySrcRef.current?.(src);
   }, [src]);
+
+  // Under reduced motion the loop parks itself after a single frame, so a
+  // theme flip needs an explicit repaint to pick up the new fill colour.
+  useEffect(() => {
+    kickRef.current?.();
+  }, [isDark]);
 
   return (
     <div

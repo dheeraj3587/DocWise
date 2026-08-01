@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowRightIcon,
   AudioWaveformIcon,
   BookOpenIcon,
   CheckIcon,
@@ -12,6 +13,7 @@ import {
   LightbulbIcon,
   Loader2,
   MessageCircle,
+  MessageSquare,
   PaperclipIcon,
   SearchIcon,
   Send,
@@ -31,13 +33,19 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
+import {
+  ModelGlyph,
+  ModelSelector,
+  type ModelOption,
+} from "@/components/docwise/model-selector";
+import { StatusBadge } from "@/components/docwise/status-badge";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
 import { getApiBase } from "@/lib/api-base";
 import {
@@ -76,21 +84,6 @@ export interface ChatMessage {
   modelId?: string | null;
   fallbackUsed?: boolean;
   error?: { code: string; detail: string } | null;
-}
-
-export interface ModelOption {
-  id: string;
-  name: string;
-  description: string;
-  creditCost: number;
-  reasoning: boolean;
-  provider?: string;
-  providerLabel?: string;
-  badge?: string | null;
-  contextWindow: number;
-  outputReserveTokens: number;
-  toolCalling: boolean;
-  agentToolsEnabled: boolean;
 }
 
 interface ChatPanelProps {
@@ -274,7 +267,9 @@ export const ChatPanel = ({
   const [selectedModelId, setSelectedModelId] = useState("gpt-oss-120b");
   const [credits, setCredits] = useState({ used: 0, limit: 30, remaining: 30 });
   const [localConversationId, setLocalConversationId] = useState<string>();
-  const [activeCitation, setActiveCitation] = useState<ChatCitation | null>(null);
+  const [activeCitation, setActiveCitation] = useState<ChatCitation | null>(
+    null,
+  );
   const [serverContextUsage, setServerContextUsage] = useState<ChatUsage>();
 
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -303,13 +298,33 @@ export const ChatPanel = ({
     (selectedModel?.creditCost || 1) +
     (agentEnabled ? AGENT_CREDIT_SURCHARGE : 0) +
     (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
-  const canSend = allowGeneralChat || documentIds.length > 0 || Boolean(conversationId);
+  const canSend =
+    allowGeneralChat || documentIds.length > 0 || Boolean(conversationId);
   const isFullLayout = layout === "full";
 
   const modelLabel = useMemo(
     () => selectedModel?.name || "Model",
     [selectedModel],
   );
+  const suggestedPrompts = useMemo(
+    () =>
+      documentIds.length
+        ? [
+            "Summarize the key findings and cite the strongest evidence.",
+            "Compare the main arguments across these sources.",
+            "What important questions remain unanswered?",
+          ]
+        : [
+            "Explain a complex topic with a clear example.",
+            "Compare two approaches and their trade-offs.",
+            "Turn my rough notes into an actionable plan.",
+          ],
+    [documentIds.length],
+  );
+  const applySuggestion = useCallback((suggestion: string) => {
+    setInput(suggestion);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
   const contextEstimate = useMemo(
     () =>
       estimateContextUsage({
@@ -551,7 +566,8 @@ export const ChatPanel = ({
         )) {
           const payload = frame.data;
           const frameId = Number(frame.id || payload.id || 0);
-          if (Number.isFinite(frameId)) lastEventId = Math.max(lastEventId, frameId);
+          if (Number.isFinite(frameId))
+            lastEventId = Math.max(lastEventId, frameId);
           const type = String(payload.type || frame.event || "");
           const serverMessageId = payload.messageId
             ? String(payload.messageId)
@@ -658,7 +674,9 @@ export const ChatPanel = ({
             setServerContextUsage(usage);
             setMessages((previous) =>
               previous.map((message) =>
-                message.id === activeMessageId ? { ...message, usage } : message,
+                message.id === activeMessageId
+                  ? { ...message, usage }
+                  : message,
               ),
             );
             continue;
@@ -681,7 +699,9 @@ export const ChatPanel = ({
                         ? String(payload.modelId)
                         : message.modelId,
                       fallbackUsed: Boolean(payload.fallbackUsed),
-                      agentMode: Boolean(payload.agentMode ?? message.agentMode),
+                      agentMode: Boolean(
+                        payload.agentMode ?? message.agentMode,
+                      ),
                       agentIterations: Number(
                         payload.agentIterations ?? message.agentIterations ?? 0,
                       ),
@@ -710,7 +730,8 @@ export const ChatPanel = ({
                       error: {
                         code: error.code || "generation_failed",
                         detail:
-                          error.detail || "The response could not be completed.",
+                          error.detail ||
+                          "The response could not be completed.",
                       },
                     }
                   : message,
@@ -746,7 +767,9 @@ export const ChatPanel = ({
 
       const token = await getToken();
       const history = await chatApi.getMessages(activeConversationId, token);
-      const persisted = history.items.find((item) => item.id === activeMessageId);
+      const persisted = history.items.find(
+        (item) => item.id === activeMessageId,
+      );
       if (persisted && persisted.status !== "streaming") {
         const mapped = mapServerMessage(persisted);
         setMessages((previous) =>
@@ -932,103 +955,172 @@ export const ChatPanel = ({
   const chatContent = (
     <div className="relative flex h-full w-full flex-col">
       {isFullLayout ? (
-        <div className="shrink-0 border-b border-border bg-background">
-          <div className="mx-auto flex min-h-14 w-full max-w-[1760px] flex-wrap items-center justify-between gap-3 px-[clamp(1rem,3vw,3.25rem)] py-2.5">
+        <header className="shrink-0 border-b border-border bg-background">
+          <div className="mx-auto flex min-h-16 w-full max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:px-8">
             {topBarStart ?? (
               <div className="min-w-0">
-                <div className="mono-label font-semibold leading-none">
-                  {title}
-                </div>
-                <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                <div className="font-heading text-sm leading-none">{title}</div>
+                <div className="mt-1.5 truncate text-[11px] text-muted-foreground">
                   {subtitle}
                 </div>
               </div>
             )}
-            <div className="ml-auto flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               <ContextRemaining estimate={displayedContextEstimate} />
-              <span className="hidden h-8 items-center rounded-lg border border-border bg-background px-2.5 text-[10px] text-muted-foreground md:inline-flex">
+              <span className="hidden h-8 items-center rounded-lg border border-border bg-card px-2.5 font-mono text-[9px] uppercase tracking-label text-muted-foreground sm:inline-flex">
                 {credits.remaining}/{credits.limit} credits
               </span>
-              <ModelSelect
-                models={models}
-                selectedModelId={selectedModelId}
-                selectedCreditCost={selectedCreditCost}
-                thinkEnabled={thinkEnabled}
-                agentEnabled={agentEnabled}
-                open={modelMenuOpen}
-                disabled={isStreaming}
-                onOpenChange={setModelMenuOpen}
-                onModelChange={(model) => {
-                  setSelectedModelId(model.id);
-                  setModelMenuOpen(false);
-                }}
-              />
             </div>
           </div>
-        </div>
+        </header>
       ) : !hideHeader ? (
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-          <div className="min-w-0">
-            <div className="mono-label font-semibold leading-none">{title}</div>
-            <div className="mt-1 truncate text-[11px] text-muted-foreground">
-              {subtitle}
+        <header
+          className={cn(
+            "flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 py-3",
+            compact && "px-3 py-2.5",
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-border bg-secondary/50">
+              <MessageSquare
+                className="size-3.5 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-medium leading-none text-foreground">
+                  {title}
+                </span>
+                {messages.length > 0 ? (
+                  <StatusBadge>
+                    {messages.length}{" "}
+                    {messages.length === 1 ? "message" : "messages"}
+                  </StatusBadge>
+                ) : null}
+              </div>
+              <div className="mt-1 truncate text-[10px] text-muted-foreground">
+                {subtitle}
+              </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden h-8 items-center rounded-lg border border-border px-2.5 text-[10px] text-muted-foreground sm:inline-flex">
+            <StatusBadge className="hidden sm:inline-flex">
               {credits.remaining}/{credits.limit} credits
-            </span>
+            </StatusBadge>
             {!embedded ? (
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 aria-label="Close chat"
               >
-                <X className="h-4 w-4" />
+                <X className="size-4" />
               </button>
             ) : null}
           </div>
-        </div>
+        </header>
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-hidden">
         <div
-          className={cn(
-            "mx-auto h-full w-full",
-            isFullLayout
-              ? "max-w-[1760px] px-[clamp(1rem,3vw,3.25rem)]"
-              : "max-w-4xl",
-          )}
+          ref={messagesScrollRef}
+          onScroll={handleMessagesScroll}
+          className="custom-scrollbar h-full overflow-y-auto"
         >
           <div
-            ref={messagesScrollRef}
-            onScroll={handleMessagesScroll}
             className={cn(
-              "custom-scrollbar h-full overflow-y-auto",
-              isFullLayout ? "px-0 py-8" : "px-4 py-5",
+              "mx-auto flex min-h-full w-full flex-col",
+              isFullLayout
+                ? "max-w-[960px] px-4 py-8 sm:px-6 sm:py-10"
+                : "max-w-4xl px-3 py-4",
+              compact && !isFullLayout && "px-2.5 py-3",
             )}
           >
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center px-6 text-center text-muted-foreground">
-                <span className="mb-4 grid size-10 place-items-center rounded-lg border border-border bg-secondary">
-                  <MessageCircle className="size-4 opacity-70" />
-                </span>
-                <p className="text-[13px] font-medium text-foreground">
-                  {emptyTitle}
-                </p>
-                <p className="mt-1 max-w-xs text-xs leading-relaxed">
-                  {canSend
-                    ? emptyDescription
-                    : "Choose a ready document or switch to general chat."}
-                </p>
+              <div className="flex flex-1 items-center justify-center py-8">
+                <div
+                  className={cn(
+                    "flex w-full flex-col items-center text-center",
+                    isFullLayout ? "max-w-3xl" : "max-w-md",
+                  )}
+                >
+                  <ModelGlyph
+                    modelId={selectedModel?.id}
+                    size="lg"
+                    className={cn(isFullLayout && "size-12 [&_svg]:size-7")}
+                  />
+                  <StatusBadge className="mt-4">
+                    {documentIds.length
+                      ? "Source-grounded chat"
+                      : "General chat"}
+                  </StatusBadge>
+                  <h2
+                    className={cn(
+                      "mt-3 font-heading text-foreground",
+                      isFullLayout ? "text-2xl sm:text-[28px]" : "text-base",
+                    )}
+                  >
+                    {emptyTitle}
+                  </h2>
+                  <p
+                    className={cn(
+                      "mt-2 text-muted-foreground",
+                      isFullLayout
+                        ? "max-w-xl text-sm leading-6"
+                        : "max-w-sm text-xs leading-5",
+                    )}
+                  >
+                    {canSend
+                      ? emptyDescription
+                      : "Choose a ready document or switch to general chat."}
+                  </p>
+                  {canSend ? (
+                    <div
+                      className={cn(
+                        "mt-6 grid w-full gap-2",
+                        isFullLayout && "sm:grid-cols-3",
+                        !isFullLayout && "mt-4",
+                      )}
+                    >
+                      {suggestedPrompts
+                        .slice(0, isFullLayout ? 3 : 2)
+                        .map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            type="button"
+                            onClick={() => applySuggestion(suggestion)}
+                            className={cn(
+                              "group flex items-start justify-between gap-3 rounded-lg border border-border bg-card text-left text-foreground outline-none transition-colors hover:border-foreground/20 hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring",
+                              isFullLayout
+                                ? "min-h-24 p-3.5 text-xs leading-5"
+                                : "p-3 text-[11px] leading-4",
+                            )}
+                          >
+                            <span>{suggestion}</span>
+                            <ArrowRightIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                          </button>
+                        ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ) : (
-              <div className={cn("space-y-4", compact && "space-y-3")}>
+              <div
+                className={cn(
+                  "w-full space-y-5 pb-4",
+                  isFullLayout && "space-y-8",
+                  compact && "space-y-4",
+                )}
+              >
                 {messages.map((message) => (
                   <ChatMessageBubble
                     key={message.id}
                     message={message}
+                    model={
+                      models.find((model) => model.id === message.modelId) ??
+                      selectedModel
+                    }
                     compact={compact}
                     layout={layout}
                     onCitationClick={setActiveCitation}
@@ -1043,21 +1135,19 @@ export const ChatPanel = ({
 
       <div
         className={cn(
-          "shrink-0",
-          isFullLayout
-            ? "border-t border-border bg-background px-[clamp(1rem,3vw,3.25rem)] py-3"
-            : "p-4",
-          compact && !isFullLayout && "p-3",
+          "shrink-0 border-t border-border bg-background",
+          isFullLayout ? "px-4 py-3 sm:px-6 sm:py-4" : "p-3.5",
+          compact && !isFullLayout && "p-2.5",
         )}
       >
         <div
           className={cn(
             "mx-auto w-full",
-            isFullLayout ? "max-w-[1760px]" : "max-w-4xl",
+            isFullLayout ? "max-w-[960px]" : "max-w-4xl",
           )}
         >
-          <div className="grid gap-3">
-            <div className="overflow-visible rounded-lg border border-border bg-card shadow-xs/5 transition-colors focus-within:border-foreground/20">
+          <div className="grid gap-2.5">
+            <div className="overflow-visible rounded-lg border border-border bg-card shadow-xs transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:ring-2 focus-within:ring-foreground/[0.04]">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -1067,17 +1157,17 @@ export const ChatPanel = ({
                 disabled={isStreaming || !canSend}
                 rows={isFullLayout ? 2 : compact ? 2 : 3}
                 className={cn(
-                  "block w-full resize-none bg-transparent px-4 pt-3 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/72 disabled:cursor-not-allowed disabled:opacity-60",
+                  "block w-full resize-none bg-transparent px-4 pt-3.5 text-[13px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed disabled:opacity-60",
                   isFullLayout
-                    ? "min-h-[64px] text-sm"
+                    ? "min-h-[72px] text-sm leading-6"
                     : compact
-                      ? "min-h-[52px]"
+                      ? "min-h-[52px] px-3 pt-3"
                       : "min-h-[72px]",
                 )}
               />
               <div
                 className={cn(
-                  "flex flex-wrap items-center justify-between gap-2 p-2",
+                  "flex flex-wrap items-end justify-between gap-2 p-2",
                   compact && "p-1.5",
                 )}
               >
@@ -1089,17 +1179,17 @@ export const ChatPanel = ({
                       active={attachMenuOpen}
                       onClick={() => setAttachMenuOpen((open) => !open)}
                     >
-                      <PaperclipIcon className="h-3.5 w-3.5" />
+                      <PaperclipIcon className="size-3.5" />
                       <span className="sr-only">Attach</span>
                     </ToolButton>
                     {attachMenuOpen ? (
                       <div className="absolute bottom-10 left-0 z-50 w-40 overflow-hidden rounded-lg border border-border bg-popover p-1 text-xs shadow-[var(--shadow-float)]">
                         <AttachItem
-                          icon={<FileIcon className="h-3.5 w-3.5" />}
+                          icon={<FileIcon className="size-3.5" />}
                           label="Upload file"
                         />
                         <AttachItem
-                          icon={<ImageIcon className="h-3.5 w-3.5" />}
+                          icon={<ImageIcon className="size-3.5" />}
                           label="Upload photo"
                         />
                       </div>
@@ -1120,9 +1210,14 @@ export const ChatPanel = ({
                     }
                     onClick={() => setAgentEnabled((active) => !active)}
                   >
-                    <SearchIcon className="h-3.5 w-3.5" />
-                    <span className={compact ? "hidden sm:inline" : ""}>Agent</span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <SearchIcon className="size-3.5" />
+                    <span className={compact ? "sr-only" : ""}>Agent</span>
+                    <span
+                      className={cn(
+                        "text-[10px] text-muted-foreground",
+                        compact && "hidden",
+                      )}
+                    >
                       +{AGENT_CREDIT_SURCHARGE}
                     </span>
                   </ToolButton>
@@ -1133,37 +1228,42 @@ export const ChatPanel = ({
                     disabled={isStreaming}
                     onClick={() => setThinkEnabled((active) => !active)}
                   >
-                    <LightbulbIcon className="h-3.5 w-3.5" />
-                    <span>Think</span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <LightbulbIcon className="size-3.5" />
+                    <span className={compact ? "sr-only" : ""}>Think</span>
+                    <span
+                      className={cn(
+                        "text-[10px] text-muted-foreground",
+                        compact && "hidden",
+                      )}
+                    >
                       +{THINK_CREDIT_SURCHARGE}
                     </span>
                   </ToolButton>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  {!isFullLayout ? (
-                    <ModelSelect
-                      models={models}
-                      selectedModelId={selectedModelId}
-                      selectedCreditCost={selectedCreditCost}
-                      thinkEnabled={thinkEnabled}
-                      agentEnabled={agentEnabled}
-                      open={modelMenuOpen}
-                      disabled={isStreaming}
-                      onOpenChange={setModelMenuOpen}
-                      onModelChange={(model) => {
-                        setSelectedModelId(model.id);
-                        setModelMenuOpen(false);
-                      }}
-                    />
-                  ) : null}
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <ModelSelector
+                    models={models}
+                    selectedModelId={selectedModelId}
+                    selectedCreditCost={selectedCreditCost}
+                    compact={compact}
+                    open={modelMenuOpen}
+                    disabled={isStreaming}
+                    onOpenChange={setModelMenuOpen}
+                    onModelChange={(model) => {
+                      setSelectedModelId(model.id);
+                      setModelMenuOpen(false);
+                    }}
+                  />
                   <ToolButton
                     ariaLabel="Voice"
                     disabled={isStreaming}
-                    className="bg-foreground font-medium text-background hover:bg-foreground/90 hover:text-background"
+                    className={cn(
+                      "bg-foreground font-medium text-background hover:bg-foreground/90 hover:text-background",
+                      compact ? "hidden" : "hidden sm:inline-flex",
+                    )}
                   >
-                    <AudioWaveformIcon className="h-3.5 w-3.5" />
+                    <AudioWaveformIcon className="size-3.5" />
                     <span className="sr-only">Voice</span>
                   </ToolButton>
                   <button
@@ -1171,20 +1271,27 @@ export const ChatPanel = ({
                     onClick={handleSend}
                     disabled={isStreaming || !input.trim() || !canSend}
                     aria-label="Send message"
-                    className="grid h-8 w-8 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isStreaming ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="size-3.5 animate-spin" />
                     ) : (
-                      <Send className="h-3.5 w-3.5" />
+                      <Send className="size-3.5" />
                     )}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="mono-label flex items-center justify-between px-1">
-              <span className="truncate">{modelLabel}</span>
-              <span>
+            <div className="mono-label flex items-center justify-between gap-3 px-1">
+              <span className="min-w-0 truncate">
+                {modelLabel} · {documentIds.length ? "sources on" : "general"}
+              </span>
+              <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
+                <Kbd>↵</Kbd> send
+                <span className="text-muted-foreground/50">·</span>
+                <Kbd>⇧↵</Kbd> newline
+              </span>
+              <span className="shrink-0">
                 {selectedCreditCost} credit{selectedCreditCost === 1 ? "" : "s"}
               </span>
             </div>
@@ -1224,12 +1331,14 @@ export const ChatPanel = ({
 
 function ChatMessageBubble({
   message,
+  model,
   compact,
   layout,
   onCitationClick,
   onRetry,
 }: {
   message: ChatMessage;
+  model?: ModelOption;
   compact: boolean;
   layout: "default" | "full";
   onCitationClick: (citation: ChatCitation) => void;
@@ -1239,127 +1348,170 @@ function ChatMessageBubble({
   const isFullLayout = layout === "full";
 
   return (
-    <div
+    <article
       className={cn(
-        "flex",
-        isUser ? "justify-end" : "justify-start",
-        isFullLayout && "w-full",
+        "flex w-full items-start gap-2.5",
+        isUser && "justify-end",
+        isFullLayout && "gap-3.5",
       )}
     >
+      {!isUser ? (
+        <ModelGlyph
+          modelId={message.modelId ?? model?.id}
+          size={compact ? "sm" : "md"}
+          className="mt-0.5"
+        />
+      ) : null}
       <div
         className={cn(
-          isFullLayout && isUser
-            ? "max-w-[min(92%,720px)] sm:max-w-[min(72%,820px)] lg:max-w-[min(48%,860px)]"
-            : isFullLayout
-              ? "w-full"
-              : "max-w-[88%]",
+          "min-w-0",
           isUser
-            ? "rounded-lg rounded-br-sm border border-border bg-secondary/50 px-3.5 py-2.5 text-foreground"
-            : "text-foreground",
-          compact && isUser && "px-3.5 py-2.5",
-          isFullLayout && isUser && "px-4 py-3",
+            ? isFullLayout
+              ? "max-w-[min(88%,720px)]"
+              : "max-w-[88%]"
+            : "flex-1",
         )}
       >
-        {!isUser && message.agentMode ? (
-          <AgentTrace
-            invocations={message.toolInvocations ?? []}
-            status={message.status}
-            iterations={message.agentIterations}
-          />
-        ) : null}
-        {message.status === "failed" && !message.content ? (
-          <div className="rounded-lg border border-border bg-secondary/35 px-3.5 py-3 text-[12px] text-muted-foreground">
-            <p>{message.error?.detail || "The response could not be completed."}</p>
-            <button
-              type="button"
-              onClick={() => onRetry(message)}
-              className="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-[10px] font-medium text-foreground transition-colors hover:bg-secondary"
-            >
-              <RotateCcwIcon className="size-3" />
-              Retry
-            </button>
-          </div>
-        ) : !message.content ? (
-          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-            {message.reasoning ? (
-              <ThinkingIndicator className="px-0 py-0" />
-            ) : (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Thinking...
-              </>
-            )}
-          </div>
-        ) : isUser ? (
-          <p
-            className={cn(
-              "whitespace-pre-wrap text-[13px] leading-6",
-              isFullLayout && "text-sm leading-7",
-            )}
-          >
-            {message.content}
-          </p>
-        ) : (
-          <div
-            className={cn(
-              "prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border",
-              isFullLayout &&
-                "chat-full-prose text-sm leading-7 prose-p:leading-7 prose-li:leading-7 prose-pre:my-5",
-            )}
-          >
-            <ReactMarkdown
-              remarkPlugins={REMARK_PLUGINS}
-              rehypePlugins={REHYPE_PLUGINS}
-              components={{
-                a: ({ href, children, ...props }) => {
-                  if (href?.startsWith("citation:")) {
-                    const label = href.slice("citation:".length);
-                    const citation = message.citations?.find(
-                      (item) => item.sourceLabel === label,
-                    );
-                    return (
-                      <button
-                        type="button"
-                        disabled={!citation || citation.sourceRemoved}
-                        onClick={() => citation && onCitationClick(citation)}
-                        className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[10px] font-semibold no-underline transition-colors hover:bg-secondary disabled:cursor-default disabled:opacity-50"
-                      >
-                        {citation?.sourceType === "web" ? (
-                          <ExternalLinkIcon className="size-2.5" />
-                        ) : (
-                          <BookOpenIcon className="size-2.5" />
-                        )}
-                        {children}
-                      </button>
-                    );
-                  }
-                  return (
-                    <a href={href} {...props}>
-                      {children}
-                    </a>
-                  );
-                },
-              }}
-            >
-              {normalizeMathDelimiters(
-                citationMarkdown(message.content, message.citations ?? []),
+        <div
+          className={cn(
+            "flex min-h-5 flex-wrap items-center gap-2",
+            isUser && "justify-end",
+          )}
+        >
+          <span className="text-[11px] font-medium text-foreground">
+            {isUser ? "You" : "DocWise"}
+          </span>
+          {!isUser ? (
+            <span className="font-mono text-[9px] uppercase tracking-label text-muted-foreground">
+              {model?.name ?? "Assistant"}
+            </span>
+          ) : null}
+          {!isUser && message.agentMode ? (
+            <StatusBadge>Agent</StatusBadge>
+          ) : null}
+          {!isUser && message.status === "streaming" ? (
+            <StatusBadge dot tone="active">
+              Generating
+            </StatusBadge>
+          ) : null}
+        </div>
+        <div
+          className={cn(
+            "mt-1.5 rounded-lg border text-foreground",
+            isUser
+              ? "border-border bg-secondary/60 px-3.5 py-2.5"
+              : "border-border bg-card px-3.5 py-3.5",
+            isFullLayout && isUser && "px-4 py-3",
+            isFullLayout && !isUser && "px-5 py-5",
+            compact && "px-3 py-3",
+          )}
+        >
+          {!isUser && message.agentMode ? (
+            <AgentTrace
+              invocations={message.toolInvocations ?? []}
+              status={message.status}
+              iterations={message.agentIterations}
+            />
+          ) : null}
+          {message.status === "failed" && !message.content ? (
+            <div className="rounded-lg border border-destructive/25 bg-destructive/[0.04] px-3.5 py-3 text-[12px] text-muted-foreground">
+              <p>
+                {message.error?.detail ||
+                  "The response could not be completed."}
+              </p>
+              <button
+                type="button"
+                onClick={() => onRetry(message)}
+                className="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-[10px] font-medium text-foreground transition-colors hover:bg-secondary"
+              >
+                <RotateCcwIcon className="size-3" />
+                Retry
+              </button>
+            </div>
+          ) : !message.content ? (
+            <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+              {message.reasoning ? (
+                <ThinkingIndicator className="px-0 py-0" />
+              ) : (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Thinking...
+                </>
               )}
-            </ReactMarkdown>
-            {message.citations?.length || message.fallbackUsed ? (
-              <div className="not-prose mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 font-mono text-[10px] uppercase tracking-label text-muted-foreground">
-                {message.citations?.length ? (
-                  <span>
-                    {message.citations.length} verified source
-                    {message.citations.length === 1 ? "" : "s"}
-                  </span>
-                ) : null}
-                {message.fallbackUsed ? <span>Provider fallback used</span> : null}
-              </div>
-            ) : null}
-          </div>
-        )}
+            </div>
+          ) : isUser ? (
+            <p
+              className={cn(
+                "whitespace-pre-wrap text-[13px] leading-6",
+                isFullLayout && "text-sm leading-7",
+              )}
+            >
+              {message.content}
+            </p>
+          ) : (
+            <div
+              className={cn(
+                "prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+                isFullLayout &&
+                  "chat-full-prose text-sm leading-7 prose-p:leading-7 prose-li:leading-7 prose-pre:my-5",
+              )}
+            >
+              <ReactMarkdown
+                remarkPlugins={REMARK_PLUGINS}
+                rehypePlugins={REHYPE_PLUGINS}
+                components={{
+                  a: ({ href, children, ...props }) => {
+                    if (href?.startsWith("citation:")) {
+                      const label = href.slice("citation:".length);
+                      const citation = message.citations?.find(
+                        (item) => item.sourceLabel === label,
+                      );
+                      return (
+                        <button
+                          type="button"
+                          disabled={!citation || citation.sourceRemoved}
+                          onClick={() => citation && onCitationClick(citation)}
+                          className="mx-0.5 inline-flex translate-y-[-1px] items-center gap-1 rounded border border-border bg-secondary/60 px-1.5 py-0.5 font-mono text-[10px] font-semibold no-underline transition-colors hover:bg-secondary disabled:cursor-default disabled:opacity-50"
+                        >
+                          {citation?.sourceType === "web" ? (
+                            <ExternalLinkIcon className="size-2.5" />
+                          ) : (
+                            <BookOpenIcon className="size-2.5" />
+                          )}
+                          {children}
+                        </button>
+                      );
+                    }
+                    return (
+                      <a href={href} {...props}>
+                        {children}
+                      </a>
+                    );
+                  },
+                }}
+              >
+                {normalizeMathDelimiters(
+                  citationMarkdown(message.content, message.citations ?? []),
+                )}
+              </ReactMarkdown>
+              {message.citations?.length || message.fallbackUsed ? (
+                <div className="not-prose mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 font-mono text-[9px] uppercase tracking-label text-muted-foreground">
+                  {message.citations?.length ? (
+                    <span>
+                      {message.citations.length} verified source
+                      {message.citations.length === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                  {message.fallbackUsed ? (
+                    <span>Provider fallback used</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -1568,12 +1720,12 @@ function CitationDrawer({
       ? `Retrieved ${new Date(citation.retrievedAt).toLocaleString()}`
       : "Web source"
     : citation.pageStart
-    ? citation.pageEnd && citation.pageEnd !== citation.pageStart
-      ? `Pages ${citation.pageStart}-${citation.pageEnd}`
-      : `Page ${citation.pageStart}`
-    : citation.startTime !== null
-      ? `${formatTimestamp(citation.startTime)}-${formatTimestamp(citation.endTime ?? citation.startTime)}`
-      : "Source excerpt";
+      ? citation.pageEnd && citation.pageEnd !== citation.pageStart
+        ? `Pages ${citation.pageStart}-${citation.pageEnd}`
+        : `Page ${citation.pageStart}`
+      : citation.startTime !== null
+        ? `${formatTimestamp(citation.startTime)}-${formatTimestamp(citation.endTime ?? citation.startTime)}`
+        : "Source excerpt";
 
   return (
     <aside className="absolute inset-y-0 right-0 z-[70] flex w-[min(390px,92vw)] flex-col border-l border-border bg-background shadow-[var(--shadow-float)]">
@@ -1603,7 +1755,8 @@ function CitationDrawer({
         </div>
         {citation.sourceRemoved ? (
           <p className="mt-4 rounded-lg border border-border bg-secondary/35 p-3 text-xs leading-5 text-muted-foreground">
-            This source was removed from the library. Its excerpt is no longer retained.
+            This source was removed from the library. Its excerpt is no longer
+            retained.
           </p>
         ) : (
           <blockquote className="mt-4 border-l border-foreground/30 pl-4 text-[13px] leading-6 text-foreground/90">
@@ -1733,252 +1886,5 @@ function AttachItem({ icon, label }: { icon: ReactNode; label: string }) {
       {icon}
       {label}
     </button>
-  );
-}
-
-function ModelSelect({
-  models,
-  selectedModelId,
-  selectedCreditCost,
-  thinkEnabled,
-  agentEnabled,
-  open,
-  disabled,
-  onOpenChange,
-  onModelChange,
-}: {
-  models: ModelOption[];
-  selectedModelId: string;
-  selectedCreditCost: number;
-  thinkEnabled: boolean;
-  agentEnabled: boolean;
-  open: boolean;
-  disabled?: boolean;
-  onOpenChange: (open: boolean) => void;
-  onModelChange: (model: ModelOption) => void;
-}) {
-  const selected =
-    models.find((model) => model.id === selectedModelId) || models[0];
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{
-    left: number;
-    top: number;
-    width: number;
-    maxHeight: number;
-  } | null>(null);
-
-  const updatePosition = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-
-    const rect = trigger.getBoundingClientRect();
-    const viewportPadding = 12;
-    const gap = 8;
-    const preferredWidth = 320;
-    const width = Math.min(
-      preferredWidth,
-      window.innerWidth - viewportPadding * 2,
-    );
-    const estimatedHeight = Math.min(360, 74 + models.length * 66);
-    const spaceAbove = rect.top - viewportPadding - gap;
-    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding - gap;
-    const openAbove =
-      spaceAbove >= Math.min(estimatedHeight, 240) || spaceAbove > spaceBelow;
-    const maxHeight = Math.max(
-      180,
-      Math.min(360, openAbove ? spaceAbove : spaceBelow),
-    );
-    const left = Math.min(
-      Math.max(viewportPadding, rect.right - width),
-      window.innerWidth - width - viewportPadding,
-    );
-    const top = openAbove
-      ? Math.max(
-          viewportPadding,
-          rect.top - gap - Math.min(estimatedHeight, maxHeight),
-        )
-      : Math.min(
-          window.innerHeight - viewportPadding - maxHeight,
-          rect.bottom + gap,
-        );
-
-    setMenuPosition({ left, top, width, maxHeight });
-  }, [models.length]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    updatePosition();
-
-    const onPointerDown = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node;
-      if (
-        triggerRef.current?.contains(target) ||
-        menuRef.current?.contains(target)
-      )
-        return;
-      onOpenChange(false);
-    };
-
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") onOpenChange(false);
-    };
-
-    const onScroll = (event: Event) => {
-      const target = event.target as Node;
-      if (menuRef.current?.contains(target)) return;
-      onOpenChange(false);
-    };
-
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", onScroll, true);
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("touchstart", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", onScroll, true);
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("touchstart", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [onOpenChange, open, updatePosition]);
-
-  if (!selected) return null;
-
-  const modelMenu =
-    open && typeof document !== "undefined" && menuPosition
-      ? createPortal(
-          <div
-            ref={menuRef}
-            style={{
-              left: menuPosition.left,
-              top: menuPosition.top,
-              width: menuPosition.width,
-              maxHeight: menuPosition.maxHeight,
-            }}
-            className="fixed z-[1000] overflow-y-auto rounded-lg border border-border bg-popover p-1.5 shadow-[var(--shadow-float)]"
-          >
-            <div className="flex items-center justify-between px-2.5 py-2">
-              <span className="font-mono text-[10px] font-semibold uppercase leading-none tracking-label text-muted-foreground">
-                Model
-              </span>
-              <span className="text-[10px] text-muted-foreground">credits</span>
-            </div>
-            <div className="space-y-1">
-              {models.map((model) => {
-                const active = model.id === selected.id;
-                const creditCost =
-                  model.creditCost +
-                  (agentEnabled ? AGENT_CREDIT_SURCHARGE : 0) +
-                  (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
-                return (
-                  <button
-                    key={model.id}
-                    type="button"
-                    onClick={() => onModelChange(model)}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2.5 py-2.5 text-left transition-colors",
-                      active
-                        ? "bg-secondary text-foreground"
-                        : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-                    )}
-                  >
-                    <ProviderMark
-                      provider={model.provider}
-                      providerLabel={model.providerLabel}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[12px] font-medium">
-                          {model.name}
-                        </span>
-                        {model.badge ? (
-                          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-label text-muted-foreground">
-                            {model.badge}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="mt-0.5 block line-clamp-2 text-[10px] leading-4 opacity-75">
-                        {model.description}
-                      </span>
-                      <span className="mt-1 block font-mono text-[10px] uppercase tracking-label text-muted-foreground/80">
-                        {model.providerLabel || "Provider"}
-                      </span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="rounded border border-border px-1.5 py-0.5 text-[10px]">
-                        {active ? selectedCreditCost : creditCost}
-                      </span>
-                      {active ? <CheckIcon className="h-3.5 w-3.5" /> : null}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>,
-          document.body,
-        )
-      : null;
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        disabled={disabled}
-        onClick={() => onOpenChange(!open)}
-        className="inline-flex h-8 min-w-[132px] max-w-[190px] items-center justify-between gap-2 rounded-lg border border-border bg-background px-2.5 text-left text-[11px] text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <ProviderMark
-            provider={selected.provider}
-            providerLabel={selected.providerLabel}
-            compact
-          />
-          <span className="min-w-0 truncate">{selected.name}</span>
-        </span>
-        <ChevronDownIcon
-          className={cn(
-            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-
-      {modelMenu}
-    </>
-  );
-}
-
-function ProviderMark({
-  provider,
-  providerLabel,
-  compact = false,
-}: {
-  provider?: string;
-  providerLabel?: string;
-  compact?: boolean;
-}) {
-  const text =
-    provider === "openrouter"
-      ? "OR"
-      : provider === "cerebras"
-        ? "C"
-        : (providerLabel || "AI").slice(0, 2).toUpperCase();
-
-  return (
-    <span
-      className={cn(
-        "grid shrink-0 place-items-center rounded-md border border-border bg-background font-mono font-semibold uppercase text-muted-foreground",
-        compact ? "h-4 w-4 text-[7px]" : "h-7 w-7 text-[10px]",
-      )}
-      title={providerLabel || provider || "Provider"}
-      aria-hidden="true"
-    >
-      {text}
-    </span>
   );
 }

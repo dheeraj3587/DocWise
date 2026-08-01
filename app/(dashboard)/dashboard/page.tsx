@@ -153,6 +153,7 @@ export default function Dashboard() {
                 dotSize={0.85}
                 mouseForce={50}
                 mouseRadius={90}
+                fit="contain"
                 denseParticles
               />
             </div>

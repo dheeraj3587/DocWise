@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useApiQuery } from "@/lib/hooks";
 import { FileRecord } from "@/lib/api-client";
 import { WorkspaceHeader } from "../../components/workspace-header";
-import { PdfViewer } from "../../components/PdfViewer";
+fixxxyyfixtttnhhhyyyyyyyyimport { PdfViewer } from "../../components/PdfViewer";
 import { MediaPlayer } from "../../components/MediaPlayer";
 import { ChatPanel } from "../../components/ChatPanel";
 import {
@@ -17,6 +17,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  useResizableLayout,
 } from "@/components/ui/resizable";
 import type { ChatCitation } from "@/lib/chat-api";
 
@@ -31,6 +32,17 @@ const Workspace = () => {
   const [activePage, setActivePage] = useState(initialPage);
   const [activeTimestamp, setActiveTimestamp] = useState<number | null>(null);
   const [desktopLayout, setDesktopLayout] = useState<boolean | null>(null);
+
+  // Remember the split the user drags to. `panelIds` tracks which rails are
+  // open so toggling one doesn't clobber the sizes saved for the other states.
+  const { defaultLayout, onLayoutChanged } = useResizableLayout({
+    id: "docwise-workspace",
+    panelIds: [
+      ...(outlineOpen ? ["workspace-outline"] : []),
+      "workspace-document",
+      ...(sidePanelOpen ? ["workspace-chat"] : []),
+    ],
+  });
 
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1024px)");
@@ -85,7 +97,7 @@ const Workspace = () => {
   };
 
   return (
-    <div className="dark flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <WorkspaceHeader
         fileName={fileData.fileName}
         outlineOpen={outlineOpen}
@@ -96,7 +108,10 @@ const Workspace = () => {
 
       {desktopLayout ? (
         <ResizablePanelGroup
+          id="docwise-workspace"
           orientation="horizontal"
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}
           className="min-h-0 flex-1 overflow-hidden"
         >
           {outlineOpen ? (
