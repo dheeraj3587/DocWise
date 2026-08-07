@@ -3,7 +3,6 @@
 import {
   ArrowRightIcon,
   BookOpenIcon,
-  CheckIcon,
   ChevronDownIcon,
   CircleGauge,
   ExternalLinkIcon,
@@ -37,8 +36,29 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
 import {
+  ChainOfThought,
+  ChainOfThoughtContent,
+  ChainOfThoughtHeader,
+  ChainOfThoughtSearchResult,
+  ChainOfThoughtSearchResults,
+  ChainOfThoughtStep,
+  type ChainOfThoughtStepStatus,
+} from "@/components/chain-of-thought/chain-of-thought";
+import {
+  InlineCitation,
+  InlineCitationCard,
+  InlineCitationCardBody,
+  InlineCitationCardTrigger,
+  InlineCitationQuote,
+  InlineCitationSource,
+} from "@/components/inline-citation/inline-citation";
+import type { AiModel } from "@/components/model-select/model-select";
+import { Reasoning, ReasoningTrigger } from "@/components/reasoning/reasoning";
+import type { ThinkingEffort } from "@/components/thinking-select/thinking-select";
+import { ThinkingModelSelect } from "@/components/thinking-model-select/thinking-model-select";
+import { ToolCallChip } from "@/components/tool-call-chip/tool-call-chip";
+import {
   ModelGlyph,
-  ModelSelector,
   type ModelOption,
   type ReasoningEffort,
 } from "@/components/docwise/model-selector";
@@ -46,7 +66,6 @@ import { StatusBadge } from "@/components/docwise/status-badge";
 import { FileUpload } from "@/app/(dashboard)/components/file-upload";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
 import { getApiBase } from "@/lib/api-base";
 import {
   chatApi,
@@ -67,6 +86,55 @@ const REHYPE_PLUGINS: any = [rehypeKatex];
 
 const THINK_CREDIT_SURCHARGE = 3;
 const AGENT_CREDIT_SURCHARGE = 2;
+
+/**
+ * Neon's ModelSelect groups the list by `provider` and hides its thinking
+ * footer when `reasoning` is false, so a model with no effort levels stops
+ * offering a dial the backend would reject.
+ */
+const toAiModel = (model: ModelOption): AiModel => ({
+  id: model.id,
+  name: model.name,
+  provider: model.providerLabel ?? model.provider ?? "Other",
+  reasoning: (model.reasoningEfforts?.length ?? 0) > 0,
+  tag: model.badge ? model.badge.toLowerCase() : undefined,
+});
+
+/**
+ * The Neon dial runs off → low → medium → high → xhigh → max, but every model
+ * here honours only low/medium/high. "off" drives the Think toggle instead,
+ * and the two stops past high clamp back to high — the dial is controlled, so
+ * it snaps back where the reader can see it rather than quietly sending an
+ * effort the provider would refuse.
+ */
+const CLAMPED_EFFORT: Record<ThinkingEffort, ReasoningEffort> = {
+  high: "high",
+  low: "low",
+  max: "high",
+  medium: "medium",
+  off: "low",
+  xhigh: "high",
+};
+
+/**
+ * Keyed by provider label, not model id: ModelSelect draws one mark per group.
+ * Reuses the repo's existing glyph art with its frame stripped, since the logo
+ * slot supplies its own box.
+ */
+const PROVIDER_LOGOS: Record<string, ReactNode> = {
+  Cerebras: (
+    <ModelGlyph
+      modelId="gemma-4-31b"
+      className="size-full border-0 bg-transparent text-foreground"
+    />
+  ),
+  OpenRouter: (
+    <ModelGlyph
+      modelId="tencent/hy3"
+      className="size-full border-0 bg-transparent text-foreground"
+    />
+  ),
+};
 
 export interface ChatMessage {
   id: string;
@@ -338,7 +406,6 @@ export const ChatPanel = ({
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [thinkEnabled, setThinkEnabled] = useState(false);
   const [reasoningEffort, setReasoningEffort] =
     useState<ReasoningEffort>("medium");
@@ -383,6 +450,7 @@ export const ChatPanel = ({
     (selectedModel?.creditCost || 1) +
     (agentEnabled ? AGENT_CREDIT_SURCHARGE : 0) +
     (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
+  const aiModels = useMemo(() => models.map(toAiModel), [models]);
   // Some models think without exposing a dial. Deriving this rather than
   // storing it means switching models can never strand an unsupported level.
   const effortLevels = selectedModel?.reasoningEfforts ?? [];
@@ -391,6 +459,18 @@ export const ChatPanel = ({
     : (effortLevels[0] ?? "medium");
   const sentEffort =
     thinkEnabled && effortLevels.length > 0 ? activeEffort : undefined;
+  // One dial for two pieces of state: the Think toggle owns on/off, the
+  // ThinkingSelect footer owns the level. Reading "off" back off the dial is
+  // what lets the two stay in step in both directions.
+  const dialEffort: ThinkingEffort = sentEffort ?? "off";
+  const handleEffortChange = useCallback((next: ThinkingEffort) => {
+    if (next === "off") {
+      setThinkEnabled(false);
+      return;
+    }
+    setThinkEnabled(true);
+    setReasoningEffort(CLAMPED_EFFORT[next]);
+  }, []);
   const canSend =
     allowGeneralChat || documentIds.length > 0 || Boolean(conversationId);
   const isFullLayout = layout === "full";
@@ -1373,30 +1453,23 @@ export const ChatPanel = ({
                     </span>
                   </ToolButton>
 
-                  {thinkEnabled && effortLevels.length > 0 ? (
-                    <EffortSelector
-                      levels={effortLevels}
-                      value={activeEffort}
-                      compact={compact}
-                      disabled={isStreaming}
-                      onChange={setReasoningEffort}
-                    />
-                  ) : null}
                 </div>
 
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <ModelSelector
-                    models={models}
-                    selectedModelId={selectedModelId}
-                    selectedCreditCost={selectedCreditCost}
-                    compact={compact}
-                    open={modelMenuOpen}
+                  {/* Model picker and reasoning dial are one control: the
+                      effort footer lives inside the popup under the list, so
+                      there is no separate strip of Low/Med/High buttons. */}
+                  <ThinkingModelSelect
+                    aria-label={`Choose model. Current model: ${modelLabel}`}
                     disabled={isStreaming}
-                    onOpenChange={setModelMenuOpen}
-                    onModelChange={(model) => {
-                      setSelectedModelId(model.id);
-                      setModelMenuOpen(false);
-                    }}
+                    effort={dialEffort}
+                    fallbackToFirst
+                    logos={PROVIDER_LOGOS}
+                    models={aiModels}
+                    onEffortChange={handleEffortChange}
+                    onValueChange={setSelectedModelId}
+                    size={compact ? "sm" : "md"}
+                    value={selectedModelId}
                   />
                   {isStreaming ? (
                     <button
@@ -1549,6 +1622,18 @@ function ChatMessageBubble({
             compact && "px-3 py-3",
           )}
         >
+          {/* The stream carries a reasoning flag, not reasoning text, so this
+              is the trigger without a content panel: it shimmers "Thinking…"
+              while the turn runs and settles into a "Thought for Ns" receipt
+              that outlives the stream. */}
+          {!isUser && message.reasoning ? (
+            <Reasoning
+              className="mb-4"
+              isStreaming={message.status === "streaming"}
+            >
+              <ReasoningTrigger />
+            </Reasoning>
+          ) : null}
           {!isUser && message.agentMode ? (
             <AgentTrace
               invocations={message.toolInvocations ?? []}
@@ -1577,9 +1662,7 @@ function ChatMessageBubble({
             </p>
           ) : !message.content ? (
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              {message.reasoning ? (
-                <ThinkingIndicator className="px-0 py-0" />
-              ) : (
+              {message.reasoning ? null : (
                 <>
                   <Loader2 className="size-3.5 animate-spin" />
                   Thinking...
@@ -1613,6 +1696,45 @@ function ChatMessageBubble({
                       const citation = message.citations?.find(
                         (item) => item.sourceLabel === label,
                       );
+                      // Web sources get the hover preview: they have a real
+                      // URL to name the pill and link out to. Document sources
+                      // keep the button — their target is an in-app page jump,
+                      // not an href, and a link would break that.
+                      const webUrl =
+                        citation?.sourceType === "web"
+                          ? safeExternalUrl(citation.webUrl)
+                          : null;
+                      if (citation && webUrl) {
+                        return (
+                          <InlineCitation>
+                            <InlineCitationCard>
+                              <InlineCitationCardTrigger sources={[webUrl]} />
+                              <InlineCitationCardBody>
+                                <InlineCitationSource
+                                  description={
+                                    citation.retrievedAt
+                                      ? `Retrieved ${new Date(
+                                          citation.retrievedAt,
+                                        ).toLocaleString()}`
+                                      : undefined
+                                  }
+                                  title={
+                                    citation.webTitle ??
+                                    citation.webDomain ??
+                                    label
+                                  }
+                                  url={webUrl}
+                                />
+                                {citation.excerpt ? (
+                                  <InlineCitationQuote>
+                                    {citation.excerpt}
+                                  </InlineCitationQuote>
+                                ) : null}
+                              </InlineCitationCardBody>
+                            </InlineCitationCard>
+                          </InlineCitation>
+                        );
+                      }
                       return (
                         <button
                           type="button"
@@ -1724,114 +1846,115 @@ function AgentTrace({
   iterations?: number;
 }) {
   const running = status === "streaming";
-  const failed = status === "failed";
+  const summary = invocations.length
+    ? `${invocations.length} step${invocations.length === 1 ? "" : "s"}`
+    : running
+      ? "Planning"
+      : `${iterations ?? 0} iteration${iterations === 1 ? "" : "s"}`;
+
   return (
-    <div className="mb-5 overflow-hidden rounded-lg border border-border bg-secondary/20">
-      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border px-3.5 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          {running ? (
-            <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
-          ) : failed ? (
-            <X className="size-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <CheckIcon className="size-3.5 shrink-0 text-foreground" />
-          )}
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-label text-foreground">
-            Agent trace
-          </span>
-        </div>
-        <span className="shrink-0 text-[10px] text-muted-foreground">
-          {invocations.length
-            ? `${invocations.length} step${invocations.length === 1 ? "" : "s"}`
-            : running
-              ? "Planning"
-              : `${iterations ?? 0} iteration${iterations === 1 ? "" : "s"}`}
-        </span>
-      </div>
-      {invocations.length ? (
-        <div className="divide-y divide-border/70">
-          {invocations.map((invocation, index) => (
+    <ChainOfThought className="mb-5" defaultOpen={running}>
+      <ChainOfThoughtHeader>
+        <span>Agent trace</span>
+        <span className="text-muted-foreground/60">{summary}</span>
+      </ChainOfThoughtHeader>
+      <ChainOfThoughtContent>
+        {invocations.length ? (
+          invocations.map((invocation, index) => (
             <TraceStep
               key={invocation.id || invocation.providerToolCallId}
               invocation={invocation}
-              autoOpen={running && index === invocations.length - 1}
+              // Only the tail step is live, and only while the turn runs.
+              status={
+                running && index === invocations.length - 1
+                  ? "active"
+                  : invocation.error
+                    ? "pending"
+                    : "complete"
+              }
             />
-          ))}
-        </div>
-      ) : (
-        <div className="px-3.5 py-3 text-[11px] text-muted-foreground">
-          {running
-            ? "Choosing the smallest set of read-only tools needed for this request."
-            : "No tools were called for this turn."}
-        </div>
-      )}
-    </div>
+          ))
+        ) : (
+          <ChainOfThoughtStep
+            label={running ? "Choosing tools" : "No tools called"}
+            description={
+              running
+                ? "Picking the smallest set of read-only tools this request needs."
+                : "This turn was answered without calling a tool."
+            }
+            status={running ? "active" : "complete"}
+          />
+        )}
+      </ChainOfThoughtContent>
+    </ChainOfThought>
   );
 }
 
 function TraceStep({
   invocation,
-  autoOpen,
+  status,
 }: {
   invocation: ToolInvocationRecord;
-  autoOpen: boolean;
+  status: ChainOfThoughtStepStatus;
 }) {
   // `open` used to be bound straight to a prop, so every streamed delta
   // re-rendered the trace and slammed shut whatever step the user had expanded.
   // Once they touch it, their choice wins until the message is done.
-  const [override, setOverride] = useState<boolean | null>(null);
-  const open = override ?? autoOpen;
+  const [open, setOpen] = useState(false);
+  const toolState = invocation.error
+    ? "error"
+    : invocation.status === "started"
+      ? "running"
+      : "done";
 
   return (
-    <details
-      open={open}
-      onToggle={(event) => setOverride(event.currentTarget.open)}
-      className="group"
-    >
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-secondary/45 [&::-webkit-details-marker]:hidden">
-        <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[10px] text-muted-foreground">
-          {String(invocation.sequence).padStart(2, "0")}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[11px] font-medium text-foreground">
-            {TOOL_LABELS[invocation.toolName] || invocation.toolName}
-          </span>
-          <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-            {toolSummary(invocation)}
-          </span>
-        </span>
-        <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-label text-muted-foreground">
+    <ChainOfThoughtStep
+      label={
+        <ToolCallChip
+          detail={toolSummary(invocation)}
+          name={TOOL_LABELS[invocation.toolName] || invocation.toolName}
+          state={toolState}
+        />
+      }
+      description={
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-label text-muted-foreground transition-colors hover:text-foreground"
+        >
           {invocation.durationMs !== null
             ? `${invocation.durationMs}ms`
             : invocation.status}
-          <ChevronDownIcon className="size-3 transition-transform group-open:rotate-180" />
-        </span>
-      </summary>
-      <div className="grid gap-3 border-t border-border bg-secondary/40 px-3.5 py-3 md:grid-cols-2">
-        <TraceData label="Arguments" value={invocation.arguments} />
-        <TraceData
-          label={invocation.error ? "Failure" : "Result"}
-          value={invocation.error ?? invocation.resultSummary}
-        />
-        {invocation.sourceLabels.length ? (
-          <div className="md:col-span-2">
-            <div className="font-mono text-[10px] uppercase tracking-brand text-muted-foreground">
-              Evidence
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {invocation.sourceLabels.map((label) => (
-                <span
-                  key={label}
-                  className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </details>
+          <ChevronDownIcon
+            className={cn(
+              "size-3 transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+      }
+      status={status}
+    >
+      {open ? (
+        <div className="mt-2 grid gap-3 rounded-lg border border-border bg-secondary/40 p-3 md:grid-cols-2">
+          <TraceData label="Arguments" value={invocation.arguments} />
+          <TraceData
+            label={invocation.error ? "Failure" : "Result"}
+            value={invocation.error ?? invocation.resultSummary}
+          />
+        </div>
+      ) : null}
+      {invocation.sourceLabels.length ? (
+        <ChainOfThoughtSearchResults>
+          {invocation.sourceLabels.map((label) => (
+            <ChainOfThoughtSearchResult key={label}>
+              {label}
+            </ChainOfThoughtSearchResult>
+          ))}
+        </ChainOfThoughtSearchResults>
+      ) : null}
+    </ChainOfThoughtStep>
   );
 }
 
@@ -2011,61 +2134,6 @@ function ContextRemaining({
   );
 }
 
-const EFFORT_LABEL: Record<ReasoningEffort, string> = {
-  low: "Low",
-  medium: "Med",
-  high: "High",
-};
-
-/**
- * How hard the model should think. Only rendered for models that advertise
- * effort levels — the rest reason at a fixed depth and would reject the value.
- */
-function EffortSelector({
-  levels,
-  value,
-  compact,
-  disabled,
-  onChange,
-}: {
-  levels: ReasoningEffort[];
-  value: ReasoningEffort;
-  compact: boolean;
-  disabled?: boolean;
-  onChange: (next: ReasoningEffort) => void;
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Reasoning effort"
-      className="inline-flex h-8 items-center gap-0.5 rounded-lg border border-border p-0.5"
-    >
-      {levels.map((level) => {
-        const active = level === value;
-        return (
-          <button
-            key={level}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            disabled={disabled}
-            title={`Reasoning effort: ${EFFORT_LABEL[level]}`}
-            onClick={() => onChange(level)}
-            className={cn(
-              "h-full rounded-md px-1.5 text-[10px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-              compact ? "min-w-[22px]" : "min-w-[30px]",
-              active
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-            )}
-          >
-            {compact ? EFFORT_LABEL[level].charAt(0) : EFFORT_LABEL[level]}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function ToolButton({
   children,
