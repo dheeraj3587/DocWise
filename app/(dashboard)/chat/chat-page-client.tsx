@@ -20,11 +20,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChatPanel } from "@/app/(workspace)/components/ChatPanel";
 import { BrandMark } from "@/components/docwise/brand-mark";
+import { ConfirmDialog } from "@/components/docwise/confirm-dialog";
 import { IconButton } from "@/components/docwise/icon-button";
 import { Loader } from "@/components/motion/loader";
 import { type FileRecord } from "@/lib/api-client";
+import { showRetryToast } from "@/lib/app-toasts";
 import { chatApi, type ConversationRecord } from "@/lib/chat-api";
+import { isFileReady } from "@/lib/file-status";
 import { useApiQuery } from "@/lib/hooks";
+import { useDismiss } from "@/lib/use-dismiss";
 import { cn } from "@/lib/utils";
 
 type ChatContextMode = "general" | "document";
@@ -45,7 +49,7 @@ export function ChatPageClient() {
     [email],
   );
   const readyDocuments = useMemo(
-    () => (files ?? []).filter((document) => document.status === "ready"),
+    () => (files ?? []).filter((document) => isFileReady(document.status)),
     [files],
   );
   const selectedDocuments = readyDocuments.filter((document) =>
@@ -64,7 +68,6 @@ export function ChatPageClient() {
 
   useEffect(() => {
     let cancelled = false;
-
     getToken()
       .then((token) => chatApi.listConversations(token))
       .then((records) => {
@@ -73,7 +76,6 @@ export function ChatPageClient() {
       .catch(() => {
         // The main chat remains usable even if the conversation rail cannot load.
       });
-
     return () => {
       cancelled = true;
     };
@@ -264,6 +266,7 @@ function ConversationSidebar({
   const [editingId, setEditingId] = useState<string>();
   const [draftTitle, setDraftTitle] = useState("");
   const [actionMenuId, setActionMenuId] = useState<string>();
+  const [pendingDelete, setPendingDelete] = useState<ConversationRecord>();
   const groupedConversations = useMemo(
     () => groupConversations(conversations),
     [conversations],
@@ -273,29 +276,54 @@ function ConversationSidebar({
     const title = draftTitle.trim();
     setEditingId(undefined);
     if (!title || title === conversation.title) return;
-    const token = await getToken();
-    await chatApi.updateConversation(conversation.id, { title }, token);
-    await onRefresh();
+    try {
+      const token = await getToken();
+      await chatApi.updateConversation(conversation.id, { title }, token);
+      await onRefresh();
+    } catch {
+      // Without this the rail silently reverts and the rename looks accepted.
+      showRetryToast({
+        title: "Rename failed",
+        description: `Could not rename "${conversation.title}".`,
+        onRetry: () => void rename(conversation),
+      });
+    }
   };
 
   const archive = async (conversation: ConversationRecord) => {
     setActionMenuId(undefined);
-    const token = await getToken();
-    await chatApi.updateConversation(
-      conversation.id,
-      { status: "archived" },
-      token,
-    );
-    await onRefresh();
-    if (selectedId === conversation.id) onNew();
+    try {
+      const token = await getToken();
+      await chatApi.updateConversation(
+        conversation.id,
+        { status: "archived" },
+        token,
+      );
+      await onRefresh();
+      if (selectedId === conversation.id) onNew();
+    } catch {
+      showRetryToast({
+        title: "Archive failed",
+        description: `Could not archive "${conversation.title}".`,
+        onRetry: () => void archive(conversation),
+      });
+    }
   };
 
   const remove = async (conversation: ConversationRecord) => {
     setActionMenuId(undefined);
-    const token = await getToken();
-    await chatApi.deleteConversation(conversation.id, token);
-    await onRefresh();
-    if (selectedId === conversation.id) onNew();
+    try {
+      const token = await getToken();
+      await chatApi.deleteConversation(conversation.id, token);
+      await onRefresh();
+      if (selectedId === conversation.id) onNew();
+    } catch {
+      showRetryToast({
+        title: "Delete failed",
+        description: `Could not delete "${conversation.title}".`,
+        onRetry: () => void remove(conversation),
+      });
+    }
   };
 
   return (
@@ -414,47 +442,29 @@ function ConversationSidebar({
                               </button>
                             )}
 
-                            <button
-                              type="button"
-                              aria-label={`Actions for ${conversation.title}`}
-                              aria-expanded={menuOpen}
-                              onClick={() =>
+                            <ConversationActionMenu
+                              open={menuOpen}
+                              title={conversation.title}
+                              onToggle={() =>
                                 setActionMenuId((current) =>
                                   current === conversation.id
                                     ? undefined
                                     : conversation.id,
                                 )
                               }
-                              className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-60 transition-colors hover:bg-background hover:text-foreground hover:opacity-100 focus-visible:opacity-100"
-                            >
-                              <MoreHorizontalIcon className="size-3.5" />
-                            </button>
+                              onDismiss={() => setActionMenuId(undefined)}
+                              onRename={() => {
+                                setEditingId(conversation.id);
+                                setDraftTitle(conversation.title);
+                                setActionMenuId(undefined);
+                              }}
+                              onArchive={() => archive(conversation)}
+                              onDelete={() => {
+                                setActionMenuId(undefined);
+                                setPendingDelete(conversation);
+                              }}
+                            />
                           </div>
-
-                          {menuOpen ? (
-                            <div className="absolute right-2 top-10 z-[90] w-36 rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-float)]">
-                              <ConversationAction
-                                icon={<PencilIcon className="size-3" />}
-                                label="Rename"
-                                onClick={() => {
-                                  setEditingId(conversation.id);
-                                  setDraftTitle(conversation.title);
-                                  setActionMenuId(undefined);
-                                }}
-                              />
-                              <ConversationAction
-                                icon={<ArchiveIcon className="size-3" />}
-                                label="Archive"
-                                onClick={() => archive(conversation)}
-                              />
-                              <ConversationAction
-                                destructive
-                                icon={<Trash2Icon className="size-3" />}
-                                label="Delete"
-                                onClick={() => remove(conversation)}
-                              />
-                            </div>
-                          ) : null}
                         </div>
                       );
                     })}
@@ -477,7 +487,89 @@ function ConversationSidebar({
           )}
         </div>
       </aside>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(next: boolean) => {
+          if (!next) setPendingDelete(undefined);
+        }}
+        title="Delete conversation?"
+        description={
+          <>
+            <span className="font-medium text-foreground">
+              {pendingDelete?.title}
+            </span>{" "}
+            and its messages will be permanently removed.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          const target = pendingDelete;
+          setPendingDelete(undefined);
+          if (target) await remove(target);
+        }}
+      />
     </>
+  );
+}
+
+function ConversationActionMenu({
+  open,
+  title,
+  onToggle,
+  onDismiss,
+  onRename,
+  onArchive,
+  onDelete,
+}: {
+  open: boolean;
+  title: string;
+  onToggle: () => void;
+  onDismiss: () => void;
+  onRename: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+}) {
+  const ref = useDismiss<HTMLDivElement>(open, onDismiss);
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        aria-label={`Actions for ${title}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="grid size-7 place-items-center rounded-md text-muted-foreground opacity-60 transition-colors hover:bg-background hover:text-foreground hover:opacity-100 focus-visible:opacity-100"
+      >
+        <MoreHorizontalIcon className="size-3.5" />
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-[90] mt-1 w-36 rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-float)]"
+        >
+          <ConversationAction
+            icon={<PencilIcon className="size-3" />}
+            label="Rename"
+            onClick={onRename}
+          />
+          <ConversationAction
+            icon={<ArchiveIcon className="size-3" />}
+            label="Archive"
+            onClick={onArchive}
+          />
+          <ConversationAction
+            destructive
+            icon={<Trash2Icon className="size-3" />}
+            label="Delete"
+            onClick={onDelete}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -495,6 +587,7 @@ function ConversationAction({
   return (
     <button
       type="button"
+      role="menuitem"
       onClick={onClick}
       className={cn(
         "flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[10px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
@@ -517,6 +610,7 @@ function DocumentPicker({
   onChange: (ids: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false));
   const label =
     selectedIds.length === 1
       ? documents.find((document) => document.fileId === selectedIds[0])
@@ -524,10 +618,11 @@ function DocumentPicker({
       : `${selectedIds.length} documents`;
 
   return (
-    <div className="relative min-w-0">
+    <div className="relative min-w-0" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
+        aria-haspopup="dialog"
         aria-expanded={open}
         className="flex h-8 max-w-[min(34vw,250px)] items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-[10px] text-foreground transition-colors hover:bg-secondary"
       >

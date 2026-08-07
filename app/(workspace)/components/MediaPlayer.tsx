@@ -29,35 +29,44 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
     const [isMuted, setIsMuted] = useState(false)
     const [activeTimestamp, setActiveTimestamp] = useState<number | null>(null)
 
-    const seekTo = useCallback((seconds: number) => {
-        if (mediaRef.current) {
-            mediaRef.current.currentTime = seconds
-            mediaRef.current.play()
-            setIsPlaying(true)
-        }
+    /** Move the playhead without starting playback. Safe against NaN duration. */
+    const scrubTo = useCallback((seconds: number) => {
+        const media = mediaRef.current
+        if (!media || !Number.isFinite(seconds)) return
+        const limit = Number.isFinite(media.duration) ? media.duration : Infinity
+        media.currentTime = Math.max(0, Math.min(seconds, limit))
+        setCurrentTime(media.currentTime)
     }, [])
 
-    useEffect(() => {
-        if (seekToTime == null) return
+    const seekTo = useCallback((seconds: number) => {
         const media = mediaRef.current
-        if (!media) return
-
-        media.currentTime = seekToTime
+        if (!media || !Number.isFinite(seconds)) return
+        scrubTo(seconds)
+        // play() rejects when autoplay policy blocks it — an unhandled rejection
+        // here left the button showing "pause" over silent media.
         void media.play().then(
             () => setIsPlaying(true),
             () => setIsPlaying(false),
         )
-    }, [seekToTime])
+    }, [scrubTo])
+
+    useEffect(() => {
+        if (seekToTime == null) return
+        seekTo(seekToTime)
+    }, [seekToTime, seekTo])
 
     const togglePlay = useCallback(() => {
-        if (mediaRef.current) {
-            if (isPlaying) {
-                mediaRef.current.pause()
-            } else {
-                mediaRef.current.play()
-            }
-            setIsPlaying(!isPlaying)
+        const media = mediaRef.current
+        if (!media) return
+        if (isPlaying) {
+            media.pause()
+            setIsPlaying(false)
+            return
         }
+        void media.play().then(
+            () => setIsPlaying(true),
+            () => setIsPlaying(false),
+        )
     }, [isPlaying])
 
     const toggleMute = useCallback(() => {
@@ -68,10 +77,10 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
     }, [isMuted])
 
     const skip = useCallback((seconds: number) => {
-        if (mediaRef.current) {
-            mediaRef.current.currentTime = Math.max(0, mediaRef.current.currentTime + seconds)
-        }
-    }, [])
+        const media = mediaRef.current
+        if (!media) return
+        scrubTo(media.currentTime + seconds)
+    }, [scrubTo])
 
     useEffect(() => {
         const media = mediaRef.current
@@ -85,21 +94,34 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
             setActiveTimestamp(active >= 0 ? active : null)
         }
 
-        const onLoadedMetadata = () => setDuration(media.duration)
+        // Live streams report Infinity and unloaded media reports NaN.
+        const onLoadedMetadata = () =>
+            setDuration(Number.isFinite(media.duration) ? media.duration : 0)
         const onEnded = () => setIsPlaying(false)
+        // Native controls (video) and autoplay blocks change playback without
+        // going through our buttons, so mirror the element rather than guess.
+        const onPlay = () => setIsPlaying(true)
+        const onPause = () => setIsPlaying(false)
 
         media.addEventListener('timeupdate', onTimeUpdate)
         media.addEventListener('loadedmetadata', onLoadedMetadata)
+        media.addEventListener('durationchange', onLoadedMetadata)
         media.addEventListener('ended', onEnded)
+        media.addEventListener('play', onPlay)
+        media.addEventListener('pause', onPause)
 
         return () => {
             media.removeEventListener('timeupdate', onTimeUpdate)
             media.removeEventListener('loadedmetadata', onLoadedMetadata)
+            media.removeEventListener('durationchange', onLoadedMetadata)
             media.removeEventListener('ended', onEnded)
+            media.removeEventListener('play', onPlay)
+            media.removeEventListener('pause', onPause)
         }
     }, [timestamps])
 
     const formatTime = (seconds: number) => {
+        if (!Number.isFinite(seconds) || seconds < 0) return '--:--'
         const mins = Math.floor(seconds / 60)
         const secs = Math.floor(seconds % 60)
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
@@ -134,21 +156,28 @@ export const MediaPlayer = ({ fileUrl, fileType, timestamps = EMPTY_TIMESTAMPS, 
 
             {/* Controls */}
             <div className="shrink-0 p-4 border-b border-border">
-                <button
-                    type="button"
-                    aria-label="Seek media"
-                    className="docwise-meter mb-3 block w-full cursor-pointer"
-                    onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const pos = (e.clientX - rect.left) / rect.width
-                        seekTo(pos * duration)
-                    }}
-                >
-                    <div
-                        className="docwise-meter-fill transition-none"
-                        style={{ width: `${progressPercent}%` }}
+                {/* A real range input so the scrubber is draggable and reachable
+                    by keyboard; the meter below is purely the visual. */}
+                <div className="relative mb-3 flex h-4 items-center">
+                    <div className="docwise-meter pointer-events-none absolute inset-x-0">
+                        <div
+                            className="docwise-meter-fill transition-none"
+                            style={{ width: `${progressPercent}%` }}
+                        />
+                    </div>
+                    <input
+                        type="range"
+                        min={0}
+                        max={duration || 0}
+                        step={0.1}
+                        value={Math.min(currentTime, duration || 0)}
+                        disabled={!duration}
+                        aria-label="Seek media"
+                        aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+                        onChange={(e) => scrubTo(Number(e.target.value))}
+                        className="relative h-4 w-full cursor-pointer appearance-none bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-foreground [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
                     />
-                </button>
+                </div>
 
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">

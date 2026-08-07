@@ -1,32 +1,74 @@
 "use client";
 
+import { useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import {
   ArrowLeft,
+  Copy,
+  ExternalLink,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  RotateCw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { IconButton } from "@/components/docwise/icon-button";
+import { normalizeFileStatus, fileStatusLabel } from "@/lib/file-status";
+import { useDismiss } from "@/lib/use-dismiss";
+import { showSuccessToast, showRetryToast } from "@/lib/app-toasts";
+import { cn } from "@/lib/utils";
+
+const STATUS_DOT: Record<string, string> = {
+  ready: "bg-success",
+  processing: "bg-warning animate-pulse",
+  failed: "bg-destructive",
+};
 
 export const WorkspaceHeader = ({
   fileName,
+  fileStatus,
+  fileUrl,
   outlineOpen,
   onToggleOutline,
   sidePanelOpen,
   onToggleSidePanel,
+  onRefresh,
 }: {
   fileName: string;
+  fileStatus?: string | null;
+  fileUrl?: string | null;
   outlineOpen: boolean;
   onToggleOutline: () => void;
   sidePanelOpen: boolean;
   onToggleSidePanel: () => void;
+  onRefresh?: () => void;
 }) => {
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useDismiss<HTMLDivElement>(menuOpen, () =>
+    setMenuOpen(false),
+  );
+  const status = normalizeFileStatus(fileStatus);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showSuccessToast({
+        title: "Link copied",
+        description: "Workspace URL is on your clipboard.",
+      });
+    } catch {
+      showRetryToast({
+        title: "Copy failed",
+        description: "Your browser blocked clipboard access.",
+        retryLabel: "Dismiss",
+      });
+    }
+    setMenuOpen(false);
+  };
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-2 sm:px-3">
@@ -60,8 +102,11 @@ export const WorkspaceHeader = ({
             {fileName}
           </span>
           <span className="mt-0.5 flex items-center gap-1.5">
-            <span className="size-1 rounded-full bg-foreground" />
-            <span className="mono-label">Ready</span>
+            <span
+              className={cn("size-1 rounded-full", STATUS_DOT[status])}
+              aria-hidden
+            />
+            <span className="mono-label">{fileStatusLabel(fileStatus)}</span>
           </span>
         </div>
       </div>
@@ -80,9 +125,62 @@ export const WorkspaceHeader = ({
           )}
         </IconButton>
 
-        <IconButton aria-label="More options" title="More options">
-          <MoreHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
-        </IconButton>
+        <div className="relative" ref={menuRef}>
+          <IconButton
+            aria-label="More options"
+            title="More options"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            active={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <MoreHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          </IconButton>
+
+          {menuOpen ? (
+            <div
+              role="menu"
+              className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-lg"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={copyLink}
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <Copy className="size-3.5" strokeWidth={1.75} />
+                Copy workspace link
+              </button>
+              {fileUrl ? (
+                <a
+                  role="menuitem"
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <ExternalLink className="size-3.5" strokeWidth={1.75} />
+                  Open original file
+                </a>
+              ) : null}
+              {onRefresh ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onRefresh();
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <RotateCw className="size-3.5" strokeWidth={1.75} />
+                  Refresh document
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
 
         <div className="hidden md:block">
           <ThemeToggle />

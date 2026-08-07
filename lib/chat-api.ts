@@ -1,4 +1,5 @@
 import { getApiBase } from "@/lib/api-base";
+import type { ReasoningEffort } from "@/components/docwise/model-selector";
 
 const API_BASE = getApiBase();
 
@@ -73,6 +74,7 @@ export interface ConversationMessageRecord {
   originalProvider: string | null;
   modelId: string | null;
   reasoning: boolean;
+  reasoningEffort: ReasoningEffort | null;
   agentMode: boolean;
   agentIterations: number;
   toolCallCount: number;
@@ -181,14 +183,17 @@ export const chatApi = {
       content: string;
       modelId?: string;
       reasoning: boolean;
+      reasoningEffort?: ReasoningEffort;
       agentMode: boolean;
     },
     token?: string | null,
+    signal?: AbortSignal,
   ) {
     return fetch(`${API_BASE}/api/chat/conversations/${id}/messages`, {
       method: "POST",
       headers: headers(token),
       body: JSON.stringify(input),
+      signal,
     });
   },
   retryMessage(
@@ -198,9 +203,11 @@ export const chatApi = {
       requestId: string;
       modelId?: string;
       reasoning?: boolean;
+      reasoningEffort?: ReasoningEffort;
       agentMode?: boolean;
     },
     token?: string | null,
+    signal?: AbortSignal,
   ) {
     return fetch(
       `${API_BASE}/api/chat/conversations/${conversationId}/messages/${messageId}/retry`,
@@ -208,6 +215,7 @@ export const chatApi = {
         method: "POST",
         headers: headers(token),
         body: JSON.stringify(input),
+        signal,
       },
     );
   },
@@ -216,6 +224,7 @@ export const chatApi = {
     messageId: string,
     afterEventId: number,
     token?: string | null,
+    signal?: AbortSignal,
   ) {
     return fetch(
       `${API_BASE}/api/chat/conversations/${conversationId}/messages/${messageId}/events?after=${afterEventId}`,
@@ -224,6 +233,7 @@ export const chatApi = {
           ...headers(token),
           "Last-Event-ID": String(afterEventId),
         },
+        signal,
       },
     );
   },

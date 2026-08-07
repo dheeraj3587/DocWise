@@ -986,7 +986,7 @@ class TestAgentConversationAPI:
                     "type": "delta",
                     "text": "The bounded tools could not complete.",
                     "provider": "openrouter",
-                    "modelId": "tencent/hy3:free",
+                    "modelId": "tencent/hy3",
                     "fallbackUsed": True,
                     "originalProvider": "cerebras",
                 }

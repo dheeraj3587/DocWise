@@ -30,6 +30,8 @@ import {
 } from "@/lib/app-toasts";
 
 interface UploadFile {
+  /** Stable key. Filenames collide, so they can't identify a row. */
+  id: string;
   file?: File;
   name: string;
   size: string;
@@ -40,6 +42,36 @@ interface UploadFile {
 }
 
 const UPLOAD_TOAST_ID = "docwise-upload-progress";
+
+/** Mirrors backend/routers/files.py — reject here so the user finds out sooner. */
+const ACCEPTED_TYPES = new Set([
+  "application/pdf",
+  "audio/mpeg",
+  "audio/wav",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/webm",
+  "audio/ogg",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/ogg",
+]);
+const MAX_UPLOAD_MB = 50;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
+function rejectionReason(file: File): string | null {
+  const type = file.type || "";
+  const acceptable =
+    ACCEPTED_TYPES.has(type) ||
+    // Some browsers report an empty type for .pdf dragged from disk.
+    (!type && file.name.toLowerCase().endsWith(".pdf"));
+  if (!acceptable) return "unsupported format";
+  if (file.size > MAX_UPLOAD_BYTES) return `over ${MAX_UPLOAD_MB} MB`;
+  if (file.size === 0) return "empty file";
+  return null;
+}
 
 export function FileUpload({ children }: { children: React.ReactNode }) {
   const { getToken } = useAuth();
@@ -75,8 +107,34 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
 
   const onFilesSelect = (fileList: FileList | null) => {
     if (!fileList?.length) return;
-    setError(null);
-    setFiles(Array.from(fileList).map(toUploadFile));
+    const incoming = Array.from(fileList);
+    const rejected: string[] = [];
+    const accepted: File[] = [];
+
+    for (const file of incoming) {
+      const reason = rejectionReason(file);
+      if (reason) rejected.push(`${file.name} (${reason})`);
+      else accepted.push(file);
+    }
+
+    setError(rejected.length ? `Skipped ${rejected.join(", ")}.` : null);
+
+    if (!accepted.length) return;
+
+    setFiles((current) => {
+      // Adding a second batch should extend the queue, not replace it.
+      const seen = new Set(
+        current.map((item) => `${item.name}:${item.file?.size}`),
+      );
+      const next = [...current];
+      for (const file of accepted) {
+        const dedupeKey = `${file.name}:${file.size}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        next.push(toUploadFile(file, `${dedupeKey}:${next.length}`));
+      }
+      return next;
+    });
   };
 
   const onUpload = async () => {
@@ -101,7 +159,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
       const token = await getToken();
       for (const item of files) {
         if (!item.file) continue;
-        updateFileProgress(item.name, {
+        updateFileProgress(item.id, {
           state: "uploading",
           progress: 0,
           phase: "Uploading",
@@ -111,14 +169,14 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
           "",
           token,
           (uploadProgress) => {
-            updateFileProgress(item.name, {
+            updateFileProgress(item.id, {
               state: "uploading",
               progress: Math.round(uploadProgress * 0.45),
               phase: "Uploading",
             });
           },
         );
-        await pollProcessingProgress(uploaded.fileId, item.name, token);
+        await pollProcessingProgress(uploaded.fileId, item.id, token);
       }
       setLoading(false);
       setOpen(false);
@@ -160,12 +218,12 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
   };
 
   const updateFileProgress = (
-    fileName: string,
+    fileId: string,
     update: Partial<Pick<UploadFile, "progress" | "state" | "phase">>,
   ) => {
     setFiles((current) => {
       const next = current.map((file) =>
-        file.name === fileName
+        file.id === fileId
           ? {
               ...file,
               ...update,
@@ -183,7 +241,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
 
   const pollProcessingProgress = async (
     fileId: string,
-    fileName: string,
+    rowId: string,
     token?: string | null,
   ) => {
     for (let attempt = 0; attempt < 240; attempt += 1) {
@@ -197,14 +255,14 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
           ? 100
           : Math.min(99, 45 + Math.round(backendProgress * 0.55));
 
-      updateFileProgress(fileName, {
+      updateFileProgress(rowId, {
         state: progress.status === "failed" ? "failed" : "uploading",
         progress: combinedProgress,
         phase: progress.phase || "Processing",
       });
 
       if (progress.status === "ready") {
-        updateFileProgress(fileName, {
+        updateFileProgress(rowId, {
           state: "done",
           progress: 100,
           phase: "Ready",
@@ -236,7 +294,15 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // An in-flight upload lives in this component's state; closing would
+        // orphan it while the progress toast keeps ticking.
+        if (loading && !next) return;
+        setOpen(next);
+      }}
+    >
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent
         showCloseButton={false}
@@ -250,7 +316,8 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground"
+            disabled={loading}
+            className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
             aria-label="Close upload dialog"
           >
             <XIcon className="size-4" />
@@ -271,7 +338,12 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
               multiple
               className="hidden"
               accept=".pdf,audio/*,video/*"
-              onChange={(e) => onFilesSelect(e.target.files)}
+              disabled={loading}
+              onChange={(e) => {
+                onFilesSelect(e.target.files);
+                // Reset so re-picking a file you just removed still fires change.
+                e.target.value = "";
+              }}
             />
             <div className="mx-auto flex size-10 items-center justify-center rounded-lg border border-border bg-secondary">
               <CloudUploadIcon className="size-5 opacity-70" />
@@ -298,7 +370,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
               <ul className="mt-4 flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
                 {files.map((f) => (
                   <li
-                    key={f.name}
+                    key={f.id}
                     className="flex items-center gap-3 rounded-lg border border-border bg-secondary/35 px-3 py-2.5"
                   >
                     <div className="grid size-8 shrink-0 place-items-center rounded-lg border border-border bg-secondary">
@@ -324,13 +396,14 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
                     </div>
                     <button
                       type="button"
-                      disabled={!files.length}
+                      disabled={loading}
+                      aria-label={`Remove ${f.name}`}
                       onClick={() =>
                         setFiles((current) =>
-                          current.filter((item) => item.name !== f.name),
+                          current.filter((item) => item.id !== f.id),
                         )
                       }
-                      className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground disabled:pointer-events-none"
+                      className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors duration-[180ms] hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                     >
                       {f.state === "done" ? (
                         <CheckIcon className="size-3.5 text-success" />
@@ -362,7 +435,7 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
             variant="ghost"
             type="button"
             onClick={reset}
-            disabled={!files.length}
+            disabled={!files.length || loading}
           >
             Clear
           </Button>
@@ -380,8 +453,9 @@ export function FileUpload({ children }: { children: React.ReactNode }) {
   );
 }
 
-function toUploadFile(file: File): UploadFile {
+function toUploadFile(file: File, id: string): UploadFile {
   return {
+    id,
     file,
     name: file.name,
     size: formatBytes(file.size),
@@ -394,7 +468,7 @@ function toUploadFile(file: File): UploadFile {
 
 function toProgressToastJob(file: UploadFile): ProgressToastJob {
   return {
-    id: file.name,
+    id: file.id,
     name: file.name,
     size: file.phase ? `${file.size} · ${file.phase}` : file.size,
     progress: file.progress,

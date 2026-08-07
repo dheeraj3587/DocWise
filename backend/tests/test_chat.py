@@ -21,7 +21,12 @@ class TestChat:
             "gpt-oss-120b",
             "gemma-4-31b",
             "zai-glm-4.7",
-            "tencent/hy3:free",
+            "tencent/hy3",
+            "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "nvidia/nemotron-3-super-120b-a12b:free",
+            "nvidia/nemotron-3-nano-30b-a3b:free",
+            "poolside/laguna-s-2.1:free",
+            "cohere/north-mini-code:free",
         }
         glm = next(model for model in models if model["id"] == "zai-glm-4.7")
         assert glm["name"] == "GLM 4.7"
@@ -29,14 +34,29 @@ class TestChat:
         assert glm["creditCost"] > 1
         assert glm["contextWindow"] > 0
         assert glm["outputReserveTokens"] > 0
-        tencent = next(model for model in models if model["id"] == "tencent/hy3:free")
+        tencent = next(model for model in models if model["id"] == "tencent/hy3")
         assert tencent["name"] == "Tencent HY3"
         assert tencent["provider"] == "openrouter"
         assert tencent["providerLabel"] == "OpenRouter"
-        assert tencent["badge"] == "Free"
         assert tencent["creditCost"] == 1
         assert tencent["contextWindow"] == 262144
         assert tencent["outputReserveTokens"] > 0
+
+        ultra = next(
+            model
+            for model in models
+            if model["id"] == "nvidia/nemotron-3-ultra-550b-a55b:free"
+        )
+        assert ultra["contextWindow"] == 1_000_000
+        assert ultra["reasoningEfforts"] == ["low", "medium", "high"]
+
+        # Thinks, but has no effort dial — the picker must not offer one.
+        nano = next(
+            model
+            for model in models
+            if model["id"] == "nvidia/nemotron-3-nano-30b-a3b:free"
+        )
+        assert nano["reasoningEfforts"] == []
 
     async def test_chat_models_endpoint_is_public(self):
         """Test model picker metadata does not require a logged-in user."""
@@ -289,17 +309,71 @@ class TestChat:
             "/api/chat/ask",
             json={
                 "question": "Use Tencent",
-                "model_id": "tencent/hy3:free",
+                "model_id": "tencent/hy3",
                 "deep_mode": True,
             },
         )
 
         assert response.status_code == 200
         assert "openrouter answer" in response.text
-        assert captured["model"] == "tencent/hy3:free"
+        assert captured["model"] == "tencent/hy3"
         assert captured["provider"] == "openrouter"
         assert captured["deep_mode"] is True
         assert captured["reasoning_effort"] == "medium"
+
+    async def test_requested_reasoning_effort_reaches_the_provider(
+        self,
+        client,
+        monkeypatch,
+    ):
+        """Test an explicit effort level overrides the model default."""
+        captured = {}
+
+        async def fake_no_context(*args, **kwargs):
+            captured.update(kwargs)
+            yield "answer"
+
+        monkeypatch.setattr("routers.chat.ai_service.chat_no_context", fake_no_context)
+
+        response = await client.post(
+            "/api/chat/ask",
+            json={
+                "question": "Think hard",
+                "model_id": "tencent/hy3",
+                "deep_mode": True,
+                "reasoning_effort": "high",
+            },
+        )
+
+        assert response.status_code == 200
+        assert captured["reasoning_effort"] == "high"
+
+    async def test_reasoning_effort_is_dropped_for_models_without_a_dial(
+        self,
+        client,
+        monkeypatch,
+    ):
+        """Test we never send an effort a model would reject."""
+        captured = {}
+
+        async def fake_no_context(*args, **kwargs):
+            captured.update(kwargs)
+            yield "answer"
+
+        monkeypatch.setattr("routers.chat.ai_service.chat_no_context", fake_no_context)
+
+        response = await client.post(
+            "/api/chat/ask",
+            json={
+                "question": "Think hard",
+                "model_id": "nvidia/nemotron-3-nano-30b-a3b:free",
+                "deep_mode": True,
+                "reasoning_effort": "high",
+            },
+        )
+
+        assert response.status_code == 200
+        assert captured["reasoning_effort"] is None
 
     async def test_openrouter_model_requires_configured_key(
         self,
@@ -313,7 +387,7 @@ class TestChat:
             "/api/chat/ask",
             json={
                 "question": "Use Tencent",
-                "model_id": "tencent/hy3:free",
+                "model_id": "tencent/hy3",
             },
         )
 

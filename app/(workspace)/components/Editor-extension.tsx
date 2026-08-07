@@ -38,10 +38,11 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [deepMode, setDeepMode] = useState(false);
+  const [effort, setEffort] = useState<"low" | "medium" | "high">("medium");
 
   const { fileId } = useParams();
   const API_BASE = getApiBase();
-  const prevActiveRef = useRef('');
+  const prevActiveRef = useRef("");
 
   useEffect(() => {
     if (!editor) return;
@@ -49,19 +50,19 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
     const updateIfChanged = () => {
       // Build a fingerprint of active toolbar states
       const active = [
-        editor.isActive('heading', { level: 1 }),
-        editor.isActive('heading', { level: 2 }),
-        editor.isActive('heading', { level: 3 }),
-        editor.isActive('bold'),
-        editor.isActive('italic'),
-        editor.isActive('underline'),
-        editor.isActive('highlight'),
-        editor.isActive({ textAlign: 'left' }),
-        editor.isActive({ textAlign: 'center' }),
-        editor.isActive({ textAlign: 'right' }),
-        editor.isActive('bulletList'),
-        editor.isActive('orderedList'),
-      ].join(',');
+        editor.isActive("heading", { level: 1 }),
+        editor.isActive("heading", { level: 2 }),
+        editor.isActive("heading", { level: 3 }),
+        editor.isActive("bold"),
+        editor.isActive("italic"),
+        editor.isActive("underline"),
+        editor.isActive("highlight"),
+        editor.isActive({ textAlign: "left" }),
+        editor.isActive({ textAlign: "center" }),
+        editor.isActive({ textAlign: "right" }),
+        editor.isActive("bulletList"),
+        editor.isActive("orderedList"),
+      ].join(",");
 
       if (active !== prevActiveRef.current) {
         prevActiveRef.current = active;
@@ -69,12 +70,12 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
       }
     };
 
-    editor.on('update', updateIfChanged);
-    editor.on('selectionUpdate', updateIfChanged);
+    editor.on("update", updateIfChanged);
+    editor.on("selectionUpdate", updateIfChanged);
 
     return () => {
-      editor.off('update', updateIfChanged);
-      editor.off('selectionUpdate', updateIfChanged);
+      editor.off("update", updateIfChanged);
+      editor.off("selectionUpdate", updateIfChanged);
     };
   }, [editor]);
 
@@ -111,7 +112,12 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ question: selectedText, file_id: fileId, deep_mode: deepMode }),
+        body: JSON.stringify({
+          question: selectedText,
+          file_id: fileId,
+          deep_mode: deepMode,
+          reasoning_effort: deepMode ? effort : null,
+        }),
       });
 
       if (!response.ok) {
@@ -178,7 +184,10 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
     );
 
   const runEditorCommand = (command: string, value?: unknown) => {
-    const chain = editor.chain().focus() as unknown as Record<string, (value?: unknown) => { run: () => boolean }>;
+    const chain = editor.chain().focus() as unknown as Record<
+      string,
+      (value?: unknown) => { run: () => boolean }
+    >;
     const commandRunner = chain[command];
     if (commandRunner) {
       commandRunner(value).run();
@@ -189,61 +198,117 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
     <div className="docwise-rail border-b px-4 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <div className="docwise-segment flex-wrap">
-          <button type="button" onClick={() => runEditorCommand("toggleHeading", { level: 1 })}
-            className={toolbarBtnClass(editor.isActive("heading", { level: 1 }))} title="Heading 1">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleHeading", { level: 1 })}
+            className={toolbarBtnClass(
+              editor.isActive("heading", { level: 1 }),
+            )}
+            title="Heading 1"
+          >
             <Heading1 className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("toggleHeading", { level: 2 })}
-            className={toolbarBtnClass(editor.isActive("heading", { level: 2 }))} title="Heading 2">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleHeading", { level: 2 })}
+            className={toolbarBtnClass(
+              editor.isActive("heading", { level: 2 }),
+            )}
+            title="Heading 2"
+          >
             <Heading2 className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("toggleHeading", { level: 3 })}
-            className={toolbarBtnClass(editor.isActive("heading", { level: 3 }))} title="Heading 3">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleHeading", { level: 3 })}
+            className={toolbarBtnClass(
+              editor.isActive("heading", { level: 3 }),
+            )}
+            title="Heading 3"
+          >
             <Heading3 className="size-4" />
           </button>
 
           <div className="mx-1 h-5 w-px bg-border" />
 
-          <button type="button" onClick={() => runEditorCommand("toggleBold")}
-            className={toolbarBtnClass(editor.isActive("bold"))} title="Bold">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleBold")}
+            className={toolbarBtnClass(editor.isActive("bold"))}
+            title="Bold"
+          >
             <Bold className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("toggleItalic")}
-            className={toolbarBtnClass(editor.isActive("italic"))} title="Italic">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleItalic")}
+            className={toolbarBtnClass(editor.isActive("italic"))}
+            title="Italic"
+          >
             <Italic className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("toggleUnderline")}
-            className={toolbarBtnClass(editor.isActive("underline"))} title="Underline">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleUnderline")}
+            className={toolbarBtnClass(editor.isActive("underline"))}
+            title="Underline"
+          >
             <Underline className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("toggleHighlight")}
-            className={toolbarBtnClass(editor.isActive("highlight"))} title="Highlight">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleHighlight")}
+            className={toolbarBtnClass(editor.isActive("highlight"))}
+            title="Highlight"
+          >
             <Highlighter className="size-4" />
           </button>
 
           <div className="mx-1 h-5 w-px bg-border" />
 
-          <button type="button" onClick={() => runEditorCommand("setTextAlign", "left")}
-            className={toolbarBtnClass(editor.isActive({ textAlign: "left" }))} title="Align Left">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("setTextAlign", "left")}
+            className={toolbarBtnClass(editor.isActive({ textAlign: "left" }))}
+            title="Align Left"
+          >
             <AlignLeft className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("setTextAlign", "center")}
-            className={toolbarBtnClass(editor.isActive({ textAlign: "center" }))} title="Align Center">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("setTextAlign", "center")}
+            className={toolbarBtnClass(
+              editor.isActive({ textAlign: "center" }),
+            )}
+            title="Align Center"
+          >
             <AlignCenter className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("setTextAlign", "right")}
-            className={toolbarBtnClass(editor.isActive({ textAlign: "right" }))} title="Align Right">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("setTextAlign", "right")}
+            className={toolbarBtnClass(editor.isActive({ textAlign: "right" }))}
+            title="Align Right"
+          >
             <AlignRight className="size-4" />
           </button>
 
           <div className="mx-1 h-5 w-px bg-border" />
 
-          <button type="button" onClick={() => runEditorCommand("toggleBulletList")}
-            className={toolbarBtnClass(editor.isActive("bulletList"))} title="Bullet List">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleBulletList")}
+            className={toolbarBtnClass(editor.isActive("bulletList"))}
+            title="Bullet List"
+          >
             <List className="size-4" />
           </button>
-          <button type="button" onClick={() => runEditorCommand("toggleOrderedList")}
-            className={toolbarBtnClass(editor.isActive("orderedList"))} title="Ordered List">
+          <button
+            type="button"
+            onClick={() => runEditorCommand("toggleOrderedList")}
+            className={toolbarBtnClass(editor.isActive("orderedList"))}
+            title="Ordered List"
+          >
             <ListOrdered className="size-4" />
           </button>
         </div>
@@ -264,6 +329,32 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
             <Brain className="size-3.5" />
             <span>{deepMode ? "Deep" : "Fast"}</span>
           </button>
+          {deepMode ? (
+            <div
+              role="radiogroup"
+              aria-label="Reasoning effort"
+              className="inline-flex h-8 items-center gap-0.5 rounded-lg border border-border p-0.5"
+            >
+              {(["low", "medium", "high"] as const).map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  role="radio"
+                  aria-checked={effort === level}
+                  onClick={() => setEffort(level)}
+                  title={`Reasoning effort: ${level}`}
+                  className={cn(
+                    "h-full min-w-[30px] rounded-md px-1.5 font-mono text-[10px] uppercase tracking-label outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    effort === level
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}
+                >
+                  {level === "medium" ? "Med" : level}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <Button
             type="button"
             onClick={() => onAiClick()}

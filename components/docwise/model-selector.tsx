@@ -28,7 +28,14 @@ export interface ModelOption {
   outputReserveTokens: number;
   toolCalling: boolean;
   agentToolsEnabled: boolean;
+  /**
+   * Effort levels this model honours, in display order. Empty means it can
+   * think but has no dial, so the Think control must stay a plain on/off.
+   */
+  reasoningEfforts?: ReasoningEffort[];
 }
+
+export type ReasoningEffort = "low" | "medium" | "high";
 
 type ModelGlyphSize = "sm" | "md" | "lg";
 
@@ -56,7 +63,10 @@ export function ModelGlyph({
         modelId === "gpt-oss-120b" && "bg-foreground text-background",
         modelId === "gemma-4-31b" && "bg-secondary",
         modelId === "zai-glm-4.7" && "bg-foreground/[0.06]",
-        modelId === "tencent/hy3:free" && "bg-secondary/70",
+        modelId === "tencent/hy3" && "bg-secondary/70",
+        modelId?.startsWith("nvidia/") && "bg-foreground/[0.06]",
+        modelId?.startsWith("poolside/") && "bg-secondary",
+        modelId?.startsWith("cohere/") && "bg-secondary/70",
         className,
       )}
     >
@@ -120,7 +130,7 @@ function ModelGlyphArt({ modelId }: { modelId?: string | null }) {
     );
   }
 
-  if (modelId === "tencent/hy3:free") {
+  if (modelId === "tencent/hy3") {
     return (
       <svg
         viewBox="0 0 24 24"
@@ -138,6 +148,40 @@ function ModelGlyphArt({ modelId }: { modelId?: string | null }) {
           strokeOpacity=".65"
         />
         <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+
+  if (modelId?.startsWith("nvidia/")) {
+    // Stacked layers — the MoE "many experts, few active" idea.
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      >
+        <path d="M12 3 21 7.5 12 12 3 7.5 12 3Z" />
+        <path d="m3 12 9 4.5 9-4.5" strokeOpacity=".7" />
+        <path d="m3 16.5 9 4.5 9-4.5" strokeOpacity=".45" />
+      </svg>
+    );
+  }
+
+  if (modelId?.startsWith("poolside/") || modelId?.startsWith("cohere/")) {
+    // Angle brackets — these are the coding-agent models.
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="m8 8-4 4 4 4M16 8l4 4-4 4" />
+        <path d="M13.5 5 10.5 19" strokeOpacity=".6" />
       </svg>
     );
   }

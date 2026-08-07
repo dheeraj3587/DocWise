@@ -2,14 +2,11 @@
 
 import {
   ArrowRightIcon,
-  AudioWaveformIcon,
   BookOpenIcon,
   CheckIcon,
   ChevronDownIcon,
   CircleGauge,
-  FileIcon,
   ExternalLinkIcon,
-  ImageIcon,
   LightbulbIcon,
   Loader2,
   MessageCircle,
@@ -18,6 +15,7 @@ import {
   SearchIcon,
   Send,
   RotateCcwIcon,
+  SquareIcon,
   X,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
@@ -42,8 +40,10 @@ import {
   ModelGlyph,
   ModelSelector,
   type ModelOption,
+  type ReasoningEffort,
 } from "@/components/docwise/model-selector";
 import { StatusBadge } from "@/components/docwise/status-badge";
+import { FileUpload } from "@/app/(dashboard)/components/file-upload";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
@@ -123,6 +123,7 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     outputReserveTokens: 4096,
     toolCalling: true,
     agentToolsEnabled: false,
+    reasoningEfforts: ["low", "medium", "high"],
   },
   {
     id: "gemma-4-31b",
@@ -137,6 +138,7 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     outputReserveTokens: 4096,
     toolCalling: true,
     agentToolsEnabled: false,
+    reasoningEfforts: ["low", "medium", "high"],
   },
   {
     id: "zai-glm-4.7",
@@ -151,20 +153,97 @@ const FALLBACK_CHAT_MODELS: ModelOption[] = [
     outputReserveTokens: 4096,
     toolCalling: true,
     agentToolsEnabled: false,
+    reasoningEfforts: ["low", "medium", "high"],
   },
   {
-    id: "tencent/hy3:free",
+    id: "tencent/hy3",
     name: "Tencent HY3",
-    description: "OpenRouter free model for general and document chat.",
+    description: "OpenRouter general-purpose model for document chat.",
+    creditCost: 1,
+    reasoning: false,
+    provider: "openrouter",
+    providerLabel: "OpenRouter",
+    badge: null,
+    contextWindow: 262144,
+    outputReserveTokens: 4096,
+    toolCalling: true,
+    agentToolsEnabled: false,
+    reasoningEfforts: ["low", "medium", "high"],
+  },
+  {
+    id: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    name: "Nemotron 3 Ultra",
+    description: "Frontier reasoning and orchestration with a 1M-token window.",
+    creditCost: 3,
+    reasoning: false,
+    provider: "openrouter",
+    providerLabel: "OpenRouter",
+    badge: "Frontier",
+    contextWindow: 1000000,
+    outputReserveTokens: 8192,
+    toolCalling: true,
+    agentToolsEnabled: false,
+    reasoningEfforts: ["low", "medium", "high"],
+  },
+  {
+    id: "nvidia/nemotron-3-super-120b-a12b:free",
+    name: "Nemotron 3 Super",
+    description: "Long-context planning and cross-document reasoning.",
     creditCost: 1,
     reasoning: false,
     provider: "openrouter",
     providerLabel: "OpenRouter",
     badge: "Free",
     contextWindow: 262144,
+    outputReserveTokens: 8192,
+    toolCalling: true,
+    agentToolsEnabled: false,
+    reasoningEfforts: ["low", "medium", "high"],
+  },
+  {
+    id: "nvidia/nemotron-3-nano-30b-a3b:free",
+    name: "Nemotron 3 Nano",
+    description: "Small, quick model for everyday document questions.",
+    creditCost: 1,
+    reasoning: false,
+    provider: "openrouter",
+    providerLabel: "OpenRouter",
+    badge: "Free",
+    contextWindow: 256000,
     outputReserveTokens: 4096,
     toolCalling: true,
     agentToolsEnabled: false,
+    reasoningEfforts: [],
+  },
+  {
+    id: "poolside/laguna-s-2.1:free",
+    name: "Laguna S 2.1",
+    description: "Coding-agent model for code-heavy documents and repos.",
+    creditCost: 1,
+    reasoning: false,
+    provider: "openrouter",
+    providerLabel: "OpenRouter",
+    badge: "Code",
+    contextWindow: 262144,
+    outputReserveTokens: 4096,
+    toolCalling: true,
+    agentToolsEnabled: false,
+    reasoningEfforts: [],
+  },
+  {
+    id: "cohere/north-mini-code:free",
+    name: "North Mini Code",
+    description: "Low-latency agentic coding model with interleaved tool use.",
+    creditCost: 1,
+    reasoning: false,
+    provider: "openrouter",
+    providerLabel: "OpenRouter",
+    badge: "Code",
+    contextWindow: 256000,
+    outputReserveTokens: 4096,
+    toolCalling: true,
+    agentToolsEnabled: false,
+    reasoningEfforts: [],
   },
 ];
 
@@ -260,8 +339,9 @@ export const ChatPanel = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [thinkEnabled, setThinkEnabled] = useState(false);
+  const [reasoningEffort, setReasoningEffort] =
+    useState<ReasoningEffort>("medium");
   const [agentEnabled, setAgentEnabled] = useState(false);
   const [models, setModels] = useState<ModelOption[]>(FALLBACK_CHAT_MODELS);
   const [selectedModelId, setSelectedModelId] = useState("gpt-oss-120b");
@@ -276,6 +356,11 @@ export const ChatPanel = ({
   const shouldAutoScrollRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
+  // Stop-generation plumbing. `cancelled` is separate from the controller
+  // because aborting the fetch otherwise looks like a dropped connection and
+  // the resume logic would immediately re-attach to the same stream.
+  const abortRef = useRef<AbortController | null>(null);
+  const cancelledRef = useRef(false);
 
   const API_BASE = getApiBase();
   const routeFileId = getRouteFileId((params as { fileId?: unknown })?.fileId);
@@ -298,6 +383,14 @@ export const ChatPanel = ({
     (selectedModel?.creditCost || 1) +
     (agentEnabled ? AGENT_CREDIT_SURCHARGE : 0) +
     (thinkEnabled ? THINK_CREDIT_SURCHARGE : 0);
+  // Some models think without exposing a dial. Deriving this rather than
+  // storing it means switching models can never strand an unsupported level.
+  const effortLevels = selectedModel?.reasoningEfforts ?? [];
+  const activeEffort = effortLevels.includes(reasoningEffort)
+    ? reasoningEffort
+    : (effortLevels[0] ?? "medium");
+  const sentEffort =
+    thinkEnabled && effortLevels.length > 0 ? activeEffort : undefined;
   const canSend =
     allowGeneralChat || documentIds.length > 0 || Boolean(conversationId);
   const isFullLayout = layout === "full";
@@ -741,10 +834,24 @@ export const ChatPanel = ({
         }
       };
 
+      const markCancelled = () => {
+        setMessages((previous) =>
+          previous.map((message) =>
+            message.id === activeMessageId
+              ? { ...message, status: "cancelled" }
+              : message,
+          ),
+        );
+      };
+
       try {
         await consume(response);
       } catch {
         // Resume below from the durable event buffer or persisted message.
+      }
+      if (cancelledRef.current) {
+        markCancelled();
+        return;
       }
       if (terminal) return;
       if (activeMessageId === initialMessageId) {
@@ -758,10 +865,15 @@ export const ChatPanel = ({
           activeMessageId,
           lastEventId,
           token,
+          abortRef.current?.signal,
         );
         await consume(replay);
       } catch {
         // Fall back to the PostgreSQL message state below.
+      }
+      if (cancelledRef.current) {
+        markCancelled();
+        return;
       }
       if (terminal) return;
 
@@ -789,6 +901,8 @@ export const ChatPanel = ({
     const question = input.trim();
     if (!question || isStreaming || !canSend) return;
 
+    cancelledRef.current = false;
+    abortRef.current = new AbortController();
     setIsStreaming(true);
     shouldAutoScrollRef.current = true;
     try {
@@ -822,9 +936,11 @@ export const ChatPanel = ({
           content: question,
           modelId: selectedModel?.id,
           reasoning: thinkEnabled,
+          reasoningEffort: sentEffort,
           agentMode: agentEnabled,
         },
         token,
+        abortRef.current.signal,
       );
       await consumeConversationStream(
         response,
@@ -834,25 +950,37 @@ export const ChatPanel = ({
       onConversationUpdated?.();
     } catch (error) {
       const failedId = streamingMessageIdRef.current;
+      const cancelled = cancelledRef.current;
       setMessages((previous) =>
         previous.map((message) =>
           message.id === failedId
-            ? {
-                ...message,
-                status: "failed",
-                error: {
-                  code: "request_failed",
-                  detail: (error as Error).message,
-                },
-              }
+            ? cancelled
+              ? { ...message, status: "cancelled" }
+              : {
+                  ...message,
+                  status: "failed",
+                  error: {
+                    code: "request_failed",
+                    detail: (error as Error).message,
+                  },
+                }
             : message,
         ),
       );
     } finally {
       streamingMessageIdRef.current = null;
+      abortRef.current = null;
       setIsStreaming(false);
       refreshCredits();
     }
+  };
+
+  const handleStop = () => {
+    if (!isStreaming) return;
+    // The backend has no cancel endpoint, so this detaches the client only —
+    // the run finishes server-side and stays in history.
+    cancelledRef.current = true;
+    abortRef.current?.abort();
   };
 
   const handleRetry = async (message: ChatMessage) => {
@@ -874,6 +1002,8 @@ export const ChatPanel = ({
           : item,
       ),
     );
+    cancelledRef.current = false;
+    abortRef.current = new AbortController();
     setIsStreaming(true);
     try {
       const token = await getToken();
@@ -884,30 +1014,36 @@ export const ChatPanel = ({
           requestId: crypto.randomUUID(),
           modelId: selectedModel?.id,
           reasoning: thinkEnabled,
+          reasoningEffort: sentEffort,
           agentMode: message.agentMode ?? agentEnabled,
         },
         token,
+        abortRef.current.signal,
       );
       await consumeConversationStream(response, temporaryId, conversationId);
       onConversationUpdated?.();
     } catch (error) {
       const failedId = streamingMessageIdRef.current;
+      const cancelled = cancelledRef.current;
       setMessages((previous) =>
         previous.map((item) =>
           item.id === failedId
-            ? {
-                ...item,
-                status: "failed",
-                error: {
-                  code: "retry_failed",
-                  detail: (error as Error).message,
-                },
-              }
+            ? cancelled
+              ? { ...item, status: "cancelled" }
+              : {
+                  ...item,
+                  status: "failed",
+                  error: {
+                    code: "retry_failed",
+                    detail: (error as Error).message,
+                  },
+                }
             : item,
         ),
       );
     } finally {
       streamingMessageIdRef.current = null;
+      abortRef.current = null;
       setIsStreaming(false);
       refreshCredits();
     }
@@ -944,7 +1080,7 @@ export const ChatPanel = ({
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border border-border bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-float)] duration-200 hover:bg-primary/90"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-float)] duration-200 hover:bg-primary/90"
       >
         <MessageCircle className="h-5 w-5" />
         <span className="text-sm font-medium">Chat</span>
@@ -1172,35 +1308,31 @@ export const ChatPanel = ({
                 )}
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <div className="relative">
-                    <ToolButton
-                      ariaLabel="Attach"
+                  {/* Opens the real upload dialog. It used to be a menu of two
+                      items that did nothing when clicked. */}
+                  <FileUpload>
+                    <button
+                      type="button"
+                      aria-label="Add a source document"
+                      title="Add a source document"
                       disabled={isStreaming}
-                      active={attachMenuOpen}
-                      onClick={() => setAttachMenuOpen((open) => !open)}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <PaperclipIcon className="size-3.5" />
-                      <span className="sr-only">Attach</span>
-                    </ToolButton>
-                    {attachMenuOpen ? (
-                      <div className="absolute bottom-10 left-0 z-50 w-40 overflow-hidden rounded-lg border border-border bg-popover p-1 text-xs shadow-[var(--shadow-float)]">
-                        <AttachItem
-                          icon={<FileIcon className="size-3.5" />}
-                          label="Upload file"
-                        />
-                        <AttachItem
-                          icon={<ImageIcon className="size-3.5" />}
-                          label="Upload photo"
-                        />
-                      </div>
-                    ) : null}
-                  </div>
+                      <span className="sr-only">Add a source document</span>
+                    </button>
+                  </FileUpload>
 
                   <ToolButton
+                    toggle
                     ariaLabel={
-                      selectedModel?.agentToolsEnabled
-                        ? "Agent"
-                        : "Agent is not enabled"
+                      // The button is disabled for two different reasons and
+                      // the tooltip is the only place either is explained.
+                      !selectedModel?.toolCalling
+                        ? "Agent needs a tool-calling model"
+                        : !selectedModel?.agentToolsEnabled
+                          ? "Agent tools are disabled on this server"
+                          : "Agent"
                     }
                     active={agentEnabled}
                     disabled={
@@ -1223,6 +1355,7 @@ export const ChatPanel = ({
                   </ToolButton>
 
                   <ToolButton
+                    toggle
                     ariaLabel="Think"
                     active={thinkEnabled}
                     disabled={isStreaming}
@@ -1239,6 +1372,16 @@ export const ChatPanel = ({
                       +{THINK_CREDIT_SURCHARGE}
                     </span>
                   </ToolButton>
+
+                  {thinkEnabled && effortLevels.length > 0 ? (
+                    <EffortSelector
+                      levels={effortLevels}
+                      value={activeEffort}
+                      compact={compact}
+                      disabled={isStreaming}
+                      onChange={setReasoningEffort}
+                    />
+                  ) : null}
                 </div>
 
                 <div className="flex min-w-0 items-center gap-1.5">
@@ -1255,30 +1398,27 @@ export const ChatPanel = ({
                       setModelMenuOpen(false);
                     }}
                   />
-                  <ToolButton
-                    ariaLabel="Voice"
-                    disabled={isStreaming}
-                    className={cn(
-                      "bg-foreground font-medium text-background hover:bg-foreground/90 hover:text-background",
-                      compact ? "hidden" : "hidden sm:inline-flex",
-                    )}
-                  >
-                    <AudioWaveformIcon className="size-3.5" />
-                    <span className="sr-only">Voice</span>
-                  </ToolButton>
-                  <button
-                    type="button"
-                    onClick={handleSend}
-                    disabled={isStreaming || !input.trim() || !canSend}
-                    aria-label="Send message"
-                    className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isStreaming ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
+                  {isStreaming ? (
+                    <button
+                      type="button"
+                      onClick={handleStop}
+                      aria-label="Stop generating"
+                      title="Stop generating"
+                      className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90"
+                    >
+                      <SquareIcon className="size-3 fill-current" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSend}
+                      disabled={!input.trim() || !canSend}
+                      aria-label="Send message"
+                      className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                       <Send className="size-3.5" />
-                    )}
-                  </button>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1394,6 +1534,9 @@ function ChatMessageBubble({
               Generating
             </StatusBadge>
           ) : null}
+          {!isUser && message.status === "cancelled" ? (
+            <StatusBadge tone="warning">Stopped</StatusBadge>
+          ) : null}
         </div>
         <div
           className={cn(
@@ -1428,6 +1571,10 @@ function ChatMessageBubble({
                 Retry
               </button>
             </div>
+          ) : message.status === "cancelled" && !message.content ? (
+            <p className="text-[12px] text-muted-foreground">
+              Stopped before any output arrived.
+            </p>
           ) : !message.content ? (
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
               {message.reasoning ? (
@@ -1604,55 +1751,11 @@ function AgentTrace({
       {invocations.length ? (
         <div className="divide-y divide-border/70">
           {invocations.map((invocation, index) => (
-            <details
+            <TraceStep
               key={invocation.id || invocation.providerToolCallId}
-              open={running && index === invocations.length - 1}
-              className="group"
-            >
-              <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-secondary/45 [&::-webkit-details-marker]:hidden">
-                <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[10px] text-muted-foreground">
-                  {String(invocation.sequence).padStart(2, "0")}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[11px] font-medium text-foreground">
-                    {TOOL_LABELS[invocation.toolName] || invocation.toolName}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-                    {toolSummary(invocation)}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-label text-muted-foreground">
-                  {invocation.durationMs !== null
-                    ? `${invocation.durationMs}ms`
-                    : invocation.status}
-                  <ChevronDownIcon className="size-3 transition-transform group-open:rotate-180" />
-                </span>
-              </summary>
-              <div className="grid gap-3 border-t border-border bg-secondary/40 px-3.5 py-3 md:grid-cols-2">
-                <TraceData label="Arguments" value={invocation.arguments} />
-                <TraceData
-                  label={invocation.error ? "Failure" : "Result"}
-                  value={invocation.error ?? invocation.resultSummary}
-                />
-                {invocation.sourceLabels.length ? (
-                  <div className="md:col-span-2">
-                    <div className="font-mono text-[10px] uppercase tracking-brand text-muted-foreground">
-                      Evidence
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {invocation.sourceLabels.map((label) => (
-                        <span
-                          key={label}
-                          className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground"
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </details>
+              invocation={invocation}
+              autoOpen={running && index === invocations.length - 1}
+            />
           ))}
         </div>
       ) : (
@@ -1663,6 +1766,72 @@ function AgentTrace({
         </div>
       )}
     </div>
+  );
+}
+
+function TraceStep({
+  invocation,
+  autoOpen,
+}: {
+  invocation: ToolInvocationRecord;
+  autoOpen: boolean;
+}) {
+  // `open` used to be bound straight to a prop, so every streamed delta
+  // re-rendered the trace and slammed shut whatever step the user had expanded.
+  // Once they touch it, their choice wins until the message is done.
+  const [override, setOverride] = useState<boolean | null>(null);
+  const open = override ?? autoOpen;
+
+  return (
+    <details
+      open={open}
+      onToggle={(event) => setOverride(event.currentTarget.open)}
+      className="group"
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-secondary/45 [&::-webkit-details-marker]:hidden">
+        <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border bg-background font-mono text-[10px] text-muted-foreground">
+          {String(invocation.sequence).padStart(2, "0")}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[11px] font-medium text-foreground">
+            {TOOL_LABELS[invocation.toolName] || invocation.toolName}
+          </span>
+          <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+            {toolSummary(invocation)}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-label text-muted-foreground">
+          {invocation.durationMs !== null
+            ? `${invocation.durationMs}ms`
+            : invocation.status}
+          <ChevronDownIcon className="size-3 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="grid gap-3 border-t border-border bg-secondary/40 px-3.5 py-3 md:grid-cols-2">
+        <TraceData label="Arguments" value={invocation.arguments} />
+        <TraceData
+          label={invocation.error ? "Failure" : "Result"}
+          value={invocation.error ?? invocation.resultSummary}
+        />
+        {invocation.sourceLabels.length ? (
+          <div className="md:col-span-2">
+            <div className="font-mono text-[10px] uppercase tracking-brand text-muted-foreground">
+              Evidence
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {invocation.sourceLabels.map((label) => (
+                <span
+                  key={label}
+                  className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -1842,12 +2011,69 @@ function ContextRemaining({
   );
 }
 
+const EFFORT_LABEL: Record<ReasoningEffort, string> = {
+  low: "Low",
+  medium: "Med",
+  high: "High",
+};
+
+/**
+ * How hard the model should think. Only rendered for models that advertise
+ * effort levels — the rest reason at a fixed depth and would reject the value.
+ */
+function EffortSelector({
+  levels,
+  value,
+  compact,
+  disabled,
+  onChange,
+}: {
+  levels: ReasoningEffort[];
+  value: ReasoningEffort;
+  compact: boolean;
+  disabled?: boolean;
+  onChange: (next: ReasoningEffort) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Reasoning effort"
+      className="inline-flex h-8 items-center gap-0.5 rounded-lg border border-border p-0.5"
+    >
+      {levels.map((level) => {
+        const active = level === value;
+        return (
+          <button
+            key={level}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            disabled={disabled}
+            title={`Reasoning effort: ${EFFORT_LABEL[level]}`}
+            onClick={() => onChange(level)}
+            className={cn(
+              "h-full rounded-md px-1.5 text-[10px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+              compact ? "min-w-[22px]" : "min-w-[30px]",
+              active
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+            )}
+          >
+            {compact ? EFFORT_LABEL[level].charAt(0) : EFFORT_LABEL[level]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ToolButton({
   children,
   active,
   disabled,
   className,
   ariaLabel,
+  toggle = false,
   onClick,
 }: {
   children: ReactNode;
@@ -1855,6 +2081,8 @@ function ToolButton({
   disabled?: boolean;
   className?: string;
   ariaLabel: string;
+  /** Announce on/off state. Only true for buttons that latch. */
+  toggle?: boolean;
   onClick?: () => void;
 }) {
   return (
@@ -1862,6 +2090,7 @@ function ToolButton({
       type="button"
       aria-label={ariaLabel}
       title={ariaLabel}
+      aria-pressed={toggle ? Boolean(active) : undefined}
       disabled={disabled}
       onClick={onClick}
       className={cn(
@@ -1873,18 +2102,6 @@ function ToolButton({
       )}
     >
       {children}
-    </button>
-  );
-}
-
-function AttachItem({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <button
-      type="button"
-      className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-    >
-      {icon}
-      {label}
     </button>
   );
 }

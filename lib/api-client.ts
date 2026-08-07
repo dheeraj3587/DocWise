@@ -128,12 +128,9 @@ export async function uploadFile(
 export async function getUserFiles(
   token?: string | null,
 ): Promise<FileRecord[]> {
-  const res = await fetch(
-    `${API_BASE}/api/files`,
-    {
-      headers: buildHeaders(token),
-    },
-  );
+  const res = await fetch(`${API_BASE}/api/files`, {
+    headers: buildHeaders(token),
+  });
   if (!res.ok) return [];
   return res.json();
 }
@@ -200,7 +197,15 @@ export async function getUploadCount(
 export async function getNotes(
   fileId: string,
   token?: string | null,
-): Promise<Array<{ id: number; fileId: string; note: string; createdBy?: string; updatedAt?: string }>> {
+): Promise<
+  Array<{
+    id: number;
+    fileId: string;
+    note: string;
+    createdBy?: string;
+    updatedAt?: string;
+  }>
+> {
   const res = await fetch(`${API_BASE}/api/notes/${fileId}`, {
     headers: buildHeaders(token),
   });
@@ -213,11 +218,13 @@ export async function saveNote(
   note: string,
   token?: string | null,
 ): Promise<void> {
-  await fetch(`${API_BASE}/api/notes/${fileId}`, {
+  const res = await fetch(`${API_BASE}/api/notes/${fileId}`, {
     method: "PUT",
     headers: buildHeaders(token),
     body: JSON.stringify({ note }),
   });
+  // Without this the caller reports "Saved" for a 401 or a 500.
+  if (!res.ok) throw new Error(`Could not save note (${res.status})`);
 }
 
 // ─── Search / AI APIs ────────────────────────────────────────────────────────

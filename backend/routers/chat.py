@@ -4,6 +4,7 @@ import uuid
 import json
 import asyncio
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -35,6 +36,7 @@ class ChatRequest(BaseModel):
     question: str
     file_id: str | None = None
     deep_mode: bool = False
+    reasoning_effort: Literal["low", "medium", "high"] | None = None
     model_id: str | None = None
 
 
@@ -63,6 +65,7 @@ class ChatModelResponse(BaseModel):
     outputReserveTokens: int
     toolCalling: bool
     agentToolsEnabled: bool
+    reasoningEfforts: list[str] = []
 
 
 class ChatCreditsResponse(BaseModel):
@@ -81,10 +84,14 @@ def _user_identity(user: dict) -> str:
     return user.get("sub") or user.get("email") or ""
 
 
-def _resolve_chat_model(model_id: str | None, deep_mode: bool) -> dict:
+def _resolve_chat_model(
+    model_id: str | None,
+    deep_mode: bool,
+    reasoning_effort: str | None = None,
+) -> dict:
     fallback_id = settings.CEREBRAS_DEEP_MODEL if deep_mode else settings.CEREBRAS_CHAT_MODEL
     selected_id = model_id or fallback_id
-    selected = resolve_chat_model(model_id, deep_mode)
+    selected = resolve_chat_model(model_id, deep_mode, reasoning_effort)
     if selected is None:
         raise HTTPException(status_code=400, detail=f"Unsupported model: {selected_id}")
     if selected["provider"] == "openrouter" and not settings.OPENROUTER_API_KEY:
@@ -278,7 +285,9 @@ async def chat_ask(
             status_code=429,
             detail=f"Daily chat limit reached. You can ask up to {settings.CHAT_DAILY_LIMIT_PER_USER} questions per day.",
         )
-    model_profile = _resolve_chat_model(body.model_id, body.deep_mode)
+    model_profile = _resolve_chat_model(
+        body.model_id, body.deep_mode, body.reasoning_effort
+    )
     try:
         await usage_limiter.consume_daily_units(created_by, "chat", model_profile["creditCost"])
     except HTTPException as exc:

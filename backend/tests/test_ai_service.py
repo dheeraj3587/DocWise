@@ -186,7 +186,7 @@ class TestAIServiceChat:
         async for chunk in svc.chat_no_context(
             "Hello",
             deep_mode=True,
-            model="tencent/hy3:free",
+            model="tencent/hy3",
             provider="openrouter",
             reasoning_effort="medium",
         ):
@@ -194,7 +194,7 @@ class TestAIServiceChat:
 
         assert chunks == ["OR"]
         kwargs = openrouter_client.chat.completions.create.await_args.kwargs
-        assert kwargs["model"] == "tencent/hy3:free"
+        assert kwargs["model"] == "tencent/hy3"
         assert kwargs["extra_body"] == {
             "reasoning": {
                 "enabled": True,

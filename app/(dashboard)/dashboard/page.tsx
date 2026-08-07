@@ -25,36 +25,43 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { deleteFile, type FileRecord } from "@/lib/api-client";
 import { showRetryToast, showSuccessToast } from "@/lib/app-toasts";
+import {
+  fileStatusDetail,
+  isFileProcessing,
+  isFileReady,
+  normalizeFileStatus,
+} from "@/lib/file-status";
 import { useApiQuery } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/docwise/confirm-dialog";
 import { FileUpload } from "../components/file-upload";
 
 export default function Dashboard() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<FileRecord | null>(null);
   const email = user?.primaryEmailAddress?.emailAddress;
   const {
     data: files,
     isLoading,
     refetch,
-  } = useApiQuery<FileRecord[]>(email ? "/api/files" : null, [email]);
+    // Ingestion finishes in a Celery worker, so nothing pushes the status
+    // change to the browser. Poll only while something is still processing.
+  } = useApiQuery<FileRecord[]>(email ? "/api/files" : null, [email], {
+    refreshInterval: (records) =>
+      (records ?? []).some((record) => isFileProcessing(record.status))
+        ? 4000
+        : 0,
+  });
   const documents = files ?? [];
-  const readyCount = documents.filter(
-    (doc) => doc.status !== "processing",
+  const readyCount = documents.filter((doc) => isFileReady(doc.status)).length;
+  const processingCount = documents.filter((doc) =>
+    isFileProcessing(doc.status),
   ).length;
   const firstName = user?.firstName || "there";
 
-  const deleteDocument = async (
-    fileId: string,
-    fileName: string,
-    confirmFirst = true,
-  ) => {
-    if (
-      confirmFirst &&
-      !confirm(`Delete "${fileName}"? This cannot be undone.`)
-    ) {
-      return;
-    }
+  const deleteDocument = async (fileId: string, fileName: string) => {
     setDeletingId(fileId);
     try {
       const token = await getToken();
@@ -70,21 +77,17 @@ export default function Dashboard() {
         title: "Could not delete file",
         description:
           "The file is still in your library. Retry the delete action.",
-        onRetry: () => void deleteDocument(fileId, fileName, false),
+        onRetry: () => void deleteDocument(fileId, fileName),
       });
     } finally {
       setDeletingId(null);
     }
   };
 
-  const handleDelete = async (
-    event: MouseEvent,
-    fileId: string,
-    fileName: string,
-  ) => {
+  const handleDelete = (event: MouseEvent, doc: FileRecord) => {
     event.preventDefault();
     event.stopPropagation();
-    await deleteDocument(fileId, fileName);
+    setPendingDelete(doc);
   };
 
   return (
@@ -172,6 +175,9 @@ export default function Dashboard() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   {documents.length} document{documents.length === 1 ? "" : "s"}{" "}
                   · {readyCount} ready
+                  {processingCount
+                    ? ` · ${processingCount} processing`
+                    : null}
                 </p>
               </div>
               <FileUpload>
@@ -216,6 +222,27 @@ export default function Dashboard() {
           </motion.section>
         </div>
       </main>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(next: boolean) => {
+          if (!next) setPendingDelete(null);
+        }}
+        title="Delete document"
+        description={
+          pendingDelete
+            ? `"${pendingDelete.fileName}" and everything derived from it — notes, citations, and its search index — will be removed. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          const { fileId, fileName } = pendingDelete;
+          setPendingDelete(null);
+          await deleteDocument(fileId, fileName);
+        }}
+      />
     </div>
   );
 }
@@ -228,7 +255,9 @@ function getGreeting() {
 }
 
 function Status({ status }: { status?: string }) {
-  if (status === "processing") {
+  const normalized = normalizeFileStatus(status);
+
+  if (normalized === "processing") {
     return (
       <StatusBadge>
         <Loader
@@ -241,6 +270,15 @@ function Status({ status }: { status?: string }) {
       </StatusBadge>
     );
   }
+
+  if (normalized === "failed") {
+    return (
+      <StatusBadge tone="danger" dot>
+        Failed
+      </StatusBadge>
+    );
+  }
+
   return (
     <StatusBadge tone="active" dot>
       Ready
@@ -255,9 +293,10 @@ function DocumentCard({
 }: {
   doc: FileRecord;
   deleting: boolean;
-  onDelete: (event: MouseEvent, fileId: string, fileName: string) => void;
+  onDelete: (event: MouseEvent, doc: FileRecord) => void;
 }) {
-  const ready = doc.status !== "processing";
+  const openable = isFileReady(doc.status);
+  const href = `/workspace/${doc.fileId}`;
 
   return (
     <motion.article
@@ -271,30 +310,53 @@ function DocumentCard({
         </div>
       </div>
 
-      <Link
-        href={`/workspace/${doc.fileId}`}
-        className="mt-8 min-w-0 flex-1 outline-none"
-      >
-        <p className="line-clamp-2 text-sm font-medium leading-5 text-foreground">
-          {doc.fileName}
-        </p>
-        <p className="mono-label mt-2">{doc.fileType || "file"}</p>
-      </Link>
+      {/* Only ready documents link out — an unprocessed file opens an empty
+          workspace with no index behind it. */}
+      {openable ? (
+        <Link href={href} className="mt-8 min-w-0 flex-1 outline-none">
+          <p className="line-clamp-2 text-sm font-medium leading-5 text-foreground">
+            {doc.fileName}
+          </p>
+          <p className="mono-label mt-2">{doc.fileType || "file"}</p>
+        </Link>
+      ) : (
+        <div className="mt-8 min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm font-medium leading-5 text-foreground">
+            {doc.fileName}
+          </p>
+          <p className="mono-label mt-2">{doc.fileType || "file"}</p>
+        </div>
+      )}
 
       <div className="mt-5 flex items-center justify-between border-t border-border pt-3">
-        <span className="text-xs text-muted-foreground">
-          {ready ? "Ready to chat" : "Extracting text"}
+        <span
+          className={cn(
+            "text-xs text-muted-foreground",
+            normalizeFileStatus(doc.status) === "failed" && "text-destructive",
+          )}
+        >
+          {fileStatusDetail(doc.status)}
         </span>
         <div className="flex items-center gap-1">
-          <Link
-            href={`/workspace/${doc.fileId}`}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            Open
-            <ArrowRight className="size-3.5" />
-          </Link>
+          {openable ? (
+            <Link
+              href={href}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Open
+              <ArrowRight className="size-3.5" />
+            </Link>
+          ) : (
+            <span
+              aria-disabled="true"
+              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg px-2 text-xs text-muted-foreground/50"
+            >
+              Open
+              <ArrowRight className="size-3.5" />
+            </span>
+          )}
           <IconButton
-            onClick={(event) => onDelete(event, doc.fileId, doc.fileName)}
+            onClick={(event) => onDelete(event, doc)}
             disabled={deleting}
             className="size-8 hover:text-destructive"
             aria-label={`Delete ${doc.fileName}`}

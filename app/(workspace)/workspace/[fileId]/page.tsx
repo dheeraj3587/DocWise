@@ -8,10 +8,12 @@ import { WorkspaceHeader } from "../../components/workspace-header";
 import { PdfViewer } from "../../components/PdfViewer";
 import { MediaPlayer } from "../../components/MediaPlayer";
 import { ChatPanel } from "../../components/ChatPanel";
+import { NotesPanel } from "../../components/notes-panel";
 import {
   WorkspaceOutline,
   type DocumentTopic,
 } from "../../components/workspace-outline";
+import { cn } from "@/lib/utils";
 import { WorkspaceSkeleton } from "@/app/skeleton/workspace-skeleton";
 import {
   ResizableHandle,
@@ -20,6 +22,44 @@ import {
   useResizableLayout,
 } from "@/components/ui/resizable";
 import type { ChatCitation } from "@/lib/chat-api";
+import { isFileProcessing } from "@/lib/file-status";
+
+/**
+ * Chat|Notes switch for the side panel. The notes editor shipped in the repo
+ * but nothing ever rendered it, so this is the only way into it.
+ */
+const SidePanelTabs = ({
+  value,
+  onChange,
+}: {
+  value: "chat" | "notes";
+  onChange: (next: "chat" | "notes") => void;
+}) => (
+  <div
+    role="tablist"
+    aria-label="Side panel"
+    className="flex shrink-0 items-center gap-1 border-b border-border bg-background px-3 py-2"
+  >
+    {(["chat", "notes"] as const).map((tab) => (
+      <button
+        key={tab}
+        type="button"
+        role="tab"
+        aria-selected={value === tab}
+        onClick={() => onChange(tab)}
+        className={cn(
+          "rounded-md px-2.5 py-1 text-[12px] capitalize transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          value === tab
+            ? "bg-muted text-foreground"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {tab}
+      </button>
+    ))}
+  </div>
+);
 
 const Workspace = () => {
   const { fileId } = useParams();
@@ -32,6 +72,7 @@ const Workspace = () => {
   const [activePage, setActivePage] = useState(initialPage);
   const [activeTimestamp, setActiveTimestamp] = useState<number | null>(null);
   const [desktopLayout, setDesktopLayout] = useState<boolean | null>(null);
+  const [sideTab, setSideTab] = useState<"chat" | "notes">("chat");
 
   // Remember the split the user drags to. `panelIds` tracks which rails are
   // open so toggling one doesn't clobber the sizes saved for the other states.
@@ -57,9 +98,19 @@ const Workspace = () => {
     return () => query.removeEventListener("change", syncLayout);
   }, []);
 
-  const { data: fileData, isLoading } = useApiQuery<FileRecord>(
+  const {
+    data: fileData,
+    isLoading,
+    refetch,
+    // Ingestion runs in a Celery worker with no push channel, so poll until the
+    // file leaves `processing` — otherwise the workspace sits on stale state.
+  } = useApiQuery<FileRecord>(
     fileId ? `/api/files/${fileId}` : null,
     [fileId],
+    {
+      refreshInterval: (record) =>
+        isFileProcessing(record?.status) ? 4000 : 0,
+    },
   );
 
   const { data: topics = [], isLoading: topicsLoading } = useApiQuery<
@@ -100,10 +151,13 @@ const Workspace = () => {
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <WorkspaceHeader
         fileName={fileData.fileName}
+        fileStatus={fileData.status}
+        fileUrl={fileData.fileUrl}
         outlineOpen={outlineOpen}
         onToggleOutline={() => setOutlineOpen((open) => !open)}
         sidePanelOpen={sidePanelOpen}
         onToggleSidePanel={() => setSidePanelOpen((open) => !open)}
+        onRefresh={refetch}
       />
 
       {desktopLayout ? (
@@ -156,13 +210,31 @@ const Workspace = () => {
               minSize="380px"
               maxSize="640px"
             >
-              <aside className="h-full border-l border-border bg-background">
-                <ChatPanel
-                  embedded
-                  compact
-                  fileId={String(fileId)}
-                  onCitationNavigate={navigateCitation}
-                />
+              <aside className="flex h-full min-h-0 flex-col border-l border-border bg-background">
+                <SidePanelTabs value={sideTab} onChange={setSideTab} />
+                {/* Both stay mounted: switching tabs mid-stream would drop the
+                    SSE connection, and remounting notes would refetch them. */}
+                <div
+                  className={cn(
+                    "min-h-0 flex-1",
+                    sideTab === "chat" ? "" : "hidden",
+                  )}
+                >
+                  <ChatPanel
+                    embedded
+                    compact
+                    fileId={String(fileId)}
+                    onCitationNavigate={navigateCitation}
+                  />
+                </div>
+                <div
+                  className={cn(
+                    "min-h-0 flex-1",
+                    sideTab === "notes" ? "" : "hidden",
+                  )}
+                >
+                  <NotesPanel fileId={String(fileId)} />
+                </div>
               </aside>
             </ResizablePanel>
           ) : null}
@@ -197,13 +269,29 @@ const Workspace = () => {
           ) : null}
 
           {sidePanelOpen ? (
-            <aside className="absolute inset-0 z-30 bg-background">
-              <ChatPanel
-                embedded
-                compact
-                fileId={String(fileId)}
-                onCitationNavigate={navigateCitation}
-              />
+            <aside className="absolute inset-0 z-30 flex min-h-0 flex-col bg-background">
+              <SidePanelTabs value={sideTab} onChange={setSideTab} />
+              <div
+                className={cn(
+                  "min-h-0 flex-1",
+                  sideTab === "chat" ? "" : "hidden",
+                )}
+              >
+                <ChatPanel
+                  embedded
+                  compact
+                  fileId={String(fileId)}
+                  onCitationNavigate={navigateCitation}
+                />
+              </div>
+              <div
+                className={cn(
+                  "min-h-0 flex-1",
+                  sideTab === "notes" ? "" : "hidden",
+                )}
+              >
+                <NotesPanel fileId={String(fileId)} />
+              </div>
             </aside>
           ) : null}
         </main>

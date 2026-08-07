@@ -19,7 +19,7 @@ import { IconButton } from "@/components/docwise/icon-button";
 import { Meter } from "@/components/docwise/meter";
 import { SectionLabel } from "@/components/docwise/section-label";
 import { Button } from "@/components/ui/button";
-import { type FileRecord } from "@/lib/api-client";
+import { type UploadCountResponse } from "@/lib/api-client";
 import { useApiQuery } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { FileUpload } from "./file-upload";
@@ -35,12 +35,16 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useUser();
   const email = user?.primaryEmailAddress?.emailAddress;
-  const { data: files } = useApiQuery<FileRecord[]>(
-    email ? `/api/files?user_email=${encodeURIComponent(email)}` : null,
+  // The meter tracks the *daily upload quota*, not library size — those are
+  // different numbers, and the library count made the bar read "12/5".
+  const { data: uploadCount } = useApiQuery<UploadCountResponse>(
+    email ? "/api/files/upload-count" : null,
     [email],
+    { revalidateOnFocus: true },
   );
-  const documentCount = files?.length ?? 0;
-  const progressValue = Math.min(100, (documentCount / 5) * 100);
+  const dailyLimit = uploadCount?.limit ?? 5;
+  const usedToday = uploadCount?.count ?? 0;
+  const progressValue = dailyLimit > 0 ? (usedToday / dailyLimit) * 100 : 0;
 
   return (
     <>
@@ -156,7 +160,7 @@ export function Sidebar() {
             <Meter
               className="px-1 py-2"
               label="Daily uploads"
-              caption={`${documentCount}/5`}
+              caption={`${usedToday}/${dailyLimit}`}
               value={progressValue}
               warnAtLimit
             />

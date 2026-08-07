@@ -128,18 +128,19 @@ class ProviderService:
             request["tools"] = tools
             request["tool_choice"] = "auto"
             request["parallel_tool_calls"] = False
+        # Only models that advertise effort levels get an `effort` — the rest
+        # can think but reject the parameter.
+        effort = model.get("reasoning_effort") if model.get("reasoningEfforts") else None
         if model["provider"] == "openrouter":
             if reasoning:
-                request["extra_body"] = {
-                    "reasoning": {
-                        "enabled": True,
-                        "effort": model.get("reasoning_effort") or "medium",
-                    }
-                }
+                reasoning_body: dict[str, Any] = {"enabled": True}
+                if effort:
+                    reasoning_body["effort"] = effort
+                request["extra_body"] = {"reasoning": reasoning_body}
             if stream:
                 request["stream_options"] = {"include_usage": True}
         elif reasoning:
-            request["reasoning_effort"] = model.get("reasoning_effort") or "high"
+            request["reasoning_effort"] = effort or "high"
         return request
 
     async def _stream_once(

@@ -38,12 +38,22 @@ export function useApiQuery<T>(
   url: string | null,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _deps: unknown[] = [],
+  options: {
+    /**
+     * Poll every N ms. Use for resources that change without user action.
+     * Pass a function to decide from the latest payload (e.g. keep polling
+     * only while a file is still processing).
+     */
+    refreshInterval?: number | ((data: T | undefined) => number);
+    revalidateOnFocus?: boolean;
+  } = {},
 ): { data: T | undefined; isLoading: boolean; error: Error | null; refetch: () => void } {
   const fetcher = useAuthFetcher();
   const key = url ? `${API_BASE}${url}` : null;
 
   const { data, error, isLoading, mutate } = useSWR<T>(key, fetcher, {
-    revalidateOnFocus: false,
+    revalidateOnFocus: options.revalidateOnFocus ?? false,
+    refreshInterval: options.refreshInterval ?? 0,
     dedupingInterval: 2000,
   });
 

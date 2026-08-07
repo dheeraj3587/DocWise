@@ -113,6 +113,8 @@ class ConversationMessage(Base):
     original_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     model_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reasoning: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: "low" | "medium" | "high", or NULL when the model has no effort dial.
+    reasoning_effort: Mapped[str | None] = mapped_column(String(16), nullable=True)
     agent_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     agent_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tool_call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -89,6 +89,7 @@ class ConversationMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=30000)
     modelId: str | None = None
     reasoning: bool = False
+    reasoningEffort: Literal["low", "medium", "high"] | None = None
     agentMode: bool = False
 
 
@@ -96,6 +97,7 @@ class ConversationRetry(BaseModel):
     requestId: uuid.UUID
     modelId: str | None = None
     reasoning: bool | None = None
+    reasoningEffort: Literal["low", "medium", "high"] | None = None
     agentMode: bool | None = None
 
 
@@ -106,8 +108,12 @@ def _owner_sub(user: dict) -> str:
     return owner_sub
 
 
-def _resolve_model(model_id: str | None, reasoning: bool) -> ChatModel:
-    selected = resolve_chat_model(model_id, reasoning)
+def _resolve_model(
+    model_id: str | None,
+    reasoning: bool,
+    reasoning_effort: str | None = None,
+) -> ChatModel:
+    selected = resolve_chat_model(model_id, reasoning, reasoning_effort)
     if selected is None:
         raise HTTPException(status_code=400, detail=f"Unsupported model: {model_id}")
     return selected
@@ -310,6 +316,7 @@ async def _message_payload(db: AsyncSession, message: ConversationMessage) -> di
         "originalProvider": message.original_provider,
         "modelId": message.model_id,
         "reasoning": message.reasoning,
+        "reasoningEffort": message.reasoning_effort,
         "agentMode": message.agent_mode,
         "agentIterations": message.agent_iterations,
         "toolCallCount": message.tool_call_count,
@@ -1450,6 +1457,9 @@ async def _start_turn(
             original_provider=model["provider"],
             model_id=model["id"],
             reasoning=body.reasoning,
+            # The resolved value, not the requested one — it is clamped to what
+            # this model supports, and retry has to reuse exactly that.
+            reasoning_effort=model["reasoning_effort"] if body.reasoning else None,
             agent_mode=body.agentMode,
             request_id=body.requestId,
             context_window=model["contextWindow"],
@@ -1750,7 +1760,11 @@ async def create_conversation_message(
         raise HTTPException(status_code=409, detail="Conversation is archived")
     if conversation.mode == "document" and not await _conversation_document_ids(db, conversation.id):
         raise HTTPException(status_code=400, detail="Select at least one document")
-    model = _resolve_model(body.modelId or conversation.selected_model_id, body.reasoning)
+    model = _resolve_model(
+        body.modelId or conversation.selected_model_id,
+        body.reasoning,
+        body.reasoningEffort,
+    )
     if body.agentMode:
         conversation = await _lock_agent_conversation(db, conversation.id, owner_sub)
         duplicate = await _agent_duplicate_response(
@@ -1829,14 +1843,18 @@ async def retry_conversation_message(
 
     reasoning = failed.reasoning if body.reasoning is None else body.reasoning
     agent_mode = failed.agent_mode if body.agentMode is None else body.agentMode
+    # Retrying at a different effort than the user chose would quietly change
+    # the answer they are asking us to reproduce.
+    reasoning_effort = body.reasoningEffort or failed.reasoning_effort
     retry_body = ConversationMessageCreate(
         requestId=body.requestId,
         content=user_message.content,
         modelId=body.modelId or failed.model_id or conversation.selected_model_id,
         reasoning=reasoning,
+        reasoningEffort=reasoning_effort,
         agentMode=agent_mode,
     )
-    model = _resolve_model(retry_body.modelId, reasoning)
+    model = _resolve_model(retry_body.modelId, reasoning, reasoning_effort)
     if agent_mode:
         conversation = await _lock_agent_conversation(db, conversation.id, owner_sub)
         duplicate = await _agent_duplicate_response(

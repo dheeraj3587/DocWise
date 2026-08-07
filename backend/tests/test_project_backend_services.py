@@ -46,13 +46,21 @@ async def _collect(stream):
 class TestProviderService:
     def test_request_shapes_retry_classification_and_clients(self, monkeypatch):
         service = ProviderService()
-        openrouter = resolve_chat_model("tencent/hy3:free", True)
+        openrouter = resolve_chat_model("tencent/hy3", True)
         cerebras = resolve_chat_model("gpt-oss-120b", True)
         assert openrouter and cerebras
 
         request = service._request(openrouter, [{"role": "user", "content": "x"}], reasoning=True, stream=True)
         assert request["extra_body"]["reasoning"]["enabled"] is True
+        assert request["extra_body"]["reasoning"]["effort"] == "medium"
         assert request["stream_options"]["include_usage"] is True
+
+        # A model that thinks but has no dial must not receive an `effort`.
+        no_dial = resolve_chat_model("nvidia/nemotron-3-nano-30b-a3b:free", True)
+        assert no_dial
+        no_dial_request = service._request(no_dial, [], reasoning=True, stream=False)
+        assert no_dial_request["extra_body"]["reasoning"] == {"enabled": True}
+
         cerebras_request = service._request(cerebras, [], reasoning=True, stream=False)
         assert cerebras_request["reasoning_effort"] == settings.CEREBRAS_DEEP_REASONING_EFFORT
         assert service._is_transient(httpx.ReadTimeout("slow")) is True
@@ -381,8 +389,23 @@ class TestContextAndModelMetadata:
         assert built.context_used <= built.context_window
         assert any("Conversation summary" in message["content"] for message in built.messages)
 
+    async def test_reasoning_effort_is_clamped_to_model_support(self):
+        ultra = resolve_chat_model("nvidia/nemotron-3-ultra-550b-a55b:free", True, "low")
+        assert ultra and ultra["reasoning_effort"] == "low"
+
+        # Junk falls back to the model default rather than reaching the provider.
+        junk = resolve_chat_model("nvidia/nemotron-3-ultra-550b-a55b:free", True, "ultra")
+        assert junk and junk["reasoning_effort"] == "medium"
+
+        # Effort is meaningless without reasoning on.
+        off = resolve_chat_model("nvidia/nemotron-3-ultra-550b-a55b:free", False, "high")
+        assert off and off["reasoning"] is False
+
+        no_dial = resolve_chat_model("poolside/laguna-s-2.1:free", True, "high")
+        assert no_dial and no_dial["reasoning_effort"] is None
+
     async def test_model_fallback_configuration_edges(self, monkeypatch):
-        model = resolve_chat_model("tencent/hy3:free", True)
+        model = resolve_chat_model("tencent/hy3", True)
         assert model and model["reasoning"] is True
         no_fallback = {**model, "fallbackModelId": None}
         assert fallback_chat_model(no_fallback, False) is None
@@ -453,7 +476,7 @@ class TestUsageAndReplayServices:
                 request_id=request_id,
                 owner_sub=MOCK_USER["sub"],
                 provider="openrouter",
-                model_id="tencent/hy3:free",
+                model_id="tencent/hy3",
                 metadata={"totalTokens": 9},
             )
             await service.refund(db, request_id=request_id, owner_sub=MOCK_USER["sub"])
