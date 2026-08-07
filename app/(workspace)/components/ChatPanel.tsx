@@ -30,10 +30,9 @@ import {
   useRef,
   useState,
 } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeKatex from "rehype-katex";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
+import { createCodePlugin } from "@streamdown/code";
+import { createMathPlugin } from "@streamdown/math";
+import { Streamdown } from "streamdown";
 
 import {
   ChainOfThought,
@@ -78,11 +77,21 @@ import { normalizeMathDelimiters } from "@/lib/markdown-math";
 import { readSSE } from "@/lib/sse";
 import { cn } from "@/lib/utils";
 
-// Memoize plugin arrays to avoid recreating on every render.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REMARK_PLUGINS: any = [remarkGfm, remarkMath];
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REHYPE_PLUGINS: any = [rehypeKatex];
+// Built once at module scope: the Shiki plugin lazily loads a WASM highlighter,
+// so rebuilding it per render would re-download grammars on every token.
+// `singleDollarTextMath` is required because normalizeMathDelimiters() emits
+// `$…$` for inline math.
+const MARKDOWN_PLUGINS = {
+  code: createCodePlugin({ themes: ["github-light", "github-dark-default"] }),
+  math: createMathPlugin({ singleDollarTextMath: true }),
+};
+
+// Copy + download on code blocks and tables; Mermaid is not installed.
+const MARKDOWN_CONTROLS = {
+  code: { copy: true, download: true },
+  mermaid: false,
+  table: { copy: true, download: true },
+} as const;
 
 const THINK_CREDIT_SURCHARGE = 3;
 const AGENT_CREDIT_SURCHARGE = 2;
@@ -1248,7 +1257,7 @@ export const ChatPanel = ({
             className={cn(
               "mx-auto flex min-h-full w-full flex-col",
               isFullLayout
-                ? "max-w-[960px] px-4 py-8 sm:px-6 sm:py-10"
+                ? "max-w-[1180px] px-4 py-6 sm:px-8 sm:py-8"
                 : "max-w-4xl px-3 py-4",
               compact && !isFullLayout && "px-2.5 py-3",
             )}
@@ -1359,7 +1368,7 @@ export const ChatPanel = ({
         <div
           className={cn(
             "mx-auto w-full",
-            isFullLayout ? "max-w-[960px]" : "max-w-4xl",
+            isFullLayout ? "max-w-[1180px]" : "max-w-4xl",
           )}
         >
           <div className="grid gap-2.5">
@@ -1412,7 +1421,9 @@ export const ChatPanel = ({
                         ? "Agent needs a tool-calling model"
                         : !selectedModel?.agentToolsEnabled
                           ? "Agent tools are disabled on this server"
-                          : "Agent"
+                          : selectedModel?.webSearchEnabled === false
+                            ? "Agent (documents only — web search is unconfigured on this server)"
+                            : "Agent (documents first, web when they fall short)"
                     }
                     active={agentEnabled}
                     disabled={
@@ -1477,7 +1488,7 @@ export const ChatPanel = ({
                       onClick={handleStop}
                       aria-label="Stop generating"
                       title="Stop generating"
-                      className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90"
+                      className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/88"
                     >
                       <SquareIcon className="size-3 fill-current" />
                     </button>
@@ -1487,7 +1498,7 @@ export const ChatPanel = ({
                       onClick={handleSend}
                       disabled={!input.trim() || !canSend}
                       aria-label="Send message"
-                      className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/88 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Send className="size-3.5" />
                     </button>
@@ -1673,7 +1684,7 @@ function ChatMessageBubble({
             <p
               className={cn(
                 "whitespace-pre-wrap text-[13px] leading-6",
-                isFullLayout && "text-sm leading-7",
+                isFullLayout && "leading-[1.7]",
               )}
             >
               {message.content}
@@ -1681,18 +1692,21 @@ function ChatMessageBubble({
           ) : (
             <div
               className={cn(
-                "prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border prose-pre:border-border prose-pre:bg-secondary/60 prose-pre:text-foreground prose-blockquote:border-border prose-hr:border-border [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+                "prose prose-sm max-w-none text-[13px] leading-6 text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-5 prose-headings:text-foreground prose-h2:text-lg prose-h3:text-base prose-p:my-3 prose-p:leading-6 prose-li:my-1 prose-a:text-foreground prose-code:text-foreground prose-pre:border-0 prose-pre:bg-transparent prose-pre:p-0 prose-blockquote:border-border prose-hr:border-border [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
                 isFullLayout &&
-                  "chat-full-prose text-sm leading-7 prose-p:leading-7 prose-li:leading-7 prose-pre:my-5",
+                  "chat-full-prose leading-[1.7] prose-p:leading-[1.7] prose-li:leading-[1.7] prose-pre:my-4",
               )}
             >
-              <ReactMarkdown
-                remarkPlugins={REMARK_PLUGINS}
-                rehypePlugins={REHYPE_PLUGINS}
+              <Streamdown
+                controls={MARKDOWN_CONTROLS}
+                isAnimating={message.status === "streaming"}
+                lineNumbers={false}
+                mode={message.status === "streaming" ? "streaming" : "static"}
+                plugins={MARKDOWN_PLUGINS}
                 components={{
                   a: ({ href, children, ...props }) => {
-                    if (href?.startsWith("citation:")) {
-                      const label = href.slice("citation:".length);
+                    if (href?.startsWith(CITATION_HREF_PREFIX)) {
+                      const label = href.slice(CITATION_HREF_PREFIX.length);
                       const citation = message.citations?.find(
                         (item) => item.sourceLabel === label,
                       );
@@ -1762,7 +1776,7 @@ function ChatMessageBubble({
                 {normalizeMathDelimiters(
                   citationMarkdown(message.content, message.citations ?? []),
                 )}
-              </ReactMarkdown>
+              </Streamdown>
               {message.citations?.length || message.fallbackUsed ? (
                 <div className="not-prose mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 font-mono text-[9px] uppercase tracking-label text-muted-foreground">
                   {message.citations?.length ? (
@@ -1784,10 +1798,16 @@ function ChatMessageBubble({
   );
 }
 
+// A fragment, not a `citation:` scheme: Streamdown sanitizes hrefs and drops
+// unknown protocols, so the marker has to survive as a relative URL.
+const CITATION_HREF_PREFIX = "#docwise-citation-";
+
 function citationMarkdown(content: string, citations: ChatCitation[]) {
   const labels = new Set(citations.map((citation) => citation.sourceLabel));
   return content.replace(/\[\[((?:S|W)\d+)\]\]/g, (marker, label: string) =>
-    labels.has(label) ? `[${label}](citation:${label})` : marker,
+    labels.has(label)
+      ? `[${label}](${CITATION_HREF_PREFIX}${label})`
+      : marker,
   );
 }
 
@@ -2164,8 +2184,8 @@ function ToolButton({
       className={cn(
         "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50",
         active &&
-          "bg-foreground text-background hover:bg-foreground/90 hover:text-background",
-        active && "[&_span]:text-background/70",
+          "border-primary bg-primary text-primary-foreground hover:bg-primary/88 hover:text-primary-foreground",
+        active && "[&_span]:text-primary-foreground/70",
         className,
       )}
     >

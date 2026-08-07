@@ -257,6 +257,11 @@ def public_chat_model(model: ChatModel) -> dict[str, object]:
         "outputReserveTokens": model["outputReserveTokens"],
         "toolCalling": model["toolCalling"],
         "agentToolsEnabled": settings.AGENT_TOOLS_ENABLED,
+        # search_web/inspect_web_source are only registered when Tavily is
+        # configured. Without this the UI offers Agent mode and the web tools
+        # silently never fire, which reads as a broken agent rather than a
+        # missing key.
+        "webSearchEnabled": bool(settings.TAVILY_API_KEY),
         "reasoningEfforts": model["reasoningEfforts"],
     }
 

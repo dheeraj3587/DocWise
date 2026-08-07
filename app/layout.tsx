@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
-import { GeistPixelSquare } from "geist/font/pixel";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { ClerkThemeProvider } from "@/components/clerk-theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -60,7 +60,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${GeistSans.variable} ${GeistPixelSquare.variable} antialiased font-sans`}
+        className={`${GeistSans.variable} ${GeistMono.variable} antialiased font-sans`}
         style={{ fontFamily: "var(--font-geist-sans)" }}
       >
         <ThemeProvider>

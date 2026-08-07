@@ -16,6 +16,11 @@ export interface ModelOption {
   toolCalling: boolean;
   agentToolsEnabled: boolean;
   /**
+   * False when the server has no Tavily key, so the agent's web tools are never
+   * registered. Undefined on older payloads that predate the field.
+   */
+  webSearchEnabled?: boolean;
+  /**
    * Effort levels this model honours, in display order. Empty means it can
    * think but has no dial, so the Think control must stay a plain on/off.
    */
@@ -47,7 +52,7 @@ export function ModelGlyph({
       className={cn(
         "grid shrink-0 place-items-center border border-border bg-background text-foreground",
         GLYPH_SIZE[size],
-        modelId === "gpt-oss-120b" && "bg-foreground text-background",
+        modelId === "gpt-oss-120b" && "border-primary/40 bg-primary/15 text-primary",
         modelId === "gemma-4-31b" && "bg-secondary",
         modelId === "zai-glm-4.7" && "bg-foreground/[0.06]",
         modelId === "tencent/hy3" && "bg-secondary/70",

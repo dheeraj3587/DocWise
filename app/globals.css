@@ -1,7 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "katex/dist/katex.min.css";
+@import "streamdown/styles.css";
 @plugin "@tailwindcss/typography";
+
+/* Streamdown ships its markdown/code-block chrome as Tailwind utilities inside
+   its own JSX. Tailwind v4 only scans the app source by default, so without
+   this the code blocks render unstyled. */
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
+@source "../node_modules/@streamdown/math/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -56,8 +64,8 @@
   --color-paper: var(--surface-paper);
   --color-paper-foreground: var(--surface-paper-foreground);
   --font-sans: var(--font-geist-sans);
-  --font-heading: var(--font-geist-pixel-square);
-  --font-mono: var(--font-geist-pixel-square);
+  --font-heading: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
   /* Canonical micro-label tracking. Use `tracking-label` / `tracking-brand`
      instead of ad-hoc arbitrary values so eyebrows stay consistent. */
   --tracking-label: 0.3em;
@@ -316,7 +324,7 @@
   .docwise-eyebrow,
   .mono-label {
     color: var(--muted-foreground);
-    font-family: var(--font-geist-pixel-square), monospace;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
     font-size: var(--text-label);
     line-height: 1.2;
     letter-spacing: var(--tracking-label);
@@ -355,7 +363,7 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     color: var(--muted-foreground);
-    font-family: var(--font-geist-pixel-square), monospace;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
     font-size: var(--text-label);
     line-height: 1.2;
     letter-spacing: var(--tracking-label);
@@ -731,6 +739,26 @@
   box-shadow: none;
 }
 
+/* Streamdown draws its own code-block chrome — bordered container, header bar
+   with the language name and the copy/download buttons, Shiki-tokenised body.
+   Typography's `pre` rules would paint a flat background over all of it. */
+.prose :where([data-streamdown="code-block"]) {
+  margin-block: 1rem;
+}
+
+.prose :where([data-streamdown="code-block"] pre) {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.prose :where([data-streamdown="inline-code"])::before,
+.prose :where([data-streamdown="inline-code"])::after {
+  content: none;
+}
+
 .prose .katex-display,
 .chat-stream .katex-display {
   max-width: 100%;
@@ -754,14 +782,14 @@
 }
 
 .chat-full-prose :where(pre) {
-  margin-block: 1.25rem;
-  padding: 1.1rem;
-  font-size: 0.92rem;
-  line-height: 1.65;
+  margin-block: 1rem;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
 }
 
 .chat-full-prose :where(code) {
-  font-size: 0.92em;
+  font-size: 0.9em;
 }
 
 .shimmer-text {

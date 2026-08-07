@@ -346,7 +346,7 @@ export const EditorExtension = ({ editor }: EditorExtensionProps) => {
                   className={cn(
                     "h-full min-w-[30px] rounded-md px-1.5 font-mono text-[10px] uppercase tracking-label outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                     effort === level
-                      ? "bg-foreground text-background"
+                      ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
                 >

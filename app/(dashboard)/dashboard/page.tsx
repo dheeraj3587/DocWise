@@ -139,7 +139,7 @@ export default function Dashboard() {
                 <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
                   Ask DocWise anything...
                 </span>
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground text-background">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
                   <ArrowRight className="size-4" />
                 </span>
               </Link>

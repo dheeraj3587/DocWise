@@ -65,6 +65,7 @@ class ChatModelResponse(BaseModel):
     outputReserveTokens: int
     toolCalling: bool
     agentToolsEnabled: bool
+    webSearchEnabled: bool = False
     reasoningEfforts: list[str] = []
 
 

@@ -357,7 +357,7 @@ function ConversationSidebar({
           <button
             type="button"
             onClick={onNew}
-            className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-3 text-[11px] font-medium text-background transition-opacity hover:opacity-90"
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 text-[11px] font-medium text-primary-foreground transition-colors hover:bg-primary/88"
           >
             <PlusIcon className="size-3.5" />
             New conversation
@@ -674,7 +674,7 @@ function DocumentPicker({
                     className={cn(
                       "grid size-4 shrink-0 place-items-center rounded border border-border bg-background",
                       checked &&
-                        "border-foreground bg-foreground text-background",
+                        "border-primary bg-primary text-primary-foreground",
                     )}
                   >
                     {checked ? <CheckIcon className="size-3" /> : null}
@@ -690,7 +690,7 @@ function DocumentPicker({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="h-8 w-full rounded-md bg-foreground text-[10px] font-medium text-background transition-opacity hover:opacity-90"
+              className="h-8 w-full rounded-md bg-primary text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/88"
             >
               Done
             </button>
@@ -723,7 +723,7 @@ function ContextButton({
       className={cn(
         "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 sm:px-2.5",
         active
-          ? "bg-foreground text-background"
+          ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-secondary hover:text-foreground",
       )}
     >
