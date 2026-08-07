@@ -22,15 +22,20 @@ export const ORBIT_THEME_PALETTE_STORAGE_KEY = "orbit-theme-palette";
 
 export type OrbitThemePreference = "light" | "dark" | "system";
 
+/**
+ * Falls back to "dark", not "system": the brand palette is green-on-near-black
+ * and a light-OS visitor landing on the white theme would not be the product.
+ * "system" is still honoured when it is what the visitor actually stored.
+ */
 function readPreference(): OrbitThemePreference {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "dark";
   try {
     const raw = localStorage.getItem(ORBIT_THEME_STORAGE_KEY);
     if (raw === "light" || raw === "dark" || raw === "system") return raw;
   } catch {
     /* ignore */
   }
-  return "system";
+  return "dark";
 }
 
 function readPalette(): OrbitThemePalette {
@@ -64,7 +69,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<OrbitThemePreference>(() =>
-    typeof window === "undefined" ? "system" : readPreference(),
+    typeof window === "undefined" ? "dark" : readPreference(),
   );
 
   const [osScheme, setOsScheme] = useState<"light" | "dark">(() =>
@@ -146,10 +151,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
+    // Shares ORBIT_THEME_STORAGE_KEY with the provider it wraps, deliberately.
+    // next-themes owns
+    // the pre-paint `.dark` write; this provider re-toggles it after
+    // hydration. On separate keys the two disagree for anyone who has used
+    // ThemeToggle (which only ever writes ORBIT_THEME_STORAGE_KEY) and the
+    // page strobes white before settling on #0c0d0d. Sharing the key also
+    // keeps ui/sonner.tsx (reads next-themes) and clerk-theme-provider.tsx
+    // (reads `resolved` below) on the same mode. The stored values line up:
+    // both sides persist "light" | "dark" | "system".
     <NextThemesProvider
       attribute="class"
       defaultTheme="dark"
       enableSystem
+      storageKey={ORBIT_THEME_STORAGE_KEY}
       disableTransitionOnChange={false}
     >
       <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

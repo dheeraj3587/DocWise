@@ -27,6 +27,19 @@
   --color-ring: var(--ring);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  /* Neon's brand token and the compute-lifecycle trio behind status dots.
+     `--color-neon` is what makes `bg-neon` / `text-neon` resolve at all. */
+  --color-neon: var(--neon);
+  --color-status-active: var(--status-active);
+  --color-status-sleeping: var(--status-sleeping);
+  --color-status-scaling: var(--status-scaling);
+  /* One hue, five steps of lightness. Stacked bands are told apart by value,
+     not by hue, so the ramp can stay in the brand family and still read. */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -62,86 +75,165 @@
   --radius-4xl: 8px;
 }
 
+/* Neon brand palette (ui.neon.com): brand green on near-black, on a cool gray
+   ramp. Green is the only accent in the system — chrome stays neutral, so a
+   green mark always means "action" or "healthy" and never just decoration.
+   The core tokens below are Neon's own values; the surface ladder, --success,
+   --warning and --surface-paper have no Neon equivalent and are re-derived on
+   Neon's ramp rather than dropped. */
 :root {
   --radius: 8px;
-  --background: #f5f5f3;
-  --foreground: #0b0b0c;
+  /* Neon's light page is pure #ffffff, but that leaves --background, --card,
+     --popover and --surface-1/-raised all identical, so a panel, a popover and
+     the page are one flat plane separated only by an 11% hairline. Dropping the
+     page a hair lets every raised plane keep Neon's white and lift off it. */
+  --background: #f7f8f8;
+  --foreground: #0c0d0d;
   --card: #ffffff;
-  --card-foreground: #0b0b0c;
+  --card-foreground: #0c0d0d;
   --popover: #ffffff;
-  --popover-foreground: #0b0b0c;
-  --primary: #111113;
-  --primary-foreground: #f7f7f4;
-  --secondary: #ececea;
-  --secondary-foreground: #151517;
-  --muted: #e8e8e5;
-  --muted-foreground: #67676f;
-  --accent: #e2e2df;
-  --accent-foreground: #111113;
-  --destructive: #c93f4f;
+  --popover-foreground: #0c0d0d;
+  /* Neon's light brand green is #00a36f, which carries white text at 3.25:1 —
+     below AA, and a regression from the near-black it replaces. Darkened one
+     step to clear 4.5:1 both ways (white on it, and it as link/glyph text on
+     white). Dark mode keeps Neon's #00e599 exactly; that is the signature. */
+  --primary: #00805a;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #0c0d0d;
+  --muted: #f3f4f6;
+  /* Read at runtime by NeonLoader, which hands it straight to a canvas
+     `fillStyle` — keep it a plain literal colour. A `color-mix()` here would
+     survive `getPropertyValue()`, fail to parse in canvas, and paint the
+     grain phase invisible with no error. */
+  /* Darker than Neon's #5b6472 because the installed components render this
+     token through alpha — `/80` on a timestamp, `/70` on a tool-call detail,
+     `/72` on a placeholder. At #5b6472 those composite to 3.8:1 and below;
+     from here `/70` still clears 4.5:1. */
+  --muted-foreground: #343b46;
+  --accent: #f3f4f6;
+  --accent-foreground: #0c0d0d;
+  /* Neon's #e5484d carries white at 3.9:1 and reads as body copy at 3.4:1 on
+     its own 10% tint, which is where every form error in the app lives. */
+  --destructive: #c62a30;
   --destructive-foreground: #ffffff;
+  /* --success is the deep, low-chroma end of the same green ramp --primary
+     sits at the bright end of. They are separated by value and by role — a
+     ≤16px dot or check versus a filled surface — never by hue, because a
+     second accent family would dilute the one the brand is built on. */
   --success: #087a55;
-  --warning: #a05c00;
-  --border: rgba(11, 11, 12, 0.11);
-  --input: rgba(11, 11, 12, 0.14);
-  --ring: rgba(11, 11, 12, 0.34);
-  --sidebar: #f5f5f3;
-  --sidebar-foreground: #0b0b0c;
-  --sidebar-primary: #111113;
-  --sidebar-primary-foreground: #f7f7f4;
-  --sidebar-accent: #e8e8e5;
-  --sidebar-accent-foreground: #111113;
-  --sidebar-border: rgba(11, 11, 12, 0.11);
-  --sidebar-ring: rgba(11, 11, 12, 0.34);
+  --warning: #b45309;
+  /* Hairlines stay alpha rather than Neon's solid #e5e7eb so they compose
+     over the whole --surface-* ladder and over the unthemed paper plane. At
+     0.11 over #ffffff this resolves to #e4e4e4 — within a level of Neon's
+     own border, so its components render as designed — while on --surface-3
+     it still resolves to a visible #d1d3d5, where a solid border would sit
+     four levels off the fill and disappear. */
+  --border: rgba(12, 13, 13, 0.11);
+  /* Heavier than --border: this one is a control boundary, not decoration,
+     and SC 1.4.11 wants 3:1 against the adjacent fill. A text field's only
+     other cue is that --card lifts off --background. */
+  --input: rgba(12, 13, 13, 0.45);
+  /* The one border-family token that goes solid brand green: a ring paints
+     on top and never composites into an edge, so alpha buys nothing, and it
+     is the loudest "this is Neon" signal in the UI. Tracks --primary so the
+     ring clears 3:1 on --secondary and --surface-3, not just on white. */
+  --ring: #00805a;
+  --neon: #00b37a;
+  --status-active: #00b37a;
+  --status-sleeping: #6b7280;
+  --status-scaling: #d97706;
+  --chart-1: #34c79a;
+  --chart-2: #00a870;
+  --chart-3: #008054;
+  --chart-4: #005c3e;
+  --chart-5: #0d3a2a;
+  /* --sidebar tracks --background rather than Neon's --card so the shadcn
+     sidebar and `.docwise-rail` stay one plane; only the accent and ring
+     take the brand. */
+  --sidebar: #f7f8f8;
+  --sidebar-foreground: #0c0d0d;
+  --sidebar-primary: #00805a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f4f6;
+  --sidebar-accent-foreground: #0c0d0d;
+  --sidebar-border: rgba(12, 13, 13, 0.11);
+  --sidebar-ring: #00805a;
+  /* Ordering is 1 > 2 > inset > 3 > stage. The recessed rungs are spread
+     wider than Neon's ramp would give: at Neon's spacing inset/3/stage land
+     within 1.04:1 of each other, so five named planes render as two. */
   --surface-1: #ffffff;
-  --surface-2: #eeeeec;
-  --surface-3: #e5e5e2;
+  --surface-2: #f3f4f6;
+  --surface-3: #e2e4e8;
   --surface-raised: #ffffff;
-  --surface-inset: #ececea;
-  --surface-stage: #dcdcd8;
-  /* Deliberately declared only here so it inherits into .dark unchanged. */
+  --surface-inset: #e9ebee;
+  --surface-stage: #d8dce1;
+  /* Deliberately declared only here so it inherits into .dark unchanged.
+     Intentionally warm and intentionally not green: paper reads as paper. */
   --surface-paper: #f4f4f0;
   --surface-paper-foreground: #171719;
-  --shadow-float: 0 18px 50px rgba(11, 11, 12, 0.11);
+  --shadow-float: 0 18px 50px rgba(12, 13, 13, 0.11);
 }
 
 .dark {
-  --background: #050505;
-  --foreground: #ededed;
-  --card: #0a0a0c;
-  --card-foreground: #ededed;
-  --popover: #0d0d10;
-  --popover-foreground: #ededed;
-  --primary: #ededed;
-  --primary-foreground: #050505;
-  --secondary: #111114;
-  --secondary-foreground: #ededed;
-  --muted: #141417;
-  --muted-foreground: #90909a;
-  --accent: #18181c;
-  --accent-foreground: #ededed;
-  --destructive: #f06a78;
-  --destructive-foreground: #050505;
+  --background: #0c0d0d;
+  --foreground: #f3f4f6;
+  --card: #131414;
+  --card-foreground: #f3f4f6;
+  --popover: #1a1b1b;
+  --popover-foreground: #f3f4f6;
+  --primary: #00e599;
+  --primary-foreground: #0c0d0d;
+  --secondary: #1a1b1b;
+  --secondary-foreground: #f3f4f6;
+  --muted: #1a1b1b;
+  /* Lifted off Neon's #9ca3af for the same reason light was darkened: the
+     components read this through `/72` and `/70`, which fall under AA there. */
+  --muted-foreground: #b0b7c2;
+  --accent: #1a1b1b;
+  --accent-foreground: #f3f4f6;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
   --success: #39c895;
-  --warning: #f0a85a;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.13);
-  --ring: rgba(255, 255, 255, 0.32);
-  --sidebar: #050505;
-  --sidebar-foreground: #ededed;
-  --sidebar-primary: #ededed;
-  --sidebar-primary-foreground: #050505;
-  --sidebar-accent: #141417;
-  --sidebar-accent-foreground: #ededed;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: rgba(255, 255, 255, 0.32);
-  --surface-1: #0a0a0c;
-  --surface-2: #111114;
-  --surface-3: #18181c;
-  --surface-raised: #0d0d10;
-  --surface-inset: #080809;
-  --surface-stage: #08080a;
-  --shadow-float: 0 24px 64px rgba(0, 0, 0, 0.48);
+  --warning: #f59e0b;
+  --border: rgba(255, 255, 255, 0.11);
+  --input: rgba(255, 255, 255, 0.38);
+  --ring: #00e599;
+  --neon: #00e599;
+  --status-active: #00e599;
+  --status-sleeping: #6b7280;
+  --status-scaling: #f59e0b;
+  --chart-1: #7ff5cf;
+  --chart-2: #00e599;
+  --chart-3: #00a870;
+  --chart-4: #0a6647;
+  --chart-5: #14362b;
+  --sidebar: #0c0d0d;
+  --sidebar-foreground: #f3f4f6;
+  --sidebar-primary: #00e599;
+  --sidebar-primary-foreground: #0c0d0d;
+  --sidebar-accent: #1a1b1b;
+  --sidebar-accent-foreground: #f3f4f6;
+  --sidebar-border: rgba(255, 255, 255, 0.11);
+  --sidebar-ring: #00e599;
+  /* Dark keeps the mirrored ordering — stage < inset < page < 1 < 2 < 3.
+     --surface-1 == --card and --surface-2 == --secondary/--muted so
+     `.docwise-control:hover` lands on the same pixel as `hover:bg-secondary`;
+     --surface-raised == --popover so a raised panel and an adjacent Neon
+     <Select> popup sit on one plane, told apart by shadow, not lightness. */
+  --surface-1: #131414;
+  --surface-2: #1a1b1b;
+  --surface-3: #212222;
+  /* Clears --surface-2 rather than matching --popover: a raised panel over a
+     panel is a real hierarchy, and near black there is not enough shadow
+     contrast left to carry elevation on its own. */
+  --surface-raised: #232424;
+  /* The recessed pair has to fall *below* an already near-black page, and
+     #0f1010/#08090a sit 1.02:1 from it — the chat stream and the PDF stage
+     both read as the page. There is only one direction left to go. */
+  --surface-inset: #050606;
+  --surface-stage: #000000;
+  --shadow-float: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
 
 @layer base {
@@ -176,6 +268,17 @@
   ::selection {
     background: var(--foreground);
     color: var(--background);
+  }
+
+  /* The Neon elastic slider's only keyboard focus cue is `ring-ring/50`, and a
+     half-opacity ring cannot reach the 3:1 SC 2.4.11 needs over a light track —
+     at 0.5 alpha over white even pure black tops out at 3.6:1. Every other Neon
+     control pairs that ring with a full-opacity `focus-visible:border-ring`;
+     this one has no border to take it, so it gets a solid outline instead.
+     Done here rather than in the component, which ships unmodified. */
+  [data-slot="elastic-slider-track"][data-focus-visible="true"] {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
@@ -304,6 +407,72 @@
   @apply flex items-center justify-start;
 }
 
+/* The shadcn `shimmer` text utility and its tuning knobs. They normally ship
+   in `shadcn/tailwind.css`, which this project does not install, so they are
+   vendored here — without them every Neon status line ("Thinking…",
+   "Working…") renders as `color: transparent`, i.e. invisible. Note this is
+   NOT `.shimmer-text` below: that one is DocWise's, sweeps the other way, and
+   is deliberately left alone. */
+@utility shimmer {
+  --shimmer--spread: var(--shimmer-spread, calc(3ch + 40px));
+  --shimmer--base: currentColor;
+  --shimmer--highlight: var(
+    --shimmer-color,
+    oklch(from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4))
+  );
+  color: transparent;
+  background-image: linear-gradient(
+    calc(90deg + var(--shimmer-angle, 20deg)),
+    var(--shimmer--base) calc(50% - var(--shimmer--spread)),
+    color-mix(in oklch, var(--shimmer--highlight), var(--shimmer--base) 50%)
+      calc(50% - var(--shimmer--spread) * 0.5),
+    var(--shimmer--highlight) 50%,
+    color-mix(in oklch, var(--shimmer--highlight), var(--shimmer--base) 50%)
+      calc(50% + var(--shimmer--spread) * 0.5),
+    var(--shimmer--base) calc(50% + var(--shimmer--spread))
+  );
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: calc(200% + var(--shimmer--spread) * 2) 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: shimmer-sweep var(--shimmer-duration, 2s) linear infinite;
+}
+
+/* Set on a shared parent so a `shimmer` label and a `.neon-mark-shimmer`
+   glyph mounted beside it sweep on one clock. */
+@utility shimmer-duration-* {
+  --shimmer-duration: calc(--value(integer) * 1ms);
+}
+
+@utility shimmer-color-* {
+  --shimmer-color: --value(--color-*, [color]);
+}
+
+@utility shimmer-spread-* {
+  --shimmer-spread: --value([length], [percentage]);
+}
+
+@utility shimmer-angle-* {
+  --shimmer-angle: calc(--value(integer) * 1deg);
+}
+
+/* Baked into MessageScrollerViewport, and likewise absent without
+   `shadcn/tailwind.css`. Bottom edge only: the top of a chat log is a hard
+   boundary, the bottom is where content keeps arriving. */
+@utility scroll-fade-b {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+}
+
 .chat-stream {
   background: var(--surface-inset);
 }
@@ -334,29 +503,202 @@
   }
 }
 
-.custom-scrollbar,
-* {
-  scrollbar-color: color-mix(in srgb, var(--foreground) 15%, transparent)
-    transparent;
-  scrollbar-width: thin;
+/* The Neon/shadcn shimmer sweeps the opposite way to `.shimmer-text` above,
+   so it needs its own name — reusing `shimmer` would silently reassign one of
+   the two animations to the wrong motion. */
+@keyframes shimmer-sweep {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@property --scroll-fade-b {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+@property --neon-scroll-fade-t {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
 }
 
-::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 15%, transparent);
+@property --neon-scroll-fade-b {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--foreground) 26%, transparent);
+/* Scroll-driven, not time-driven: the fade only exists while there is
+   something hidden past that edge, so a short list keeps crisp edges and a
+   scrolled one softens where it is cut off. */
+@keyframes scroll-fade-reveal-b {
+  from {
+    --scroll-fade-b: 32px;
+  }
+
+  to {
+    --scroll-fade-b: 0px;
+  }
+}
+
+@keyframes neon-scroll-fade-reveal-t {
+  from {
+    --neon-scroll-fade-t: 0px;
+  }
+
+  to {
+    --neon-scroll-fade-t: 32px;
+  }
+}
+
+@keyframes neon-scroll-fade-reveal-b {
+  from {
+    --neon-scroll-fade-b: 32px;
+  }
+
+  to {
+    --neon-scroll-fade-b: 0px;
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  .scroll-fade-b {
+    animation: scroll-fade-reveal-b 1ms ease-in-out both;
+    animation-range: calc(100% - 96px) 100%;
+    animation-timeline: scroll(self y);
+  }
+}
+
+/* Both edges. AgentChat stacks this on the same viewport that already carries
+   `scroll-fade-b`, and both write `mask-image` — this rule is unlayered while
+   `scroll-fade-b` is a Tailwind utility, so the cascade hands the pane to the
+   two-edge fade regardless of source order. Neon's copy also restyled the
+   scrollbar; that is dropped, because the global bar below already looks the
+   same and keeping it would outrank MessageScroller's own
+   `data-autoscrolling:scrollbar-thumb-transparent`. */
+.neon-scroll-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--neon-scroll-fade-t, 0px),
+    #000 calc(100% - var(--neon-scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--neon-scroll-fade-t, 0px),
+    #000 calc(100% - var(--neon-scroll-fade-b, 0px)),
+    transparent 100%
+  );
+}
+
+@supports (animation-timeline: scroll()) {
+  .neon-scroll-fade {
+    animation:
+      neon-scroll-fade-reveal-t 1ms ease-in-out,
+      neon-scroll-fade-reveal-b 1ms ease-in-out;
+    animation-fill-mode: both;
+    animation-range:
+      0 96px,
+      calc(100% - 96px) 100%;
+    animation-timeline: scroll(self y), scroll(self y);
+  }
+}
+
+@supports not (animation-timeline: scroll()) {
+  .neon-scroll-fade {
+    --neon-scroll-fade-t: 0px;
+    --neon-scroll-fade-b: 0px;
+  }
+}
+
+/* The brand mark masked over the shimmer gradient. Deliberately shares
+   `shimmer-sweep` and the same `--shimmer-*` inputs as the `shimmer` utility,
+   clipped to the mark instead of to text, so a mark and the label beside it
+   sweep on one clock — a second copy of the keyframes would drift. */
+.neon-mark-shimmer {
+  --neon-mark--spread: var(--shimmer-spread, calc(3ch + 40px));
+  --neon-mark--base: currentColor;
+  --neon-mark--highlight: var(
+    --shimmer-color,
+    oklch(from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4))
+  );
+  display: inline-block;
+  background-image: linear-gradient(
+    calc(90deg + var(--shimmer-angle, 20deg)),
+    var(--neon-mark--base) calc(50% - var(--neon-mark--spread)),
+    color-mix(in oklch, var(--neon-mark--highlight), var(--neon-mark--base) 50%)
+      calc(50% - var(--neon-mark--spread) * 0.5),
+    var(--neon-mark--highlight) 50%,
+    color-mix(in oklch, var(--neon-mark--highlight), var(--neon-mark--base) 50%)
+      calc(50% + var(--neon-mark--spread) * 0.5),
+    var(--neon-mark--base) calc(50% + var(--neon-mark--spread))
+  );
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: calc(200% + var(--neon-mark--spread) * 2) 100%;
+  /* --neon-mark-uri is set inline by NeonMarkShimmer, never themed here. The
+     `none` fallback keeps the element a plain block instead of a full-bleed
+     gradient rectangle if it is ever used without one. */
+  mask: var(--neon-mark-uri, none) center / contain no-repeat;
+  -webkit-mask: var(--neon-mark-uri, none) center / contain no-repeat;
+  animation: shimmer-sweep var(--shimmer-duration, 2s) linear infinite;
+}
+
+/* A slow inhale/exhale for in-flight status dots — alive, not blinking. */
+@keyframes neon-status-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    opacity: 0.45;
+  }
+
+  50% {
+    box-shadow: 0 0 6px 1px color-mix(in oklch, currentColor 45%, transparent);
+    opacity: 1;
+  }
+}
+
+.neon-status-breathe {
+  animation: neon-status-breathe 2.6s ease-in-out infinite;
+}
+
+/* Global chrome default, so it belongs in a layer: unlayered it would outrank
+   every Tailwind `scrollbar-*` utility in the app — including the autoscroll
+   thumb-hiding on the Neon message scroller — because unlayered declarations
+   beat layered ones no matter how specific. */
+@layer base {
+  .custom-scrollbar,
+  * {
+    scrollbar-color: color-mix(in srgb, var(--foreground) 15%, transparent)
+      transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--foreground) 15%, transparent);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--foreground) 26%, transparent);
+  }
 }
 
 .prose {
@@ -444,5 +786,25 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* Killing the animation is not enough for the gradient-clipped marks: the
+     rule above cannot unset `background-image`, and without it they stay
+     frozen at `color: transparent` — a label that never appears. */
+  .shimmer {
+    color: currentColor;
+    background-image: none;
+    animation: none;
+  }
+
+  .neon-mark-shimmer {
+    background-color: currentColor;
+    background-image: none;
+    animation: none;
+  }
+
+  .neon-status-breathe {
+    opacity: 1;
+    animation: none;
   }
 }
