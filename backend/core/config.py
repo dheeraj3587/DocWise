@@ -130,7 +130,10 @@ class Settings(BaseSettings):
     PROCESSING_STALE_AFTER_SECONDS: int = 600
 
     # Schema lifecycle
-    REQUIRED_SCHEMA_REVISION: str = "0002_agent_tools"
+    # Must match the newest revision in backend/alembic/versions. /api/ready
+    # returns 503 until the live `alembic_version` equals this, so adding a
+    # migration without bumping it here fails the deploy readiness gate.
+    REQUIRED_SCHEMA_REVISION: str = "0003_reasoning_effort"
 
     class Config:
         env_file = ".env"

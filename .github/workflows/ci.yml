@@ -174,9 +174,22 @@ jobs:
         run: npm run build
 
   docker-build:
-    name: Docker Build
+    # One runner per image instead of three builds in series. Wall-clock is now
+    # the slowest single image rather than their sum.
+    name: Docker Build (${{ matrix.name }})
     runs-on: ubuntu-latest
     needs: [backend-test, frontend-build]
+
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: backend
+            dockerfile: backend/Dockerfile
+          - name: worker
+            dockerfile: backend/Dockerfile.worker
+          - name: frontend
+            dockerfile: Dockerfile
 
     steps:
       - uses: actions/checkout@v4
@@ -192,64 +205,54 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare image names
-        id: images
+      - name: Prepare image name
+        id: image
         run: |
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "backend=${{ env.REGISTRY }}/${OWNER}/docwise-backend" >> "$GITHUB_OUTPUT"
-          echo "worker=${{ env.REGISTRY }}/${OWNER}/docwise-worker" >> "$GITHUB_OUTPUT"
-          echo "frontend=${{ env.REGISTRY }}/${OWNER}/docwise-frontend" >> "$GITHUB_OUTPUT"
+          echo "ref=${{ env.REGISTRY }}/${OWNER}/docwise-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
 
-      - name: Validate production frontend config
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      # Build args only exist for the frontend; passing them to the Python images
+      # would just make BuildKit warn about unconsumed args. Secrets are not
+      # readable from `strategy`, so this cannot live in the matrix itself.
+      - name: Resolve build args
+        id: buildargs
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          IS_PROD: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
         run: |
-          if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then
+          if [ "${{ matrix.name }}" = "frontend" ] && [ "$IS_PROD" = "true" ] && [ -z "$CLERK_KEY" ]; then
             echo "::error::Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY as a GitHub secret or variable before publishing production frontend images."
             exit 1
           fi
+          {
+            echo 'args<<BUILD_ARGS_EOF'
+            if [ "${{ matrix.name }}" = "frontend" ]; then
+              if [ "$IS_PROD" = "true" ]; then
+                echo "NEXT_PUBLIC_API_URL=https://app.dheerajjoshi.dev"
+              else
+                echo "NEXT_PUBLIC_API_URL=http://localhost:8000"
+              fi
+              echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${CLERK_KEY:-pk_test_placeholder}"
+            fi
+            echo 'BUILD_ARGS_EOF'
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Build backend image
+      - name: Build ${{ matrix.name }} image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: backend/Dockerfile
+          file: ${{ matrix.dockerfile }}
+          build-args: ${{ steps.buildargs.outputs.args }}
           tags: |
-            ${{ steps.images.outputs.backend }}:${{ github.sha }}
-            ${{ steps.images.outputs.backend }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ steps.image.outputs.ref }}:${{ github.sha }}
+            ${{ steps.image.outputs.ref }}:latest
+          # Scope per image. Sharing the default scope made three mode=max
+          # exports overwrite each other, so every run started from a cold cache.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
           push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
 
-      - name: Build worker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: backend/Dockerfile.worker
-          tags: |
-            ${{ steps.images.outputs.worker }}:${{ github.sha }}
-            ${{ steps.images.outputs.worker }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-
-      - name: Build frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          build-args: |
-            NEXT_PUBLIC_API_URL=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' && 'https://app.dheerajjoshi.dev' || 'http://localhost:8000' }}
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder' }}
-          tags: |
-            ${{ steps.images.outputs.frontend }}:${{ github.sha }}
-            ${{ steps.images.outputs.frontend }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-
-      - name: Verify images
+      - name: Verify image
         if: github.ref != 'refs/heads/main' || github.event_name != 'push'
         run: docker images | grep docwise
 
@@ -343,6 +346,11 @@ jobs:
                 break
               fi
               if [ "$attempt" -eq 12 ]; then
+                # -f hides the body, so print the payload: it names which of
+                # database/schema/objectStorage is holding the gate closed.
+                echo "==> /api/ready never returned 200. Last payload:"
+                curl -s https://app.dheerajjoshi.dev/api/ready || true
+                echo
                 docker compose logs --tail=80 backend nginx
                 exit 1
               fi
